@@ -1,0 +1,30 @@
+:root {
+
+
+
+
+/* --md-content-text-color: #d4dae3; */
+
+--bg-color-active: #D3D3D3;
+
+/* --md-content-font-weight: 600; */
+
+
+--md-numbered-list-item-style: none;
+
+--md-numbered-list-number-display: inline-flex;
+
+--md-numbered-list-number-bg-color: var(--bg-color-active);
+
+--md-numbered-list-number-text-color: var(--md-content-text-color);
+
+--md-numbered-list-number-border-radius: 50px;
+
+--md-numbered-list-number-padding: 2px 10px;
+
+--md-numbered-list-number-margin-right: 8px;
+
+--md-numbered-list-number-font-weight: var(--md-content-font-weight);
+
+
+}

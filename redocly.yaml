@@ -1,0 +1,21 @@
+logo:
+  altText: Chaching logo
+  link: https://chaching.io/
+  srcSet: "./images/logo-light.svg light, ./images/logo-dark.svg dark"
+
+
+navbar:
+  items:
+    - page: index.md
+      label: Home
+    - page: ./onboarding.md
+      label: Getting Started
+    - page: ./Developer Guide/api.json
+      label: API Reference
+    - page: ./support&Communication.md
+      label: Support
+      
+
+
+
+

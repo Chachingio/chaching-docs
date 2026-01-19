@@ -1,0 +1,62 @@
+
+- page: index.md
+  label: Introduction
+- group: Getting Started
+  items:
+    - page: ./onboarding.md
+    - page: ./dashboardOverview.md
+    - page: ./entities.md
+    - page: ./createAccount.md
+
+- group: Using Chaching
+  items:
+    - group: Customers
+      page: Using Chaching/Customers/customers.md
+      items:
+        - page: Using Chaching/Customers/add-new-customer.md
+        - page: Using Chaching/Customers/update-customer.md
+        - page: Using Chaching/Customers/view-customer-details.md
+        - page: Using Chaching/Customers/add-payment-method.md
+        - page: Using Chaching/Customers/export-customers.md
+    - group: Subscriptions
+      page: Using Chaching/Subscriptions/Subscriptions.md
+      items:
+        - page: Using Chaching/Subscriptions/View subscription details.md
+    - group: Invoices
+      page: Using Chaching/Invoices/Invoices.md
+      items:
+        - page: ./Using Chaching/Invoices/View invoices details.md
+    - group: Transactions
+      page: Using Chaching/Transactions/Transactions.md
+      items:
+        - page: Using Chaching/Transactions/Transactions.md
+    - group: Products
+      page: Using Chaching/Products/Products.md
+      items:
+        - page: Using Chaching/Products/Products.md
+    - page: Using Chaching/Create a Payment/CreatePayment.md
+    - page: Using Chaching/Create an Invoice/CreateInvoice.md
+    - page: Using Chaching/Create a Subscription/CreateSubscription.md
+
+
+
+- group: Developer Guide
+  items:
+    - page: ./Developer Guide/api.json
+
+- group: Settings
+  items:
+    - page: ./settings/PersonalDetails.md
+    - page: ./settings/CompanyandBranding.md
+    - page: ./settings/InvoicesSubscriptions.md
+    - page: ./settings/PlansandBilling.md
+    - page: ./settings/MerchantAccount.md
+    - page: ./settings/DeveloperSettings.md
+
+- group: Users
+  page: ./Users/Users.md
+  items:
+    - page: ./Users/RolePermissionsMatrix.md
+
+- page: ./migrateSubscriptions.md
+- page: ./support&Communication.md
