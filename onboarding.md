@@ -28,7 +28,7 @@ Before onboarding into Chaching, the user must create the following:
 | **Email account** | Required to verify your email and receive the verification link for Step 1. |
 | **Stripe account** | Required if you plan to migrate existing subscriptions from Stripe. |
 ---
-# A ccount Creation
+# Account Creation
 
 ## The Sign-Up Flow
 
