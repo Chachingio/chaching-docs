@@ -117,5 +117,4 @@ For full API details related to:
 - Creating invoices
 
 Refer to:
-
-👉 **Developer Guide → API**
+- [**Developer Guide → API**](../../Developer%20Guide/api.json)
