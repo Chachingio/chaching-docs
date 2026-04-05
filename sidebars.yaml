@@ -44,6 +44,7 @@
 - group: Developer Guide
   items:
     - page: ./Developer Guide/api.json
+    - page: ./Developer Guide/webhook.md
 
 - group: Settings
   items:
