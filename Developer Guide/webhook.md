@@ -8,7 +8,21 @@ Webhooks are designed for clients using the **public API**, which allows them to
 
 # How Webhooks Work
 
-{% img src="../images/webhook_general.png" alt="webhook_general.png" withLightbox=true width="" height="" /%}
+```mermaid
+graph TD;
+  A["Event occurs in ChaChing (e.g. invoice.paid)"] --> B["Generate event notification"];
+  B --> C["Find active webhook destinations"];
+  C --> D["Send HTTP POST request to webhook endpoint"];
+  D --> E["Client processes request"];
+  E --> F{"Response is HTTP 2xx?"};
+
+  F -- Yes --> G["Mark delivery as successful"];
+  F -- No --> H["Retry delivery (according to retry policy)"];
+  H --> I{"Max retries reached?"};
+
+  I -- No --> D;
+  I -- Yes --> J["Stop retries - Mark as failed"];
+```
 
 1. An event occurs in ChaChing (e.g., customer details updated). For details related to the event types, refer to the section [Event Types](https://www.notion.so/Webhook-API-326dc7fc0a9280d087a1fe916d21c46c?pvs=21).
 2. ChaChing generates an event notification.
@@ -81,7 +95,25 @@ To manage endpoints go to:
 
 {% img src="../images/webhookConfiguration.jpg" alt="webhookConfiguration.jpg" withLightbox=true width="" height="" /%}
 ---
+    A[Event occurs in ChaChing<br/>(e.g. invoice.paid)]
+    B[Generate event notification]
+    C[Find active webhook destinations]
+    D[Send HTTP POST request<br/>to webhook endpoint]
+    E[Client processes request]
+    F{Response is HTTP 2xx?}
+    G[Mark delivery as successful]
+    H[Retry delivery<br/>(according to retry policy)]
+    I{Max retries reached?}
+    J[Stop retries<br/>Mark as failed]
 
+    A --> B --> C --> D --> E --> F
+
+    F -- Yes --> G
+    F -- No --> H --> I
+
+    I -- No --> D
+    I -- Yes --> J
+    
 # Creating a Webhook
 
 To create a webhook:

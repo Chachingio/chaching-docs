@@ -12,6 +12,8 @@ navbar:
       label: Getting Started
     - page: ./Developer Guide/api.json
       label: API Reference
+    - page: ./Developer Guide/webhook.md
+      label: Webhook
     - page: ./support&Communication.md
       label: Support
       
