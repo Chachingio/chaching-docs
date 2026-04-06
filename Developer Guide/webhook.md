@@ -95,24 +95,6 @@ To manage endpoints go to:
 
 {% img src="../images/webhookConfiguration.jpg" alt="webhookConfiguration.jpg" withLightbox=true width="" height="" /%}
 ---
-    A[Event occurs in ChaChing<br/>(e.g. invoice.paid)]
-    B[Generate event notification]
-    C[Find active webhook destinations]
-    D[Send HTTP POST request<br/>to webhook endpoint]
-    E[Client processes request]
-    F{Response is HTTP 2xx?}
-    G[Mark delivery as successful]
-    H[Retry delivery<br/>(according to retry policy)]
-    I{Max retries reached?}
-    J[Stop retries<br/>Mark as failed]
-
-    A --> B --> C --> D --> E --> F
-
-    F -- Yes --> G
-    F -- No --> H --> I
-
-    I -- No --> D
-    I -- Yes --> J
     
 # Creating a Webhook
 
@@ -141,7 +123,7 @@ ChaChing generates webhook events for key system entities. Each event represents
 
 ---
 
-### Customer Events
+## Customer Events
 
 - `customer.created` — A new customer is created
 - `customer.updated` — An existing customer is updated
@@ -149,7 +131,7 @@ ChaChing generates webhook events for key system entities. Each event represents
 
 ---
 
-### Payment Method Events
+## Payment Method Events
 
 - `payment_method.created` — A payment method is created
 - `payment_method.attached` — A payment method is attached to a customer
@@ -157,7 +139,7 @@ ChaChing generates webhook events for key system entities. Each event represents
 
 ---
 
-### Invoice Events
+## Invoice Events
 
 - `invoice.created` — A new invoice is created
 - `invoice.updated` — An invoice is updated
@@ -169,7 +151,7 @@ ChaChing generates webhook events for key system entities. Each event represents
 
 ---
 
-### Subscription Events
+## Subscription Events
 
 - `subscription.created` — A subscription is created
 - `subscription.updated` — A subscription is updated
@@ -179,7 +161,7 @@ ChaChing generates webhook events for key system entities. Each event represents
 
 ---
 
-### Product Events
+## Product Events
 
 - `product.created` — A product is created
 - `product.updated` — A product is updated
@@ -187,7 +169,7 @@ ChaChing generates webhook events for key system entities. Each event represents
 
 ---
 
-### Price Events
+## Price Events
 
 - `price.created` — A price is created
 - `price.updated` — A price is updated
@@ -195,14 +177,14 @@ ChaChing generates webhook events for key system entities. Each event represents
 
 ---
 
-### Tax Events
+## Tax Events
 
 - `tax.created` — A tax configuration is created
 - `tax.updated` — A tax configuration is updated
 
 ---
 
-### Summary
+## Summary
 
 ChaChing currently supports **27 webhook event types** across such entities as:
 
