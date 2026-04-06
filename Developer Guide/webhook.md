@@ -64,7 +64,7 @@ Retries are triggered when:
 
 # Key Concepts
 
-### Webhooks are account-level
+## Webhooks are account-level
 
 - Webhooks are configured **per account**
 - Each account has its own webhook endpoints
@@ -72,7 +72,7 @@ Retries are triggered when:
 
 ---
 
-### Multiple webhook endpoints
+## Multiple webhook endpoints
 
 - You can create **multiple webhook endpoints**
 - Events are sent to **all active endpoints within the account**
