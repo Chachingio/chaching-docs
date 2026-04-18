@@ -54,8 +54,8 @@ Retries are triggered when:
 
 **Retry Policy:**
 
-- Attempts: **5 times** *(to be confirmed)*
-- Delay: **5 seconds** *(to be confirmed)*
+- Attempts: **5**
+- Retry window: **approximately 15 minutes** (retries are spread across the retry window with increasing delays)
 
 > ⚠️ Webhooks may be delivered multiple times. Ensure your system handles duplicates (use event `id`).
 > 
