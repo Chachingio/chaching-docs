@@ -213,7 +213,6 @@ ChaChing generates webhook events for key system entities. Each event represents
 
 ## Payment Method Events
 
-- `payment_method.created` — A payment method is created
 - `payment_method.attached` — A payment method is attached to a customer
 - `payment_method.detached` — A payment method is detached from a customer
 
@@ -222,7 +221,6 @@ ChaChing generates webhook events for key system entities. Each event represents
 ## Invoice Events
 
 - `invoice.created` — A new invoice is created
-- `invoice.updated` — An invoice is updated
 - `invoice.deleted` — An invoice is deleted
 - `invoice.finalized` — An invoice is finalized and ready for payment
 - `invoice.sent` — An invoice is sent to the customer
@@ -266,7 +264,7 @@ ChaChing generates webhook events for key system entities. Each event represents
 
 ## Summary
 
-ChaChing currently supports **27 webhook event types** across such entities as:
+ChaChing currently supports **24 webhook event types** across such entities as:
 
 - Customers
 - Payment Methods
@@ -430,7 +428,6 @@ Events:
 
 Events:
 
-- `payment_method.created`
 - `payment_method.attached`
 - `payment_method.detached`
 
@@ -481,7 +478,7 @@ Events:
 ```json
 {
   "id": "evt_123",
-  "event": "payment_method.created",
+  "event": "payment_method.attached",
   "createdAt": "2026-03-13T11:15:00Z",
   "data": {
     "id": "pm_1Q0PsIJvEtkwdCNYMSaVuRz6",
@@ -538,7 +535,6 @@ Events:
 Events:
 
 - `invoice.created`
-- `invoice.updated`
 - `invoice.deleted`
 - `invoice.finalized`
 - `invoice.sent`
