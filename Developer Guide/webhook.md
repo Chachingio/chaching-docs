@@ -92,14 +92,11 @@ Webhooks can be managed via the **UI** (Settings → Developer → Webhooks) or 
     - Create webhook endpoints
     - View all endpoints
     - Enable / disable endpoints
-    - Edit/Delete endpoints 
+    - Edit/Delete endpoints
 
 {% img src="../images/webhookConfiguration.jpg" alt="webhookConfiguration.jpg" withLightbox=true width="" height="" /%}
----
-    
-# Creating a Webhook
 
-To create a webhook:
+### Creating a Webhook
 
 1. Open **Developer Settings → Webhooks.**
 2. Click **Create webhook.**
@@ -115,11 +112,11 @@ After creation:
 
 ---
 
-# Webhook REST API
+## Via the REST API
 
-Webhooks can be fully managed via the REST API. All endpoints require authentication.
+All endpoints require authentication.
 
-## Endpoints
+### Endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -131,7 +128,7 @@ Webhooks can be fully managed via the REST API. All endpoints require authentica
 | `PATCH` | `/webhook/destination/:id/disable` | Disable a webhook endpoint |
 | `GET` | `/webhook/logs` | Retrieve webhook delivery logs |
 
-## Create Endpoint
+### Create Endpoint
 
 ```
 POST /webhook/destination
@@ -147,7 +144,7 @@ POST /webhook/destination
 
 **Response:** the created webhook destination object, including its `id` and active status.
 
-## List Endpoints
+### List Endpoints
 
 ```
 GET /webhook/destination
@@ -155,7 +152,7 @@ GET /webhook/destination
 
 **Response:** array of all webhook destination objects for the account.
 
-## Update Endpoint
+### Update Endpoint
 
 ```
 PUT /webhook/destination/:id
@@ -169,7 +166,7 @@ PUT /webhook/destination/:id
 }
 ```
 
-## Enable / Disable Endpoint
+### Enable / Disable Endpoint
 
 ```
 PATCH /webhook/destination/:id/enable
@@ -178,13 +175,13 @@ PATCH /webhook/destination/:id/disable
 
 No request body required.
 
-## Delete Endpoint
+### Delete Endpoint
 
 ```
 DELETE /webhook/destination/:id
 ```
 
-## Retrieve Delivery Logs
+### Retrieve Delivery Logs
 
 ```
 GET /webhook/logs
