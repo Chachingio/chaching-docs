@@ -79,19 +79,20 @@ Retries are triggered when:
 
 ---
 
-# Webhook Configuration (UI)
+# Webhook Configuration
 
-To manage endpoints go to:
+Webhooks can be managed via the **UI** (Settings → Developer → Webhooks) or programmatically via the **REST API**. Both approaches support the full lifecycle: create, list, update, enable/disable, and delete endpoints.
+
+> Only users with appropriate permissions (e.g. Developer/Admin) can manage webhooks. For user roles details, refer to the section Manage → Users in the left panel of the ChaChing application.
+
+## Via the UI
 
 1. In ChaChing, go to Settings → Developer settings.
-2. In the Developer Settings, select Webhooks tab to:
+2. In the Developer Settings, select the Webhooks tab to:
     - Create webhook endpoints
     - View all endpoints
     - Enable / disable endpoints
-    - Edit/Delete endpoints
-
-> Only users with appropriate permissions (e.g. Developer/Admin) can manage webhooks. For the user roles details, refer to the section Manage → Users in the left panel of Chaching application.
-> 
+    - Edit/Delete endpoints 
 
 {% img src="../images/webhookConfiguration.jpg" alt="webhookConfiguration.jpg" withLightbox=true width="" height="" /%}
 ---
@@ -111,6 +112,85 @@ After creation:
 
 - Webhook becomes **active**
 - Events start being delivered immediately
+
+---
+
+# Webhook REST API
+
+Webhooks can be fully managed via the REST API. All endpoints require authentication.
+
+## Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/webhook/destination` | Create a new webhook endpoint |
+| `GET` | `/webhook/destination` | List all webhook endpoints |
+| `PUT` | `/webhook/destination/:id` | Update a webhook endpoint |
+| `DELETE` | `/webhook/destination/:id` | Delete a webhook endpoint |
+| `PATCH` | `/webhook/destination/:id/enable` | Enable a webhook endpoint |
+| `PATCH` | `/webhook/destination/:id/disable` | Disable a webhook endpoint |
+| `GET` | `/webhook/logs` | Retrieve webhook delivery logs |
+
+## Create Endpoint
+
+```
+POST /webhook/destination
+```
+
+**Request body:**
+
+```json
+{
+  "url": "https://your-server.com/webhook"
+}
+```
+
+**Response:** the created webhook destination object, including its `id` and active status.
+
+## List Endpoints
+
+```
+GET /webhook/destination
+```
+
+**Response:** array of all webhook destination objects for the account.
+
+## Update Endpoint
+
+```
+PUT /webhook/destination/:id
+```
+
+**Request body:**
+
+```json
+{
+  "url": "https://your-server.com/new-webhook"
+}
+```
+
+## Enable / Disable Endpoint
+
+```
+PATCH /webhook/destination/:id/enable
+PATCH /webhook/destination/:id/disable
+```
+
+No request body required.
+
+## Delete Endpoint
+
+```
+DELETE /webhook/destination/:id
+```
+
+## Retrieve Delivery Logs
+
+```
+GET /webhook/logs
+```
+
+**Response:** list of webhook delivery log entries. Each entry includes the event type, payload, delivery attempts, and status (`success` / `failed`).
 
 ---
 
