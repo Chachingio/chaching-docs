@@ -919,6 +919,97 @@ Always rely on `event`
 
 ---
 
+# Webhook Signatures
+
+ChaChing signs every webhook delivery with an HMAC-SHA256 signature. Verify this signature to confirm the request originated from ChaChing and that the payload has not been tampered with.
+
+## Signature Header
+
+Each request includes a `Chaching-Signature` header in the following format:
+
+```
+Chaching-Signature: t=<unix_timestamp>,v1=<hex_hmac_sha256>
+```
+
+- `t` — Unix timestamp of when the request was sent
+- `v1` — HMAC-SHA256 hex digest of the signed payload
+
+## Signing Algorithm
+
+The signature is computed as:
+
+```
+HMAC-SHA256(secretKey, "{timestamp}.{raw_json_body}")
+```
+
+Where:
+- `secretKey` is your account's secret key, retrieved via `GET /account/keys`
+- `timestamp` is the `t` value from the `Chaching-Signature` header
+- `raw_json_body` is the **raw, unparsed** request body
+
+> ⚠️ Always compute the signature against the **raw request body**, before any JSON parsing. Re-serializing a parsed object may alter whitespace or key ordering and cause signature verification to fail.
+
+## Obtaining Your Secret Key
+
+```
+GET /account/keys
+```
+
+## Verification Examples
+
+### Node.js
+
+```javascript
+const crypto = require('crypto');
+
+function verifyWebhookSignature(rawBody, signatureHeader, secretKey) {
+  const parts = {};
+  signatureHeader.split(',').forEach(part => {
+    const idx = part.indexOf('=');
+    parts[part.slice(0, idx)] = part.slice(idx + 1);
+  });
+
+  const timestamp = parts['t'];
+  const expectedSig = parts['v1'];
+
+  const payload = `${timestamp}.${rawBody}`;
+  const computedSig = crypto
+    .createHmac('sha256', secretKey)
+    .update(payload)
+    .digest('hex');
+
+  return crypto.timingSafeEqual(
+    Buffer.from(computedSig),
+    Buffer.from(expectedSig)
+  );
+}
+```
+
+### Python
+
+```python
+import hmac
+import hashlib
+
+def verify_webhook_signature(raw_body: str, signature_header: str, secret_key: str) -> bool:
+    parts = dict(part.split('=', 1) for part in signature_header.split(','))
+    timestamp = parts['t']
+    expected_sig = parts['v1']
+
+    payload = f"{timestamp}.{raw_body}"
+    computed_sig = hmac.new(
+        secret_key.encode('utf-8'),
+        payload.encode('utf-8'),
+        hashlib.sha256
+    ).hexdigest()
+
+    return hmac.compare_digest(computed_sig, expected_sig)
+```
+
+> ℹ️ Use `crypto.timingSafeEqual` (Node.js) or `hmac.compare_digest` (Python) to prevent timing-based attacks when comparing signatures.
+
+---
+
 # Webhook Logs
 
 ChaChing stores webhook delivery history.
