@@ -83,7 +83,7 @@ Retries are triggered when:
 
 Webhooks can be managed via the **UI** (Settings → Developer → Webhooks) or programmatically via the **REST API**. Both approaches support the full lifecycle: create, list, update, enable/disable, and delete endpoints.
 
-> Only users with appropriate permissions (e.g. Developer/Admin) can manage webhooks. For user roles details, refer to the section Manage → Users in the left panel of the ChaChing application.
+> Only users with the **Developer** or **SuperAdmin** role can manage webhooks. For user roles details, refer to the section Manage → Users in the left panel of the ChaChing application.
 
 ## Via the UI
 
