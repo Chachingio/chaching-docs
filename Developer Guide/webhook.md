@@ -978,9 +978,9 @@ Always rely on `event`
 
 ```json
 {
-  "external_id": "evt_789",
-  "type": "customer.updated",
-  "created_at": "2026-03-13T11:15:00Z",
+  "id": "evt_789",
+  "event": "customer.updated",
+  "createdAt": "2026-03-13T11:15:00Z",
   "data": {
     "id": "cus_123",
     "email": "user@example.com",
@@ -1140,7 +1140,7 @@ You will receive **all events**
 
 **Retries may cause duplicates**
 
-➡ Use `external_id` to deduplicate events
+➡ Use `id` to deduplicate events
 
 ---
 
