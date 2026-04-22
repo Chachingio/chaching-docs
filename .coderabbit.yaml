@@ -1,0 +1,68 @@
+# .coderabbit.yaml — Chachingio org-wide CodeRabbit config.
+# Source of truth: github.com/Chachingio/chaching-devkit/projects/dot-github/templates/.coderabbit.yaml.base
+# Per-repo adaptation: base_branches tuned to this repo's default branch(es).
+
+language: en
+tone_instructions: |
+  Concise, professional. Cite exact file paths and line numbers.
+  Do not re-litigate HLTC decisions — those were approved by a human before implementation.
+  Focus on: correctness, security, performance, readability, test coverage.
+early_access: false
+reviews:
+  profile: chill
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  review_status: true
+  collapse_walkthrough: false
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - main
+
+  path_filters:
+    - "!**/__generated__/**"
+    - "!**/dist/**"
+    - "!**/build/**"
+    - "!**/target/**"
+    - "!**/node_modules/**"
+    - "!**/coverage/**"
+
+  path_instructions:
+    - path: "src/**/*.ts"
+      instructions: |
+        TypeScript strict. Enforce:
+        - No `any` unless explicitly justified in a comment.
+        - All exported functions have JSDoc for public APIs.
+        - No direct DB access outside repository classes.
+        - Code internals in English. Spanish only in UI strings (React JSX text).
+    - path: "src/**/*.tsx"
+      instructions: |
+        React 19 + TypeScript strict. Enforce:
+        - No direct fetch calls — use RTK Query hooks.
+        - UI text strings are in Spanish; variable/function names in English.
+        - No unused state.
+    - path: "**/*.java"
+      instructions: |
+        Java + Maven. Enforce:
+        - Follow Kill Bill plugin conventions.
+        - No secret literals — use plugin config resolvers.
+    - path: "**/*.test.ts"
+      instructions: |
+        Testing. Enforce:
+        - Each test case asserts one behavior. Use descriptive `it(...)` names.
+        - Integration tests hit a real DB (not mocks) where possible.
+
+  tools:
+    ast-grep:
+      essential_rules: true
+    shellcheck:
+      enabled: true
+    yamllint:
+      enabled: true
+    markdownlint:
+      enabled: true
+
+chat:
+  auto_reply: true
