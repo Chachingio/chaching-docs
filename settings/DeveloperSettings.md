@@ -27,7 +27,11 @@ This section provides access to standard API keys used to authenticate requests 
 ---
 ## Webhooks
 
-### Important Notes
+Webhooks allow your system to receive real-time notifications when events occur in ChaChing, such as payments, invoice updates, and subscription changes.
 
-- Future releases are expected to include webhook endpoint configuration, event selection, and delivery logs.
-- Once enabled, webhooks will allow real-time notifications for events such as payments, invoices, and subscription updates.
+From the Developer Settings page you can:
+
+- Configure webhook destination endpoints
+- View delivery logs with event details and statuses (`success` / `failed` / `retry`)
+
+For full webhook setup and API reference, see the [Webhook documentation](../Developer%20Guide/webhook.md).
