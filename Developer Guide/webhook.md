@@ -187,7 +187,7 @@ DELETE /webhook/destination/:id
 GET /webhook/logs
 ```
 
-**Response:** list of webhook delivery log entries. Each entry includes the event type, payload, delivery attempts, and status (`success` / `failed`).
+**Response:** list of webhook delivery log entries. Each entry includes the event type, payload, and status (`success` / `failed` / `retry`).
 
 ---
 
@@ -1091,13 +1091,10 @@ Logs include:
 
 - Event type
 - Payload
-- Delivery attempts
-- Status (success / failed)
+- Status (success / failed / retry)
 
 > Logs reflect actual data sent from the database
 > 
-
-*(Add screenshot later if UI exists)*
 
 ---
 
