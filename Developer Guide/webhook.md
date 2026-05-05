@@ -54,8 +54,8 @@ Retries are triggered when:
 
 **Retry Policy:**
 
-- Attempts: **5 times** *(to be confirmed)*
-- Delay: **5 seconds** *(to be confirmed)*
+- Attempts: **5 times**
+- Retry window: **approximately 15 minutes** (retries are spread across the retry window with increasing delays)
 
 > ⚠️ Webhooks may be delivered multiple times. Ensure your system handles duplicates (use event `id`).
 > 
@@ -79,26 +79,24 @@ Retries are triggered when:
 
 ---
 
-# Webhook Configuration (UI)
+# Webhook Configuration
 
-To manage endpoints go to:
+Webhooks can be managed via the **UI** (Settings → Developer → Webhooks) or programmatically via the **REST API**. Both approaches support the full lifecycle: create, list, update, enable/disable, and delete endpoints.
+
+> Only users with the **Developer** or **SuperAdmin** role can manage webhooks. For user roles details, refer to the section Manage → Users in the left panel of the ChaChing application.
+
+## Via the UI
 
 1. In ChaChing, go to Settings → Developer settings.
-2. In the Developer Settings, select Webhooks tab to:
+2. In the Developer Settings, select the Webhooks tab to:
     - Create webhook endpoints
     - View all endpoints
     - Enable / disable endpoints
     - Edit/Delete endpoints
 
-> Only users with appropriate permissions (e.g. Developer/Admin) can manage webhooks. For the user roles details, refer to the section Manage → Users in the left panel of Chaching application.
-> 
-
 {% img src="../images/webhookConfiguration.jpg" alt="webhookConfiguration.jpg" withLightbox=true width="" height="" /%}
----
-    
-# Creating a Webhook
 
-To create a webhook:
+### Creating a Webhook
 
 1. Open **Developer Settings → Webhooks.**
 2. Click **Create webhook.**
@@ -111,6 +109,85 @@ After creation:
 
 - Webhook becomes **active**
 - Events start being delivered immediately
+
+---
+
+## Via the REST API
+
+All endpoints require authentication.
+
+### Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/webhook/destination` | Create a new webhook endpoint |
+| `GET` | `/webhook/destination` | List all webhook endpoints |
+| `PUT` | `/webhook/destination/:id` | Update a webhook endpoint |
+| `DELETE` | `/webhook/destination/:id` | Delete a webhook endpoint |
+| `PATCH` | `/webhook/destination/:id/enable` | Enable a webhook endpoint |
+| `PATCH` | `/webhook/destination/:id/disable` | Disable a webhook endpoint |
+| `GET` | `/webhook/logs` | Retrieve webhook delivery logs |
+
+### Create Endpoint
+
+```
+POST /webhook/destination
+```
+
+**Request body:**
+
+```json
+{
+  "url": "https://your-server.com/webhook"
+}
+```
+
+**Response:** the created webhook destination object, including its `id` and active status.
+
+### List Endpoints
+
+```
+GET /webhook/destination
+```
+
+**Response:** array of all webhook destination objects for the account.
+
+### Update Endpoint
+
+```
+PUT /webhook/destination/:id
+```
+
+**Request body:**
+
+```json
+{
+  "url": "https://your-server.com/new-webhook"
+}
+```
+
+### Enable / Disable Endpoint
+
+```
+PATCH /webhook/destination/:id/enable
+PATCH /webhook/destination/:id/disable
+```
+
+No request body required.
+
+### Delete Endpoint
+
+```
+DELETE /webhook/destination/:id
+```
+
+### Retrieve Delivery Logs
+
+```
+GET /webhook/logs
+```
+
+**Response:** list of webhook delivery log entries. Each entry includes the event type, payload, and status (`success` / `failed` / `retry`).
 
 ---
 
@@ -133,7 +210,6 @@ ChaChing generates webhook events for key system entities. Each event represents
 
 ## Payment Method Events
 
-- `payment_method.created` — A payment method is created
 - `payment_method.attached` — A payment method is attached to a customer
 - `payment_method.detached` — A payment method is detached from a customer
 
@@ -142,7 +218,6 @@ ChaChing generates webhook events for key system entities. Each event represents
 ## Invoice Events
 
 - `invoice.created` — A new invoice is created
-- `invoice.updated` — An invoice is updated
 - `invoice.deleted` — An invoice is deleted
 - `invoice.finalized` — An invoice is finalized and ready for payment
 - `invoice.sent` — An invoice is sent to the customer
@@ -186,7 +261,7 @@ ChaChing generates webhook events for key system entities. Each event represents
 
 ## Summary
 
-ChaChing currently supports **27 webhook event types** across such entities as:
+ChaChing currently supports **24 webhook event types** across such entities as:
 
 - Customers
 - Payment Methods
@@ -350,7 +425,6 @@ Events:
 
 Events:
 
-- `payment_method.created`
 - `payment_method.attached`
 - `payment_method.detached`
 
@@ -401,7 +475,7 @@ Events:
 ```json
 {
   "id": "evt_123",
-  "event": "payment_method.created",
+  "event": "payment_method.attached",
   "createdAt": "2026-03-13T11:15:00Z",
   "data": {
     "id": "pm_1Q0PsIJvEtkwdCNYMSaVuRz6",
@@ -458,7 +532,6 @@ Events:
 Events:
 
 - `invoice.created`
-- `invoice.updated`
 - `invoice.deleted`
 - `invoice.finalized`
 - `invoice.sent`
@@ -898,9 +971,9 @@ Always rely on `event`
 
 ```json
 {
-  "external_id": "evt_789",
-  "type": "customer.updated",
-  "created_at": "2026-03-13T11:15:00Z",
+  "id": "evt_789",
+  "event": "customer.updated",
+  "createdAt": "2026-03-13T11:15:00Z",
   "data": {
     "id": "cus_123",
     "email": "user@example.com",
@@ -919,6 +992,97 @@ Always rely on `event`
 
 ---
 
+# Webhook Signatures
+
+ChaChing signs every webhook delivery with an HMAC-SHA256 signature. Verify this signature to confirm the request originated from ChaChing and that the payload has not been tampered with.
+
+## Signature Header
+
+Each request includes a `Chaching-Signature` header in the following format:
+
+```
+Chaching-Signature: t=<unix_timestamp>,v1=<hex_hmac_sha256>
+```
+
+- `t` — Unix timestamp of when the request was sent
+- `v1` — HMAC-SHA256 hex digest of the signed payload
+
+## Signing Algorithm
+
+The signature is computed as:
+
+```
+HMAC-SHA256(secretKey, "{timestamp}.{raw_json_body}")
+```
+
+Where:
+- `secretKey` is your account's secret key, retrieved via `GET /account/keys`
+- `timestamp` is the `t` value from the `Chaching-Signature` header
+- `raw_json_body` is the **raw, unparsed** request body
+
+> ⚠️ Always compute the signature against the **raw request body**, before any JSON parsing. Re-serializing a parsed object may alter whitespace or key ordering and cause signature verification to fail.
+
+## Obtaining Your Secret Key
+
+```
+GET /account/keys
+```
+
+## Verification Examples
+
+### Node.js
+
+```javascript
+const crypto = require('crypto');
+
+function verifyWebhookSignature(rawBody, signatureHeader, secretKey) {
+  const parts = {};
+  signatureHeader.split(',').forEach(part => {
+    const idx = part.indexOf('=');
+    parts[part.slice(0, idx)] = part.slice(idx + 1);
+  });
+
+  const timestamp = parts['t'];
+  const expectedSig = parts['v1'];
+
+  const payload = `${timestamp}.${rawBody}`;
+  const computedSig = crypto
+    .createHmac('sha256', secretKey)
+    .update(payload)
+    .digest('hex');
+
+  return crypto.timingSafeEqual(
+    Buffer.from(computedSig),
+    Buffer.from(expectedSig)
+  );
+}
+```
+
+### Python
+
+```python
+import hmac
+import hashlib
+
+def verify_webhook_signature(raw_body: str, signature_header: str, secret_key: str) -> bool:
+    parts = dict(part.split('=', 1) for part in signature_header.split(','))
+    timestamp = parts['t']
+    expected_sig = parts['v1']
+
+    payload = f"{timestamp}.{raw_body}"
+    computed_sig = hmac.new(
+        secret_key.encode('utf-8'),
+        payload.encode('utf-8'),
+        hashlib.sha256
+    ).hexdigest()
+
+    return hmac.compare_digest(computed_sig, expected_sig)
+```
+
+> ℹ️ Use `crypto.timingSafeEqual` (Node.js) or `hmac.compare_digest` (Python) to prevent timing-based attacks when comparing signatures.
+
+---
+
 # Webhook Logs
 
 ChaChing stores webhook delivery history.
@@ -927,13 +1091,10 @@ Logs include:
 
 - Event type
 - Payload
-- Delivery attempts
-- Status (success / failed)
+- Status (success / failed / retry)
 
 > Logs reflect actual data sent from the database
 > 
-
-*(Add screenshot later if UI exists)*
 
 ---
 
@@ -969,7 +1130,7 @@ You will receive **all events**
 
 **Retries may cause duplicates**
 
-➡ Use `external_id` to deduplicate events
+➡ Use `id` to deduplicate events
 
 ---
 

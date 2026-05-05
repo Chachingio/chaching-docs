@@ -91,6 +91,26 @@ No additional API call is required for basic hosted page usage.
 
 ---
 
+## What Customers See on the Hosted Page
+
+The hosted checkout page displays the **workspace name** of the workspace selected in your account. The company name is not shown on hosted pages.
+
+---
+
+## Applying Tax Rates
+
+ChaChing supports applying a tax rate during checkout. Tax rates are not calculated automatically — you determine the appropriate rate externally and pass it when creating the checkout.
+
+To apply a tax rate, include an optional `tax_rate_id` parameter alongside the `price_id` when creating the checkout:
+
+- If `tax_rate_id` is provided, the tax rate is applied to the resulting subscription and invoice.
+- If `tax_rate_id` is not provided, checkout proceeds without tax.
+- Only one tax rate can be applied per checkout.
+
+You can retrieve available tax rates for your account via the API.
+
+---
+
 ## Important Notes
 
 ID Must Be Replaced
