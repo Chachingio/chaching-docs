@@ -829,8 +829,8 @@ Events:
   "product": "prod_XXXXXXXX | null",
   "recurring": {
     "interval": "day | week | month | year",
-    "interval_count": 0
-  },
+    "interval_count": 1
+  } | null,
   "tax_behavior": "inclusive | exclusive",
   "type": "one_time | recurring",
   "unit_amount": 0,
@@ -854,10 +854,7 @@ Events:
     "currency": "USD",
     "description": "Premium Plan - Monthly",
     "product": null,
-    "recurring": {
-      "interval": "month",
-      "interval_count": 1
-    },
+    "recurring": null,
     "tax_behavior": "exclusive",
     "type": "one_time",
     "unit_amount": 1000,
@@ -872,7 +869,7 @@ Events:
 ### Notes
 
 - The `type` field defines whether the price is **one-time** or **recurring**
-- The `recurring` object is relevant for subscription-based pricing
+- The `recurring` object is `null` when `type` is `one_time`, and a `{ interval, interval_count }` object when `type` is `recurring`.
 - `unit_amount` is represented in the smallest currency unit (e.g., cents)
 - `product` may be `null` if not linked
 - `unit_amount_decimal` provides a precise representation of the amount
