@@ -273,6 +273,58 @@ ChaChing currently supports **24 webhook event types** across such entities as:
 
 ---
 
+# Automatic Charges, Retries and Dunning
+
+ChaChing generates webhook events for charges its billing engine initiates on its own — subscription renewals and their scheduled retries — in addition to charges started from the Dashboard, the hosted checkout page, and the REST API.
+
+## Automatic Renewal Events
+
+An automatic subscription renewal produces the following sequence of events:
+
+1. `invoice.created` — the renewal invoice is created
+2. `invoice.finalized` — the invoice is committed and ready for payment
+3. `invoice.payment_succeeded` — the charge succeeds, **or** `invoice.payment_failed` — the charge is declined
+
+---
+
+## Retry Events
+
+Every scheduled retry of a failed automatic charge produces its own `invoice.payment_failed` event. Two fields on the invoice payload describe the retry state:
+
+- `attempt_count` — the number of payment attempts made on the invoice's payment
+- `next_payment_attempt` — the Unix timestamp (seconds) of the next scheduled retry, or `null` when no further retry is scheduled
+
+---
+
+## Dunning Outcomes
+
+When the retry schedule is exhausted, the outcome depends on the account's revenue-recovery setting:
+
+- **Cancel** — the customer's subscriptions are canceled, producing `subscription.canceled`
+- **Pause** — the customer's subscriptions are placed on hold pending payment, producing `subscription.paused`, followed by `subscription.resumed` once the balance is cleared
+- **Mark past due** — the account is marked past due; no subscription event is produced
+
+---
+
+## Subscription Event Discriminators
+
+`subscription.canceled`, `subscription.paused` and `subscription.resumed` carry two additional fields that distinguish who caused the transition:
+
+- `reason` — `"dunning"` when the transition is driven by the billing engine, or `"requested"` when it is driven by an API call or a Dashboard action
+- `initiated_by` — `"system"` for a dunning-driven transition, or `"merchant"` for an API- or Dashboard-driven one
+
+Both fields are absent on `subscription.created` and `subscription.updated`.
+
+Dunning is evaluated per customer account: one `subscription.paused` event is delivered for each subscription the customer holds.
+
+---
+
+## Deduplication
+
+Every event is delivered at least once. Deduplicate on the envelope's `id` field, as described in [Important Notes for Integrators](#important-notes-for-integrators).
+
+---
+
 # Event Status
 
 Webhook delivery has the following internal states:
@@ -550,6 +602,7 @@ Events:
   "amount_paid": 0,
   "amount_remaining": 0,
   "attempt_count": 0,
+  "next_payment_attempt": 1672531200,
   "attempted": true,
   "billing_reason": "string",
   "collection_method": "string",
@@ -609,6 +662,7 @@ Events:
     "amount_paid": 500,
     "amount_remaining": 1000,
     "attempt_count": 1,
+    "next_payment_attempt": null,
     "attempted": true,
     "billing_reason": "subscription",
     "collection_method": "charge_automatically",
@@ -660,6 +714,8 @@ Events:
 - Monetary values are represented in the smallest currency unit (e.g., cents)
 - The `lines` field contains invoice line items (structure may vary)
 - Some fields may be `null` depending on invoice state and configuration
+- `attempt_count` and `next_payment_attempt` are populated on `invoice.payment_succeeded` and `invoice.payment_failed`; `next_payment_attempt` is `null` when no retry is scheduled
+- `next_payment_attempt` is a Unix timestamp in seconds, matching every other timestamp in this payload
 
 ---
 
@@ -689,6 +745,8 @@ Events:
   "created": 1672531200,
   "currency": "string",
   "customer": "cus_XXXXXXXX",
+  "reason": "dunning | requested",
+  "initiated_by": "system | merchant",
   "ended_at": 1672531200,
   "items": {
     "object": "list",
@@ -742,6 +800,43 @@ Events:
 }
 ```
 
+The following example shows a `subscription.canceled` event driven by the billing engine's dunning process, carrying `reason` and `initiated_by`:
+
+```json
+{
+  "id": "evt_790",
+  "event": "subscription.canceled",
+  "createdAt": "2026-03-13T11:15:00Z",
+  "data": {
+    "id": "sub_2FdhgypnsJQn9mZlY5qGaElL",
+    "object": "subscription",
+    "billing_cycle_anchor": 1679609767,
+    "cancel_at": 1680645568,
+    "cancel_at_period_end": false,
+    "canceled_at": 1680645568,
+    "collection_method": "charge_automatically",
+    "created": 1679609767,
+    "currency": "USD",
+    "customer": "cus_739c07713fd4b68565a969cd",
+    "reason": "dunning",
+    "initiated_by": "system",
+    "ended_at": 1680645568,
+    "items": {
+      "object": "list",
+      "data": [
+        []
+      ],
+      "total_count": 1
+    },
+    "latest_invoice": "58d0f1c9-ca00-4998-8e89-d74a290b4df6",
+    "start_date": 1679609767,
+    "status": "canceled",
+    "trial_end": null,
+    "trial_start": null
+  }
+}
+```
+
 ---
 
 ### Notes
@@ -751,6 +846,8 @@ Events:
 - `items.data` contains subscription items (structure depends on pricing configuration)
 - `latest_invoice` links the most recent invoice associated with the subscription
 - Timestamps are in Unix format (seconds)
+- `reason` and `initiated_by` are present on `subscription.canceled`, `subscription.paused` and `subscription.resumed`, and absent on `subscription.created` and `subscription.updated`
+- The two fields always travel together: `"dunning"` is always paired with `"system"`, and `"requested"` is always paired with `"merchant"`
 
 ---
 
