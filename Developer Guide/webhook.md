@@ -17,7 +17,10 @@ graph TD;
   E --> F{"Response is HTTP 2xx?"};
 
   F -- Yes --> G["Mark delivery as successful"];
-  F -- No --> H["Retry delivery (according to retry policy)"];
+  F -- No --> K{"Permanent rejection? (any status below 500 except 408 and 429)"};
+
+  K -- Yes --> L["Stop immediately - Mark as failed"];
+  K -- No --> H["Retry delivery (according to retry policy)"];
   H --> I{"Max retries reached?"};
 
   I -- No --> D;
@@ -31,8 +34,11 @@ graph TD;
     Note: For payload details, refer to the **Event Structure** section.
 5. Your system receives and processes the event.
 6. Your endpoint must return an HTTP `2xx` response:
-    - If a `2xx` response is returned, the delivery is marked as **successful**
-    - If a non-`2xx` response or no response is returned, the delivery is considered **failed**
+    - A `2xx` response marks the delivery **successful**
+    - A `5xx` response marks the delivery **failed and retryable** — it is retried according to the retry policy below
+    - An HTTP `408` (Request Timeout) and an HTTP `429` (Too Many Requests) are also treated as retryable
+    - No response at all — network failure, DNS failure, connection timeout, read timeout — is also treated as retryable
+    - Any other non-`2xx` response is a **permanent rejection**: every `3xx` redirect and every `4xx` other than `408` and `429` (for example `400`, `401`, `403`, `404`, `410`). The delivery is marked **failed** immediately and is never retried
 
 ---
 
@@ -44,18 +50,23 @@ Retries are triggered when:
 
 - Network failure
 - Timeout
-- Non-`2xx` HTTP response
+- HTTP `5xx` response
+- HTTP `408` (Request Timeout)
+- HTTP `429` (Too Many Requests)
+
+Retries are **not** triggered when the endpoint returns any other non-`2xx` status — every `3xx` redirect and every `4xx` other than `408` and `429`, for example `400`, `401`, `403`, `404` and `410`. Those statuses tell ChaChing the endpoint will never accept this payload, so the event is marked **failed** after the first attempt and the returned status code is recorded in the delivery log.
 
 **Retry Flow:**
 
-- If delivery fails, webhook is retried
+- If a delivery fails with a retryable condition, the webhook is retried
 - If **max retries NOT reached,** retry continues
 - If **max retries reached,** marked as **failed**
+- If a delivery is **permanently rejected**, no retry is scheduled and the event is marked **failed** right away
 
 **Retry Policy:**
 
-- Attempts: **5 times**
-- Retry window: **approximately 15 minutes** (retries are spread across the retry window with increasing delays)
+- Attempts: **5 retries** after the first delivery, for a maximum of 6 delivery attempts
+- Retry window: **approximately 43 minutes** — the delays between attempts are approximately 15 seconds, 45 seconds, 2 minutes, 10 minutes and 30 minutes, each randomized by up to 20% in both directions
 
 > ⚠️ Webhooks may be delivered multiple times. Ensure your system handles duplicates (use event `id`).
 > 
@@ -332,7 +343,7 @@ Webhook delivery has the following internal states:
 - `pending` → waiting to be sent
 - `retry` → retry in progress
 - `success` → delivered successfully
-- `failure` → all retries exhausted
+- `failure` → the delivery was abandoned. Two situations produce it: the endpoint returned a **permanent rejection**, in which case no retry was attempted at all; and the endpoint kept failing with retryable conditions until every retry was exhausted. The response status code recorded on the delivery log entry tells the two apart
 
 ---
 
