@@ -33,7 +33,7 @@ ChaChing sends `invoice.payment_failed` for every failed automatic charge, inclu
 - A declined automatic charge follows the account's retry schedule: while retries remain, the next retry is scheduled the configured number of days after the previous attempt.
 - An automatic charge that fails for a reason other than a decline, such as a processing error at the payment gateway or a result that cannot be confirmed, can follow the retry schedule, be retried at other times, or not be retried, depending on the error.
 - The outcome day is the sum of the retry intervals plus one day, and an invoice's age is counted from its invoice date. A subscription renewal invoice that is charged automatically counts toward the outcome from its invoice date. The outcome depends on invoice age, not on retries: a customer with an older unpaid renewal invoice can reach the outcome before the retries of a newer invoice end.
-- An invoice created with `collection_method: "send_invoice"` does not count toward the outcome while no payment on it has been attempted, even after its `due_date` has passed; the invoice payload does not include that date. After a payment on such an invoice fails, the invoice can count once its `due_date` has passed, with its age counted from its invoice date, so a failed payment on an invoice that is past its `due_date` and at least as old as the outcome day can apply the outcome right away.
+- An invoice created with `collection_method: "send_invoice"` does not count toward the outcome while no payment on it has been attempted, even after its `due_date` has passed; the invoice payload does not include that date, and it reports `collection_method: "charge_automatically"` for every invoice, so keep your own record of the invoices you create with `send_invoice`. After a payment on such an invoice fails, the invoice can count once its `due_date` has passed, with its age counted from its invoice date, so a failed payment on an invoice that is past its `due_date` and at least as old as the outcome day can apply the outcome right away.
 - In the common case of a customer whose only unpaid invoice is a subscription renewal invoice, charged automatically on its invoice date and declined, the default schedule (1, 3, 5, 7) schedules retries on days 1, 4, 9, and 16, and the outcome is expected to be applied around day 17. It can be applied later.
 
 ## Invoice Payload Fields
@@ -75,7 +75,7 @@ The API exposes no field that states whether a customer is in an outcome, and th
 
 # Emails Sent to Customers
 
-ChaChing sends emails to the customer, with a copy to the account's first super admin user, for failed automatic charges and retries and for applied outcomes. No email is sent for the late-payment warning, when the customer pays, or for a payment started from the dashboard, the hosted payment page, or the API. The subjects, the content, and when a customer receives no email are listed in [Handle failed subscription payments](../Using%20Chaching/Subscriptions/failed-payments.md).
+ChaChing sends emails to the customer, with a copy to the account's first super admin user when the account has one, for failed automatic charges and retries and for applied outcomes. No email is sent for the late-payment warning, when the customer pays, or for a payment started from the dashboard, the hosted payment page, or the API. The subjects, the content, and when a customer receives no email are listed in [Handle failed subscription payments](../Using%20Chaching/Subscriptions/failed-payments.md).
 
 ---
 

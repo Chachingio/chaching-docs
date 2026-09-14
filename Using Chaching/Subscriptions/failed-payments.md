@@ -158,7 +158,7 @@ In the dashboard, **Mark as void** is available only for draft invoices. You can
 
 ## Emails sent to your customer
 
-ChaChing sends these emails to the customer's email address, with a copy to the email address of your account's first super admin user. No email is sent when the customer has no email address.
+ChaChing sends these emails to the customer's email address, with a copy to the email address of your account's first super admin user when your account has one. No email is sent when the customer has no email address.
 
 | **When** | **Subject** | **Content** |
 | --- | --- | --- |
