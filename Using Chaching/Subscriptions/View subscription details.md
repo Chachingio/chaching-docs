@@ -18,6 +18,9 @@ At the top of the page, the subscription name and status are displayed, along wi
 | **Edit** | Allows editing subscription settings and billing details.  |
 | **Pause** | Temporarily pauses the subscription.  |
 | **Cancel** | Cancels the subscription going forward. |
+
+For the meaning of each status, including **Unpaid**, see [Handle failed subscription payments](./failed-payments.md).
+
 ---
 ## 2. Summary Cards
 
@@ -66,7 +69,7 @@ All past invoices generated for this subscription are shown here.
 | **Field** | **Description** |
 | --- | --- |
 | **Amount** | Total amount billed on the invoice, including tax (if applicable). |
-| **Status** | Indicates whether the invoice is *paid*, *open*, *unpaid*, *void*, or *past due*. |
+| **Status** | Indicates whether the invoice is *Draft*, *Open*, *Paid*, or *Void*. |
 | **Invoice Number** | Unique invoice identifier assigned by ChaChing (e.g., **6399**). |
 | **Customer Name** | Name of the customer associated with the invoice. |
 | **Frequency** | Billing interval for the subscription (e.g., *month*, *year*). |

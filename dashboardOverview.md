@@ -29,7 +29,7 @@ The left sidebar helps you quickly access every part of your tenant:
     
 - **Invoices**
     
-    Access all invoices—draft, paid, overdue, and failed.
+    Access all invoices—draft, open, paid, and void.
     
 - **Transactions**
     

@@ -298,22 +298,9 @@ An automatic subscription renewal produces the following sequence of events:
 
 ---
 
-## Retry Events
+## Retries and Failed-Payment Outcomes
 
-Every scheduled retry of a failed automatic charge produces its own `invoice.payment_failed` event. Two fields on the invoice payload describe the retry state:
-
-- `attempt_count` — the number of payment attempts made on the invoice's payment
-- `next_payment_attempt` — the Unix timestamp (seconds) of the next scheduled retry, or `null` when no further retry is scheduled
-
----
-
-## Dunning Outcomes
-
-When the retry schedule is exhausted, the outcome depends on the account's revenue-recovery setting:
-
-- **Cancel** — the customer's subscriptions are canceled, producing `subscription.canceled`
-- **Pause** — the customer's subscriptions are placed on hold pending payment, producing `subscription.paused`, followed by `subscription.resumed` once the balance is cleared
-- **Mark past due** — the account is marked past due; no subscription event is produced
+A retry of an automatic charge that fails produces its own `invoice.payment_failed` event. The subscription events for the failed-payment outcomes configured in **Invoices & Subscriptions** settings are described in [Track subscription lifecycle and failed payments](./subscription-lifecycle.md). That page also documents the retry timeline, how the outcome day is counted, and when `next_payment_attempt` is present.
 
 ---
 
@@ -325,8 +312,6 @@ When the retry schedule is exhausted, the outcome depends on the account's reven
 - `initiated_by` — `"system"` for a dunning-driven transition, or `"merchant"` for an API- or Dashboard-driven one
 
 Both fields are absent on `subscription.created` and `subscription.updated`.
-
-Dunning is evaluated per customer account: one `subscription.paused` event is delivered for each subscription the customer holds.
 
 ---
 
@@ -725,7 +710,7 @@ Events:
 - Monetary values are represented in the smallest currency unit (e.g., cents)
 - The `lines` field contains invoice line items (structure may vary)
 - Some fields may be `null` depending on invoice state and configuration
-- `attempt_count` and `next_payment_attempt` are populated on `invoice.payment_succeeded` and `invoice.payment_failed`; `next_payment_attempt` is `null` when no retry is scheduled
+- `attempt_count` is present on every invoice event. `next_payment_attempt` is present only on `invoice.payment_succeeded` and `invoice.payment_failed` for an automatic charge; see [Track subscription lifecycle and failed payments](./subscription-lifecycle.md) for when it is present and what `null` means
 - `next_payment_attempt` is a Unix timestamp in seconds, matching every other timestamp in this payload
 
 ---
@@ -768,7 +753,7 @@ Events:
   },
   "latest_invoice": "string",
   "start_date": 1672531200,
-  "status": "active | canceled | paused",
+  "status": "active | trial | scheduled | paused | unpaid | cancelled | expired",
   "trial_end": 1672531200,
   "trial_start": 1672531200
 }
@@ -841,7 +826,7 @@ The following example shows a `subscription.canceled` event driven by the billin
     },
     "latest_invoice": "58d0f1c9-ca00-4998-8e89-d74a290b4df6",
     "start_date": 1679609767,
-    "status": "canceled",
+    "status": "cancelled",
     "trial_end": null,
     "trial_start": null
   }
@@ -852,7 +837,7 @@ The following example shows a `subscription.canceled` event driven by the billin
 
 ### Notes
 
-- The `status` field represents the current subscription state (e.g., `active`, `canceled`, `paused`)
+- The `status` field is one of `active`, `trial`, `scheduled`, `paused`, `unpaid`, `cancelled`, or `expired`; see [Track subscription lifecycle and failed payments](./subscription-lifecycle.md). The event name `subscription.canceled` is spelled with one `l`, and the status value `cancelled` with two
 - Fields like `cancel_at`, `canceled_at`, and `ended_at` may be `null` depending on lifecycle state
 - `items.data` contains subscription items (structure depends on pricing configuration)
 - `latest_invoice` links the most recent invoice associated with the subscription
