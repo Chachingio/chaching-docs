@@ -15,10 +15,14 @@ The top row of filters allows you to quickly filter subscriptions by lifecycle s
 | **Active** | Displays currently active subscriptions that are billing on schedule. |
 | **Scheduled** | Shows subscriptions that are set to start in the future. |
 | **Trial** | Shows subscriptions that are in a trial period. |
-| **Cancelled** | Shows subscriptions that have been cancelled and will not renew. |
+| **Canceled** | Shows subscriptions that have been cancelled and will not renew. |
 | **Paused** | Shows subscriptions temporarily paused. |
 | **Expired** | Shows subscriptions that reached their end date and expired. |
+| **Unpaid** | Shows subscriptions on hold because their customer is in the **Blocked as unpaid** outcome. |
 | **All** | Displays all subscriptions regardless of status. |
+
+For the meaning of each status, including **Unpaid**, and of the failed-payment indicator shown next to a status, see [Handle failed subscription payments](./failed-payments.md).
+
 ---
 ## Additional Filters
 
@@ -73,7 +77,7 @@ Below the filters, all matching subscriptions are displayed in a table.
 | --- | --- |
 | **Customer Name** | The name of the customer associated with each subscription. |
 | **Email** | Customer’s email used for receipts and notifications. |
-| **Status** | Current subscription status (Active, Scheduled, Trial, etc.). |
+| **Status** | Current subscription status: Active, Scheduled, Trial, Paused, Unpaid, Cancelled, or Expired. A failed-payment indicator can show next to the status. |
 | **Amount** | Billing amount for the subscription. |
 | **Tax** | Tax amount associated with the subscription. |
 | **Created** | Date the subscription was created. |

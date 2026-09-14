@@ -37,7 +37,7 @@ Displays all subscriptions associated with this customer.
 
 | **Column** | **Description** |
 | --- | --- |
-| **Status** | Current subscription status (active, trialing, past_due, canceled). |
+| **Status** | Current subscription status: Active, Scheduled, Trial, Paused, Unpaid, Cancelled, or Expired. A failed-payment indicator can show next to the status. See [Handle failed subscription payments](../Subscriptions/failed-payments.md). |
 | **Amount** | Current price for the subscription. |
 | **Tax** | Applied tax amount (if any). |
 | **Created** | Date when the subscription began. |
@@ -73,6 +73,6 @@ Shows all invoices issued for the customer.
 | **Column** | **Description** |
 | --- | --- |
 | **Amount** | Invoice amount. |
-| **Status** | Invoice status (paid, open, void, uncollectible). |
+| **Status** | Invoice status: Draft, Open, Paid, or Void. A **Past due**, **Uncollectible**, or **Written off** label can show next to the status. |
 | **Invoice Number** | The invoice identifier. |
 | View details | Shows invoice details |

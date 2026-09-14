@@ -28,7 +28,7 @@ Displayed above the table and updated dynamically as subscriptions are selected.
 | **Column** | **Description** |
 | --- | --- |
 | **Subscription ID** | Unique identifier of the Stripe subscription. Selecting the checkbox adds it to the migration summary. |
-| **Status** | Current subscription state (e.g., active, trial, past_due). |
+| **Status** | The subscription's status in Stripe (e.g., active, trial, past_due). After migration, the subscription uses ChaChing statuses; see [Handle failed subscription payments](./Using%20Chaching/Subscriptions/failed-payments.md). |
 | **Customer name** | Full name of the customer associated with the subscription. |
 | **Customer email** | Email address linked to the subscription. |
 | **Start date** | Original subscription start date in Stripe. |

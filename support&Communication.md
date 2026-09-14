@@ -98,7 +98,7 @@ Yes. You can choose whether tax is included or calculated separately when creati
 
 **What subscription statuses are available?**
 
-Subscriptions can be active, trialing, scheduled, paused, cancelled, expired, or past due, depending on billing and payment state.
+Subscriptions can be active, trial, scheduled, paused, unpaid, cancelled, or expired. See [Handle failed subscription payments](./Using%20Chaching/Subscriptions/failed-payments.md) for what each status means.
 
 **Can I pause or cancel a subscription?**
 
@@ -118,7 +118,7 @@ Payments are processed using the customer’s default payment method or manually
 
 **What happens when a payment fails?**
 
-Failed payments follow the retry rules configured in **Invoices & Subscriptions settings**. Depending on your configuration, subscriptions or invoices may be marked as past due, unpaid, or cancelled.
+Declined automatic payments are retried on the schedule configured in **Invoices & Subscriptions** settings. Based on the age of a customer's unpaid invoices and the outcome day set by that schedule, ChaChing can cancel the customer's subscriptions, mark them unpaid, or leave them past due, depending on your settings. See [Handle failed subscription payments](./Using%20Chaching/Subscriptions/failed-payments.md) for how the days are counted and which invoices count.
 
 **Can I charge a customer manually?**
 
@@ -129,7 +129,7 @@ Yes. You can create one-time payments or charge open invoices directly from the 
 
 **What invoice statuses are supported?**
 
-Invoices can be draft, open, paid, void, or uncollectible, depending on payment and retry outcomes.
+Invoices can be draft, open, paid, or void.
 
 **Can I send invoices by email?**
 

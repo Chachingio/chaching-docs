@@ -22,6 +22,7 @@
       page: Using Chaching/Subscriptions/Subscriptions.md
       items:
         - page: Using Chaching/Subscriptions/View subscription details.md
+        - page: Using Chaching/Subscriptions/failed-payments.md
     - group: Invoices
       page: Using Chaching/Invoices/Invoices.md
       items:
@@ -45,6 +46,7 @@
   items:
     - page: ./Developer Guide/api.json
     - page: ./Developer Guide/webhook.md
+    - page: ./Developer Guide/subscription-lifecycle.md
 
 - group: Settings
   items:
