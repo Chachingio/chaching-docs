@@ -16,15 +16,15 @@ graph TD;
   D --> E["Client processes request"];
   E --> F{"Response is HTTP 2xx?"};
 
-  F -- Yes --> G["Mark delivery as successful"];
+  F -- Yes --> G["Set delivery status to success"];
   F -- No --> K{"Permanent rejection? (any status below 500 except 408 and 429)"};
 
-  K -- Yes --> L["Stop immediately - Mark as failed"];
+  K -- Yes --> L["Stop immediately - Set delivery status to failure"];
   K -- No --> H["Retry delivery (according to retry policy)"];
   H --> I{"Max retries reached?"};
 
   I -- No --> D;
-  I -- Yes --> J["Stop retries - Mark as failed"];
+  I -- Yes --> J["Stop retries - Set delivery status to failure"];
 ```
 
 1. An event occurs in ChaChing (e.g., customer details updated). For details related to the event types, refer to the section [Event Types](https://www.notion.so/Webhook-API-326dc7fc0a9280d087a1fe916d21c46c?pvs=21).
@@ -34,11 +34,11 @@ graph TD;
     Note: For payload details, refer to the **Event Structure** section.
 5. Your system receives and processes the event.
 6. Your endpoint must return an HTTP `2xx` response:
-    - A `2xx` response marks the delivery **successful**
-    - A `5xx` response marks the delivery **failed and retryable** — it is retried according to the retry policy below
+    - A `2xx` response sets the delivery status to `success`
+    - A `5xx` response is retryable: the delivery status is `retry` while retries remain, and the delivery is retried according to the retry policy below
     - An HTTP `408` (Request Timeout) and an HTTP `429` (Too Many Requests) are also treated as retryable
     - No response at all — network failure, DNS failure, connection timeout, read timeout — is also treated as retryable
-    - Any other non-`2xx` response is a **permanent rejection**: every `3xx` redirect and every `4xx` other than `408` and `429` (for example `400`, `401`, `403`, `404`, `410`). The delivery is marked **failed** immediately and is never retried
+    - Any other non-`2xx` response is a **permanent rejection**: every `3xx` redirect and every `4xx` other than `408` and `429` (for example `400`, `401`, `403`, `404`, `410`). The delivery status is set to `failure` immediately and the delivery is never retried
 
 ---
 
@@ -54,14 +54,14 @@ Retries are triggered when:
 - HTTP `408` (Request Timeout)
 - HTTP `429` (Too Many Requests)
 
-Retries are **not** triggered when the endpoint returns any other non-`2xx` status — every `3xx` redirect and every `4xx` other than `408` and `429`, for example `400`, `401`, `403`, `404` and `410`. Those statuses tell ChaChing the endpoint will never accept this payload, so the event is marked **failed** after the first attempt and the returned status code is recorded in the delivery log.
+Retries are **not** triggered when the endpoint returns any other non-`2xx` status — every `3xx` redirect and every `4xx` other than `408` and `429`, for example `400`, `401`, `403`, `404` and `410`. Those statuses tell ChaChing the endpoint will never accept this payload, so the delivery status is set to `failure` after the first attempt and the returned status code is recorded in the delivery log.
 
 **Retry Flow:**
 
 - If a delivery fails with a retryable condition, the webhook is retried
 - If **max retries NOT reached,** retry continues
-- If **max retries reached,** marked as **failed**
-- If a delivery is **permanently rejected**, no retry is scheduled and the event is marked **failed** right away
+- If **max retries reached,** the delivery status is set to `failure`
+- If a delivery is **permanently rejected**, no retry is scheduled and the delivery status is set to `failure` right away
 
 **Retry Policy:**
 
@@ -198,7 +198,7 @@ DELETE /webhook/destination/:id
 GET /webhook/logs
 ```
 
-**Response:** list of webhook delivery log entries. Each entry includes the event type, payload, and status (`success` / `failed` / `retry`).
+**Response:** list of webhook delivery log entries. Each entry includes the event type, payload, and status (`pending` / `retry` / `success` / `failure`).
 
 ---
 
@@ -1181,7 +1181,7 @@ Logs include:
 
 - Event type
 - Payload
-- Status (success / failed / retry)
+- Status (`pending` / `retry` / `success` / `failure`)
 
 > Logs reflect actual data sent from the database
 > 
