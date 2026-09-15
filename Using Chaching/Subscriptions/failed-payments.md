@@ -208,4 +208,4 @@ The settings apply to your whole account, and there are no per-customer settings
 - **Shortening the retry schedule.** The outcome day moves earlier, and a customer with an unpaid invoice that is already at least as old as the new outcome day can reach the outcome soon after you save.
 - **Lengthening the retry schedule.** The outcome day moves later, and a customer who is already on hold or past due can be released before paying. Subscriptions that were already cancelled stay cancelled.
 
-These settings can be changed only from the dashboard. A public API for these settings is in development.
+These settings can be changed from the dashboard and through the ChaChing API. For the API, see [Configure Failed-Payment Settings](../../Developer%20Guide/subscription-lifecycle.md) in the developer guide.
