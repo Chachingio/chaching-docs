@@ -83,4 +83,4 @@ These values can typically be overridden on individual invoices.
 - While a customer is in an outcome, do not create or change that customer's subscriptions. Collect, write off, or void the customer's outstanding invoices first.
 - An invoice created with **Request payment** does not count toward the outcome while no payment on it has been attempted. A declined payment on such an invoice can apply the outcome right away when the invoice is past its due date and at least as old as the outcome day. Follow up on invoices whose due date has passed, and collect or void them.
 - The retry schedule applies to automatic payments that are declined. An automatic payment that fails because of a processing error, or whose result cannot be confirmed, can follow this schedule, be retried at other times, or not be retried.
-- These settings can be changed only from this page. A public API for these settings is in development.
+- These settings can be changed from this page and through the ChaChing API. For the API, see [Configure Failed-Payment Settings](../Developer%20Guide/subscription-lifecycle.md) in the developer guide.

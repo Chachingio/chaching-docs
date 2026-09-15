@@ -96,6 +96,58 @@ ChaChing sends emails to the customer, with a copy to the account's first super 
 
 # Configure Failed-Payment Settings
 
-The retry schedule and the outcomes are configured in the dashboard, on the **Invoices & Subscriptions settings** page. A public API for these settings is in development. See [Invoices & Subscriptions](../settings/InvoicesSubscriptions.md).
+The retry schedule and the outcomes are configured in the dashboard, on the **Invoices & Subscriptions settings** page, and through the API with `GET /revenue-recovery` and `PUT /revenue-recovery`. The dashboard page and the API write the same settings, so a change made through one is visible in the other. See [Invoices & Subscriptions](../settings/InvoicesSubscriptions.md).
+
+## Read the settings
+
+`GET /revenue-recovery` returns the account's current settings. Authenticate with the account's API key in the `cc-api-key` header, as on every other endpoint. Send no `Authorization` header on either of these two endpoints: a request that carries one is rejected.
+
+Response:
+
+```json
+{
+  "payment_retries": [1, 3, 5, 7],
+  "subscription_state_on_payment_failure": "cancel",
+  "invoice_state_on_payment_failure": "uncollectible",
+  "outcome_day": 17
+}
+```
+
+| **Field** | **Meaning** |
+| --- | --- |
+| `payment_retries` | The retry schedule. Each value is the number of days after the previous attempt at which the next retry is scheduled. |
+| `subscription_state_on_payment_failure` | What happens to the customer's subscriptions when the outcome applies: `cancel` (Cancelled), `unpaid` (Blocked as unpaid), `past-due` (Kept past due). |
+| `invoice_state_on_payment_failure` | What happens to the unpaid invoices of a customer whose subscriptions the outcome cancels: `uncollectible` (Labelled uncollectible), `past-due` (Left open as past due). |
+| `outcome_day` | The sum of `payment_retries` plus one: the day, counted from the invoice date of the customer's oldest unpaid invoice that counts, around which the outcome is expected to be applied. It can be applied later. |
+
+Which invoices count, and how the days are counted, is described in [Handle failed subscription payments](../Using%20Chaching/Subscriptions/failed-payments.md).
+
+`GET /revenue-recovery` returns `404` for an account that has no settings yet.
+
+## Change the settings
+
+`PUT /revenue-recovery` replaces all three settings at once. Every field is required, and a request that omits one is rejected with `400`.
+
+Request body:
+
+```json
+{
+  "payment_retries": [2, 4, 8],
+  "subscription_state_on_payment_failure": "unpaid",
+  "invoice_state_on_payment_failure": "past-due"
+}
+```
+
+The response body has the same shape as `GET /revenue-recovery`, with `outcome_day` recomputed from the schedule you sent — `15` for the request above.
+
+- `payment_retries` holds at least one value, and every value is an integer of `0` or greater.
+- `subscription_state_on_payment_failure` is one of `cancel`, `unpaid`, `past-due`.
+- `invoice_state_on_payment_failure` is one of `past-due`, `uncollectible`.
+- `outcome_day` is read-only. A request body that carries it is rejected with `400`.
+- A rejected request changes nothing: the settings stay as they were.
+
+The settings apply to your whole account — every subscription and every payment plan — and there are no per-customer settings. Saved settings also apply to customers who already have unpaid invoices: shortening the schedule moves the outcome day earlier, and a customer with an unpaid invoice already at least as old as the new outcome day can reach the outcome soon after you save; lengthening it moves the outcome day later, and a customer already on hold or past due can be released before paying. Subscriptions that were already cancelled stay cancelled. Change `subscription_state_on_payment_failure` only when no customer has an outstanding invoice that is at least as old as your current outcome day. For the full guidance, see [Handle failed subscription payments](../Using%20Chaching/Subscriptions/failed-payments.md).
+
+For the full request and response schemas, see the [API Reference](./api.json).
 
 For every field of the webhook payloads, see [Webhooks](./webhook.md).
