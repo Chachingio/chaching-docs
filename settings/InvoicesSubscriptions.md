@@ -25,7 +25,7 @@ A retry row under **Manage failed payments** is one retry of a declined automati
 - Retry **5 days** after previous attempt
 - Retry **7 days** after previous attempt
 
-For a customer whose only unpaid invoice is a subscription renewal invoice charged automatically on its invoice date, the default configuration retries a charge that keeps being declined 1, 4, 9, and 16 days after the declined charge, and the outcome is expected to be applied around day 17. It can be applied later.
+For a customer whose only unpaid invoice is a subscription renewal invoice charged automatically on its invoice date, the default configuration retries a charge that keeps being declined 1, 4, 9, and 16 days after the declined charge, and the outcome is applied on day 17.
 
 ### Managing Retry Attempts
 
