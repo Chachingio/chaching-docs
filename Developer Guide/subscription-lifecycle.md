@@ -34,7 +34,7 @@ ChaChing sends `invoice.payment_failed` for every failed automatic charge, inclu
 - An automatic charge that fails for a reason other than a decline, such as a processing error at the payment gateway or a result that cannot be confirmed, can follow the retry schedule, be retried at other times, or not be retried, depending on the error.
 - The outcome day is the sum of the retry intervals plus one day, and an invoice's age is counted from its invoice date. A subscription renewal invoice that is charged automatically counts toward the outcome from its invoice date. The outcome depends on invoice age, not on retries: a customer with an older unpaid renewal invoice can reach the outcome before the retries of a newer invoice end.
 - An invoice created with `collection_method: "send_invoice"` does not count toward the outcome while no payment on it has been attempted, even after its `due_date` has passed; the invoice payload does not include that date, and it reports `collection_method: "charge_automatically"` for every invoice, so keep your own record of the invoices you create with `send_invoice`. After a payment on such an invoice fails, the invoice can count once its `due_date` has passed, with its age counted from its invoice date, so a failed payment on an invoice that is past its `due_date` and at least as old as the outcome day can apply the outcome right away.
-- In the common case of a customer whose only unpaid invoice is a subscription renewal invoice, charged automatically on its invoice date and declined, the default schedule (1, 3, 5, 7) schedules retries on days 1, 4, 9, and 16, and the outcome is expected to be applied around day 17. It can be applied later.
+- In the common case of a customer whose only unpaid invoice is a subscription renewal invoice, charged automatically on its invoice date and declined, the default schedule (1, 3, 5, 7) schedules retries on days 1, 4, 9, and 16, and the outcome is applied on day 17.
 
 ## Invoice Payload Fields
 
@@ -118,7 +118,7 @@ Response:
 | `payment_retries` | The retry schedule. Each value is the number of days after the previous attempt at which the next retry is scheduled. |
 | `subscription_state_on_payment_failure` | What happens to the customer's subscriptions when the outcome applies: `cancel` (Cancelled), `unpaid` (Blocked as unpaid), `past-due` (Kept past due). |
 | `invoice_state_on_payment_failure` | What happens to the unpaid invoices of a customer whose subscriptions the outcome cancels: `uncollectible` (Labelled uncollectible), `past-due` (Left open as past due). |
-| `outcome_day` | The sum of `payment_retries` plus one: the day, counted from the invoice date of the customer's oldest unpaid invoice that counts, around which the outcome is expected to be applied. It can be applied later. |
+| `outcome_day` | The sum of `payment_retries` plus one: the day, counted from the invoice date of the customer's oldest unpaid invoice that counts, on which the outcome is applied. |
 
 Which invoices count, and how the days are counted, is described in [Handle failed subscription payments](../Using%20Chaching/Subscriptions/failed-payments.md).
 

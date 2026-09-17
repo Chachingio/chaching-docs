@@ -60,7 +60,7 @@ The timeline below shows the most common case: a customer whose only unpaid invo
 | **Day 4** | Second retry. |
 | **Day 9** | Third retry. |
 | **Day 16** | Fourth and last retry. |
-| **Around day 17** | If the invoice is still unpaid, the outcome you chose is expected to be applied around this day. It can be applied later. |
+| **Day 17** | If the invoice is still unpaid, the outcome you chose is applied on this day. |
 
 When the customer has an email address, the declined charge and every failed retry send the customer a payment-failed email, and the email for the last failed retry states that no further automatic retries are scheduled. When a retry succeeds and the customer has no other unpaid invoice, no outcome is applied.
 
@@ -75,7 +75,7 @@ When the customer has an email address, the declined charge and every failed ret
 
 An invoice you create with **Request payment** does not count toward the outcome while no payment on it has been attempted, even after its due date, shown in the **Due** column of the invoices table, has passed.
 
-After a payment on such an invoice fails, the invoice can count toward the outcome once its due date has passed, with its age counted from its invoice date. A declined payment on an invoice that is past its due date and at least as old as the outcome day can therefore apply the outcome to that customer right away. With the default settings, that outcome cancels every subscription of the customer that has not ended.
+After a payment on such an invoice fails, the invoice can count toward the outcome once its due date has passed, with its age counted from its invoice date. A declined payment on an invoice that is past its due date and at least as old as the outcome day therefore applies the outcome to that customer right away. With the default settings, that outcome cancels every subscription of the customer that has not ended.
 
 To protect customers you invoice for later payment, follow up on every invoice whose due date has passed, and collect it or void it. After a payment on such an invoice is declined, write off or void the invoice when you do not expect the customer to pay it soon: a voided invoice no longer counts toward the outcome, and neither does a written-off invoice while no later payment on it is attempted. See **Write off or void an invoice**.
 
@@ -181,7 +181,7 @@ A new ChaChing account starts with these settings:
 | **After the last retry fails, the customer's subscriptions are** | **Cancelled** |
 | **When subscriptions are cancelled, their unpaid invoices are** | **Labelled uncollectible** |
 
-With the default settings, for a customer whose only unpaid invoice is a subscription renewal invoice charged automatically on its invoice date, the **Cancelled** outcome is expected to be applied around day 17 after that invoice's date if the invoice stays unpaid, and it can be applied later. When that outcome is applied, it cancels every subscription of the customer that has not ended. For invoices you create with **Request payment**, see **Invoices you create with Request payment**.
+With the default settings, for a customer whose only unpaid invoice is a subscription renewal invoice charged automatically on its invoice date, the **Cancelled** outcome is applied on day 17 after that invoice's date while the invoice stays unpaid. When that outcome is applied, it cancels every subscription of the customer that has not ended. For invoices you create with **Request payment**, see **Invoices you create with Request payment**.
 
 ---
 
