@@ -103,17 +103,17 @@ While a customer is in any of the three outcomes, do not create or change that c
 
 When ChaChing applies this outcome, it cancels every subscription of the customer that has not ended, immediately. The unpaid balance stays owed: no invoice is voided or written off. ChaChing turns off automatic payment for the customer, so no further automatic charge is made to the customer's payment method. The customer can still pay the unpaid invoices through their invoice payment links, and the cancellation email includes a **Pay now** button for one of them.
 
-A later payment never restores the cancelled subscriptions. After every outstanding invoice of the customer is paid in full, written off, or voided, ChaChing turns back on the automatic payment it turned off, for a customer who has a default payment method, unless you changed the outcome option while the customer was in this outcome (see **Change the settings**). To bill the customer again, create new subscriptions after every outstanding invoice of the customer is paid in full, written off, or voided.
+A later payment never restores the cancelled subscriptions. After every outstanding invoice of the customer is paid in full, written off, or voided, ChaChing turns back on the automatic payment it turned off, for a customer who has a default payment method. To bill the customer again, create new subscriptions after every outstanding invoice of the customer is paid in full, written off, or voided.
 
 ### Blocked as unpaid
 
 When ChaChing applies this outcome, every subscription of the customer that has not ended is put on hold. The subscriptions are not cancelled, and they are not billed while on hold. While on hold they show **Unpaid**, and a subscription can show Trial, Scheduled, Cancelled, or Expired instead, for example while it is still in its trial period.
 
-After every outstanding invoice of the customer is paid in full, written off, or voided, the hold ends, unless you changed the outcome option while the customer was on hold (see **Change the settings**). The hold can also end before that, for example when the customer pays the oldest unpaid invoices. When the hold ends, billing resumes, except for a subscription that is paused at that time, including one paused during the hold: that subscription stays paused and is not billed until it is resumed.
+After every outstanding invoice of the customer is paid in full, written off, or voided, the hold ends. The hold can also end before that, for example when the customer pays the oldest unpaid invoices. When the hold ends, billing resumes, except for a subscription that is paused at that time, including one paused during the hold: that subscription stays paused and is not billed until it is resumed.
 
 ### Kept past due
 
-When ChaChing applies this outcome, it does not put the customer's subscriptions on hold, change their status, or stop their billing. After every outstanding invoice of the customer is paid in full, written off, or voided, the customer is no longer past due, unless you changed the outcome option while the customer was past due (see **Change the settings**).
+When ChaChing applies this outcome, it does not put the customer's subscriptions on hold, change their status, or stop their billing. After every outstanding invoice of the customer is paid in full, written off, or voided, the customer is no longer past due.
 
 ---
 
@@ -199,12 +199,13 @@ The retry schedule follows these rules:
 - The schedule holds at least one retry and at most five, and every row needs an interval.
 - **Save changes** stays disabled until every field is valid.
 - The longest schedule is five retries at 10-day intervals, which puts the outcome day on day 51.
+- Through the ChaChing API the schedule holds at most 10 retries. The dashboard offers at most five.
 
 ### Before you save
 
 The settings apply to your whole account, and there are no per-customer settings. Saved settings also apply to customers who already have unpaid invoices.
 
-- **Changing the outcome option.** Change the option in **After the last retry fails, the customer's subscriptions are** only when no customer has an outstanding invoice that is at least as old as your current outcome day. If you lengthened the retry schedule earlier, check against the outcome day from before that change. A customer who is already in the previous outcome when you switch is not released by later payments and is not moved to the new outcome: a customer on hold stays on hold, a past-due customer stays past due, and a customer whose subscriptions were cancelled does not get automatic payment turned back on. If you already switched while customers were in an outcome, contact ChaChing support.
+- **Changing the outcome option.** You can change the option in **After the last retry fails, the customer's subscriptions are** at any time. A customer who is already in the previous outcome moves to the new outcome on the next evaluation, or is released when their outstanding invoices are paid in full, written off, or voided. Subscriptions that were already cancelled by the **Cancelled** outcome stay cancelled: recovery never recreates them.
 - **Shortening the retry schedule.** The outcome day moves earlier, and a customer with an unpaid invoice that is already at least as old as the new outcome day can reach the outcome soon after you save.
 - **Lengthening the retry schedule.** The outcome day moves later, and a customer who is already on hold or past due can be released before paying. Subscriptions that were already cancelled stay cancelled.
 

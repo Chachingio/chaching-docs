@@ -141,12 +141,13 @@ Request body:
 The response body has the same shape as `GET /revenue-recovery`, with `outcome_day` recomputed from the schedule you sent — `15` for the request above.
 
 - `payment_retries` holds at least one value, and every value is an integer of `0` or greater.
+- `payment_retries` holds at most 10 values. A request with more is rejected with `400`.
 - `subscription_state_on_payment_failure` is one of `cancel`, `unpaid`, `past-due`.
 - `invoice_state_on_payment_failure` is one of `past-due`, `uncollectible`.
 - `outcome_day` is read-only. A request body that carries it is rejected with `400`.
 - A rejected request changes nothing: the settings stay as they were.
 
-The settings apply to your whole account — every subscription and every payment plan — and there are no per-customer settings. Saved settings also apply to customers who already have unpaid invoices: shortening the schedule moves the outcome day earlier, and a customer with an unpaid invoice already at least as old as the new outcome day can reach the outcome soon after you save; lengthening it moves the outcome day later, and a customer already on hold or past due can be released before paying. Subscriptions that were already cancelled stay cancelled. Change `subscription_state_on_payment_failure` only when no customer has an outstanding invoice that is at least as old as your current outcome day. For the full guidance, see [Handle failed subscription payments](../Using%20Chaching/Subscriptions/failed-payments.md).
+The settings apply to your whole account — every subscription and every payment plan — and there are no per-customer settings. Saved settings also apply to customers who already have unpaid invoices: shortening the schedule moves the outcome day earlier, and a customer with an unpaid invoice already at least as old as the new outcome day can reach the outcome soon after you save; lengthening it moves the outcome day later, and a customer already on hold or past due can be released before paying. Subscriptions that were already cancelled stay cancelled. You can change `subscription_state_on_payment_failure` at any time; customers already in the previous outcome move to the new outcome on the next evaluation. For the full guidance, see [Handle failed subscription payments](../Using%20Chaching/Subscriptions/failed-payments.md).
 
 For the full request and response schemas, see the [API Reference](./api.json).
 
