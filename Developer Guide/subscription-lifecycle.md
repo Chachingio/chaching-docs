@@ -57,7 +57,7 @@ Subscription events for an outcome are sent per subscription item, not per subsc
 | **Blocked as unpaid** | One `subscription.paused` for each item of every subscription of the customer that has not ended, including a subscription whose cancellation is scheduled but not yet effective, with `reason: "dunning"` and `initiated_by: "system"`. | `unpaid`; a subscription can read `trial`, `scheduled`, `cancelled`, or `expired` instead |
 | **Kept past due** | None. | Not changed by the outcome |
 
-- The late-payment warning sends no webhook.
+- The late-payment warning sends no subscription webhook. A customer's payment plans can report it with `payment_plan.past_due`; see [Payment Plans](./payment-plans.md).
 - `subscription.resumed` with `reason: "dunning"` and `initiated_by: "system"` can be sent when a hold from the **Blocked as unpaid** outcome ends, and only to subscription items that received `subscription.paused` for that hold. A hold can also end without any `subscription.resumed`, so do not rely on it to learn that a hold ended.
 - A subscription paused through the API or the dashboard before the hold also receives `subscription.paused` for the hold. A subscription that is paused when the hold ends, whether it was paused before or during the hold, can receive `subscription.resumed`, but it stays paused and is not billed until it is resumed.
 - After an `invoice.payment_succeeded` for a customer whose subscriptions are on hold, wait a short time, then re-read the subscription with `GET /subscriptions/{id}` to learn whether the hold ended. The hold is re-evaluated separately from the payment event, so a read made immediately on receipt can show the state from before the payment.
@@ -89,7 +89,7 @@ ChaChing sends emails to the customer, with a copy to the account's first super 
 | Subscriptions on hold for non-payment | `subscription.paused` with `reason: "dunning"`, per subscription item; `status` is `unpaid`, or can be `trial`, `scheduled`, or `cancelled` |
 | Subscriptions past due | No event and no status value; the outcome does not change `status` |
 | The customer paid | `invoice.payment_succeeded`; after a short delay, re-read the subscription to learn whether a hold ended. `subscription.resumed` with `reason: "dunning"` is not sent for every hold that ends; see **Events for Failed-Payment Outcomes** |
-| Late-payment warning | Not exposed by the API or webhooks |
+| Late-payment warning | For a customer who holds a payment plan, `payment_plan.past_due` for each plan that changes to `past_due`, whose `status` then reads `past_due`. The subscription API and the subscription webhooks do not expose it |
 | Invoice labeled uncollectible | Not exposed by the API or webhooks |
 
 ---
@@ -144,6 +144,7 @@ The response body has the same shape as `GET /revenue-recovery`, with `outcome_d
 - `payment_retries` holds at most 10 values. A request with more is rejected with `400`.
 - `subscription_state_on_payment_failure` is one of `cancel`, `unpaid`, `past-due`.
 - `invoice_state_on_payment_failure` is one of `past-due`, `uncollectible`.
+- On an account with Payment Plans enabled, or holding a payment plan that has not ended, `payment_retries` must sum to at least 7 and `subscription_state_on_payment_failure` cannot be `unpaid`; a request that breaks either rule is rejected with `400`. See [Payment Plans](./payment-plans.md).
 - `outcome_day` is read-only. A request body that carries it is rejected with `400`.
 - A rejected request changes nothing: the settings stay as they were.
 
