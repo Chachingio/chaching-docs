@@ -863,6 +863,7 @@ The following example shows a `subscription.canceled` event driven by the billin
 - Timestamps are in Unix format (seconds)
 - `reason` and `initiated_by` are present on `subscription.canceled`, `subscription.paused` and `subscription.resumed`, and absent on `subscription.created` and `subscription.updated`
 - The two fields always travel together: `"dunning"` is always paired with `"system"`, and `"requested"` is always paired with `"merchant"`
+- `items.data[].price.type` is `one_time`, `recurring` or `null`: it is `null` for an item whose price cannot be resolved. Handle `null` wherever you branch on the price type
 
 ---
 
