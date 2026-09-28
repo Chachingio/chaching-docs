@@ -47,6 +47,7 @@
     - page: ./Developer Guide/api.json
     - page: ./Developer Guide/webhook.md
     - page: ./Developer Guide/subscription-lifecycle.md
+    - page: ./Developer Guide/payment-plans.md
 
 - group: Settings
   items:
