@@ -56,7 +56,7 @@ The timeline below shows the most common case: a customer whose only unpaid invo
 | **Day** | **What happens** |
 | --- | --- |
 | **Day 0** | The renewal invoice is created and the automatic charge is declined. |
-| **Day 1** | First retry. ChaChing also records a late-payment warning for the customer, and the dashboard shows the **Payment failed** indicator for that customer. The warning does not change the subscription status, and no email or webhook is sent for it. |
+| **Day 1** | First retry. ChaChing also records a late-payment warning for the customer, and the dashboard shows the **Payment failed** indicator for that customer. The warning does not change the subscription status, and no email or subscription webhook is sent for it. The customer's active payment plans change to past due; see [Payment Plans](../../Developer%20Guide/payment-plans.md) in the developer guide. |
 | **Day 4** | Second retry. |
 | **Day 9** | Third retry. |
 | **Day 16** | Fourth and last retry. |

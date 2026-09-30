@@ -270,9 +270,24 @@ ChaChing generates webhook events for key system entities. Each event represents
 
 ---
 
+## Payment Plan Events
+
+- `payment_plan.created` — A payment plan is created
+- `payment_plan.activated` — A payment plan starts running
+- `payment_plan.installment_paid` — An installment of a payment plan is paid
+- `payment_plan.installment_failed` — An automatic charge attempt on an installment is declined
+- `payment_plan.past_due` — A payment plan changes to `past_due`
+- `payment_plan.defaulted` — A payment plan changes to `defaulted`
+- `payment_plan.reactivated` — A payment plan returns to `active` from `past_due` or `defaulted`
+- `payment_plan.completed` — A payment plan is paid off
+- `payment_plan.canceled` — A payment plan is canceled
+- `payment_plan.payment_succeeded` — A payment is recorded on a payment plan
+
+---
+
 ## Summary
 
-ChaChing currently supports **24 webhook event types** across such entities as:
+ChaChing currently supports **34 webhook event types** across such entities as:
 
 - Customers
 - Payment Methods
@@ -281,6 +296,7 @@ ChaChing currently supports **24 webhook event types** across such entities as:
 - Products
 - Prices
 - Taxes
+- Payment Plans
 
 ---
 
@@ -628,6 +644,8 @@ Events:
     "voided_at": 1672531200
   },
   "subscription": "sub_XXXXXXXX",
+  "payment_plan": "pp_XXXXXXXX | null",
+  "installment": "ppi_XXXXXXXX | null",
   "subtotal": 0,
   "subtotal_excluding_tax": 0,
   "tax": 0,
@@ -712,6 +730,7 @@ Events:
 - Some fields may be `null` depending on invoice state and configuration
 - `attempt_count` is present on every invoice event. `next_payment_attempt` is present only on `invoice.payment_succeeded` and `invoice.payment_failed` for an automatic charge; see [Track subscription lifecycle and failed payments](./subscription-lifecycle.md) for when it is present and what `null` means
 - `next_payment_attempt` is a Unix timestamp in seconds, matching every other timestamp in this payload
+- `payment_plan` and `installment` name the payment plan and the installment an invoice was raised for. Both are `null` on an invoice that belongs to no payment plan, and an invoice raised for a payment plan reports `subscription: null`. See [Payment Plans](./payment-plans.md)
 
 ---
 
@@ -844,6 +863,7 @@ The following example shows a `subscription.canceled` event driven by the billin
 - Timestamps are in Unix format (seconds)
 - `reason` and `initiated_by` are present on `subscription.canceled`, `subscription.paused` and `subscription.resumed`, and absent on `subscription.created` and `subscription.updated`
 - The two fields always travel together: `"dunning"` is always paired with `"system"`, and `"requested"` is always paired with `"merchant"`
+- `items.data[].price.type` is `one_time`, `recurring` or `null`: it is `null` for an item whose price cannot be resolved. Handle `null` wherever you branch on the price type
 
 ---
 
@@ -1024,6 +1044,201 @@ Events:
 - The `inclusive` field indicates whether the tax is included in the price
 - `tax_type` defines the type of tax configuration (e.g., custom)
 - The `description` field may be `null` depending on configuration
+
+---
+
+## Payment Plan Events Payload
+
+Events:
+
+- `payment_plan.created`
+- `payment_plan.activated`
+- `payment_plan.past_due`
+- `payment_plan.defaulted`
+- `payment_plan.reactivated`
+- `payment_plan.completed`
+- `payment_plan.canceled`
+
+carry the Payment Plan object.
+
+- `payment_plan.installment_paid`
+- `payment_plan.installment_failed`
+
+carry the Installment object.
+
+- `payment_plan.payment_succeeded`
+
+carries the Payment object.
+
+---
+
+### Schema — Payment Plan
+
+```json
+{
+  "id": "pp_XXXXXXXX",
+  "object": "payment_plan",
+  "customer": "cus_XXXXXXXX",
+  "status": "awaiting_deposit | active | past_due | defaulted | paid_off | canceled",
+  "currency": "string",
+  "total_amount": 0,
+  "down_payment_amount": 0,
+  "installment_amount": 0,
+  "installment_count": 0,
+  "interval": "weekly | biweekly | monthly",
+  "start_date": 1672531200,
+  "remainder_placement": "first | last",
+  "remaining_balance": 0,
+  "installments_paid": 0,
+  "installments_remaining": 0,
+  "next_due_date": "1672531200 | null",
+  "payment_method": "string | null",
+  "gateway": "string | null",
+  "reference": "string | null",
+  "deposit": "object | null",
+  "created": 1672531200,
+  "ended_at": "1672531200 | null",
+  "canceled_at": "1672531200 | null"
+}
+```
+
+### Schema — Installment
+
+```json
+{
+  "id": "ppi_XXXXXXXX",
+  "object": "payment_plan_installment",
+  "payment_plan": "pp_XXXXXXXX",
+  "sequence": 0,
+  "due_date": 1672531200,
+  "amount": 0,
+  "amount_paid": 0,
+  "status": "scheduled | paid | failed | canceled",
+  "attempt_count": 0,
+  "next_payment_attempt": "1672531200 | null",
+  "paid_at": "1672531200 | null",
+  "invoice": "string | null"
+}
+```
+
+### Schema — Payment
+
+```json
+{
+  "id": "ppp_XXXXXXXX",
+  "object": "payment_plan_payment",
+  "payment_plan": "pp_XXXXXXXX",
+  "amount": 0,
+  "external": false,
+  "payment_method": "string | null",
+  "invoice": "string | null",
+  "payoff": false,
+  "created": 1672531200,
+  "payment_plan_status": "awaiting_deposit | active | past_due | defaulted | paid_off | canceled",
+  "remaining_balance": 0,
+  "installments_remaining": 0
+}
+```
+
+### Example
+
+`payment_plan.installment_failed`, with a retry scheduled:
+
+```json
+{
+  "id": "evt_9f2a7c41",
+  "event": "payment_plan.installment_failed",
+  "createdAt": "2025-11-14T09:00:12Z",
+  "data": {
+    "id": "ppi_Mc8yS3Rb",
+    "object": "payment_plan_installment",
+    "payment_plan": "pp_8QN4mTcRk2VwZfLp",
+    "sequence": 2,
+    "due_date": 1763078400,
+    "amount": 20000,
+    "amount_paid": 0,
+    "status": "failed",
+    "attempt_count": 1,
+    "next_payment_attempt": 1763164800,
+    "paid_at": null,
+    "invoice": "c1f0d9aa-2b44-4d19-9d02-77b2aa4e1c30"
+  }
+}
+```
+
+`payment_plan.completed`:
+
+```json
+{
+  "id": "evt_d41c07ab",
+  "event": "payment_plan.completed",
+  "createdAt": "2026-06-14T00:07:31Z",
+  "data": {
+    "id": "pp_8QN4mTcRk2VwZfLp",
+    "object": "payment_plan",
+    "customer": "cus_739c07713fd4b68565a969cd",
+    "status": "paid_off",
+    "currency": "USD",
+    "total_amount": 210000,
+    "down_payment_amount": 30000,
+    "installment_amount": 20000,
+    "installment_count": 9,
+    "interval": "monthly",
+    "start_date": 1760400000,
+    "remainder_placement": "first",
+    "remaining_balance": 0,
+    "installments_paid": 9,
+    "installments_remaining": 0,
+    "next_due_date": null,
+    "payment_method": "9f3a1c2e-7b45-4d18-a6c0-2f8e5b7d1a94",
+    "gateway": "dejavoo",
+    "reference": null,
+    "deposit": null,
+    "created": 1757894400,
+    "ended_at": 1781395651,
+    "canceled_at": null
+  }
+}
+```
+
+`payment_plan.payment_succeeded` for a payment that reached the principal:
+
+```json
+{
+  "id": "evt_5b0e93f2",
+  "event": "payment_plan.payment_succeeded",
+  "createdAt": "2025-11-18T16:26:40Z",
+  "data": {
+    "id": "ppp_4Hk9Tz2W",
+    "object": "payment_plan_payment",
+    "payment_plan": "pp_8QN4mTcRk2VwZfLp",
+    "amount": 50000,
+    "external": false,
+    "payment_method": "9f3a1c2e-7b45-4d18-a6c0-2f8e5b7d1a94",
+    "invoice": "d5b9e2c1-8a41-4f36-9c17-3ad0b1e5f882",
+    "payoff": false,
+    "created": 1763483200,
+    "payment_plan_status": "active",
+    "remaining_balance": 130000,
+    "installments_remaining": 7
+  }
+}
+```
+
+---
+
+### Notes
+
+- The Payment Plan object in `data` is the plan after the change, and its `status` is the plan's status when the event is sent. A plan created with a payment method sends `payment_plan.created` and `payment_plan.activated` with the same object, `status: "active"`
+- `payment_plan.installment_failed` is sent once per declined automatic charge attempt, retries included. A declined payment through `POST /payment-plans/{id}/payments` answers the request with an error instead and sends no `payment_plan.installment_failed`. `attempt_count` counts the attempts made on the installment, and `next_payment_attempt` is the date of the next retry, or `null` when no retry is scheduled
+- `payment_plan.installment_paid` is sent once per installment. The down payment charged at creation sends it with `sequence: 0`
+- `payment_plan.completed` is the single paid-in-full event. It is sent whether the schedule ended with every installment paid or a payoff payment was recorded, and `status` is `paid_off` in both cases
+- `payment_plan.payment_succeeded` is sent for every payment `POST /payment-plans/{id}/payments` records — installment payments, principal payments, payoffs and external payments alike — and never for a declined or refused one. Its `data` is the Payment object at the moment the payment is recorded: `id`, `amount`, `external`, `payment_method`, `invoice` and `payoff` match the endpoint's response, while for a payment that reached the principal `remaining_balance`, `installments_remaining` and `payment_plan_status` describe the plan before its schedule is rebuilt right after — the balance can still include the principal, and a `defaulted` plan that the rebuild returns to `active` still reads `defaulted`; read the plan for the current values. A repeated request with the same `Idempotency-Key` sends nothing again. When a request ends before its payment is fully recorded, ChaChing finishes recording it later and sends the payment's events then
+- The principal part of a payment belongs to no invoice and sends no `invoice.*` event: `payment_plan.payment_succeeded` is the event that reports it
+- The plan status `past_due` means the customer's account is in the late-payment warning. It is not the `past-due` failed-payment outcome: reaching that outcome sends `payment_plan.defaulted`
+- The `invoice.*` events keep firing for every installment invoice; the invoice payload's `payment_plan` and `installment` fields link it back to the plan
+- The spelling is `canceled`, with one `l`, for both the status and the event
+- One change can send several events, and deliveries can arrive in any order. Read the plan with `GET /payment-plans/{id}` for its current state; see [Payment Plans](./payment-plans.md)
 
 ---
 
