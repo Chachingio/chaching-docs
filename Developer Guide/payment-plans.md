@@ -190,9 +190,11 @@ ChaChing emails the plan's customer at the email address stored on the customer.
 - each installment charged automatically on its due date or by an automatic retry;
 - each payment recorded with `POST /payment-plans/{id}/payments` that is not `external`. One receipt lists every charge of that payment.
 
+An installment invoice that your customer pays from the payment page, or that you pay from the dashboard, sends no receipt email in this release.
+
 The subject is `Receipt from <your account name>: payment 3 of 9` for an installment, `Receipt from <your account name>: down payment` for the down payment, and `Receipt from <your account name>: payment plan payment` for a recorded payment that covers several charges or reaches the principal. `9` is the plan's `installment_count`. The receipt states your account name, your city and state when your account's billing contact holds both, the plan's `description`, the amount and currency, the date, the card brand and its last four digits, the remaining balance and the number of payments remaining (the receipt of the last installment, or of a payment that completes the plan, says the plan is paid in full instead), and a button that opens the invoice of the installment. The principal part of a payment has no invoice and no button. When the card details cannot be read, the receipt prints `Card on file`.
 
-A payment recorded with `external: true` is not a card charge. The customer receives a `Payment recorded` email with the amount and the remaining balance, and no card details.
+A payment recorded with `external: true` is not a card charge. The customer receives a `Payment recorded` email with the amount and the remaining balance, and no card details. When that payment pays the plan off, the email's subject says the plan is paid in full and its text says so instead of giving a remaining balance.
 
 **Failed payments.** Each declined automatic attempt on an installment, retries included, sends the customer a notice with the invoice number and amount, the line `Installment 3 of 9 of your payment plan.`, the plan's `description`, the date of the next automatic retry when one is scheduled, a button to pay the invoice with another payment method, and this sentence: `You have at least 7 calendar days from the first failed attempt on this installment to pay it with another payment method.` Your account owner is copied on these notices.
 
