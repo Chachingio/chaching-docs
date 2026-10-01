@@ -57,6 +57,7 @@ Request body:
 ```json
 {
   "customer": "cus_739c07713fd4b68565a969cd",
+  "description": "Orthodontic treatment, upper and lower braces",
   "total_amount": 210000,
   "down_payment_amount": 30000,
   "installment_amount": 20000,
@@ -70,6 +71,7 @@ Request body:
 | **Field** | **Required** | **Rules** |
 | --- | --- | --- |
 | `customer` | yes | An existing customer id, `cus_…`. |
+| `description` | no | A short text describing what the plan pays for. ChaChing shows it to the customer on the plan's receipts and failed-payment emails. Up to 255 characters, with no line breaks or other control characters. Leading and trailing spaces are removed, and a value that is empty or only spaces is stored as no description. With an `Idempotency-Key`, sending such a value and leaving `description` out are the same request; adding a non-empty `description` to a request you retry with the same key, or changing it, answers `422`. |
 | `total_amount` | yes | Integer cents, at least `1`. |
 | `installment_count` | one of the two | Integer from `1` to `60`. |
 | `installment_amount` | one of the two | Integer cents, at least `1`. Send exactly one of `installment_count` and `installment_amount`; ChaChing derives the other. |
@@ -87,6 +89,7 @@ What happens when the plan is created:
 - When `down_payment_amount` is greater than `0`, ChaChing charges it immediately against `payment_method` and records it as installment sequence `0`, already paid. When the charge is declined, the request answers `402` `PAYMENT_PLAN_DOWN_PAYMENT_DECLINED` and no plan is created. When its outcome cannot be confirmed, the request answers `502` `PAYMENT_PLAN_DOWN_PAYMENT_UNCONFIRMED`, no plan is created, and the charge is not reversed because it can still settle: do not retry blindly — check the customer's invoices first.
 - `payment_method` becomes the customer's default payment method, and the installments are charged against it.
 - ChaChing sends `payment_plan.created` and `payment_plan.activated`, and, when there is a down payment, `payment_plan.installment_paid` for installment `0`.
+- When there is a down payment, ChaChing emails the customer a receipt for it. See **Emails Your Customer Receives**.
 
 ## The Card on File
 
@@ -120,6 +123,8 @@ Change the first two through `PUT /revenue-recovery`; see [Configure Failed-Paym
 - `GET /payment-plans` lists your plans, newest first, with the page parameters `page` and `take` (`take` at most `50`). Filter with `search`, a URL-encoded JSON object: `{"customer": "cus_739c07713fd4b68565a969cd", "status": "past_due,defaulted"}`. `status` takes one status or a comma-separated list. A `search` value that is not valid JSON answers `400`.
 - `GET /payment-plans/{id}` returns one plan.
 - `GET /payment-plans/{id}/installments` returns the plan's installments in ascending `sequence` order, the down payment first when there is one.
+
+The Payment Plan object carries `description`: the text sent when the plan was created, or `null` when none was sent. It cannot be changed afterwards.
 
 An installment's `status` is `scheduled`, `paid`, `failed` or `canceled`. It reads `failed` after a declined automatic attempt and stays `failed` until it is paid. `attempt_count` counts the automatic charge attempts, retries included, and `next_payment_attempt` is the date of the next retry, or `null` when none is scheduled. An installment not yet billed reads `canceled` when the plan was canceled or paid off, or when a payment that reached the principal shortened the schedule and removed it.
 
@@ -175,6 +180,34 @@ For the subscription side of the same rules, see [Track subscription lifecycle a
 
 ---
 
+# Emails Your Customer Receives
+
+ChaChing emails the plan's customer at the email address stored on the customer. These emails are best effort: a customer with no email address receives none, and an email that fails to send does not change the response, the plan or the webhooks. A receipt is not sent for a charge more than 48 hours old when the receipt step runs.
+
+**Receipts.** The customer receives one receipt for each of these card charges:
+
+- the down payment, when the plan is created;
+- each installment charged automatically on its due date or by an automatic retry;
+- each payment recorded with `POST /payment-plans/{id}/payments` that is not `external`. One receipt lists every charge of that payment.
+
+An installment invoice that your customer pays from the payment page, or that you pay from the dashboard, sends no receipt email in this release.
+
+The subject is `Receipt from <your account name>: payment 3 of 9` for an installment, `Receipt from <your account name>: down payment` for the down payment, and `Receipt from <your account name>: payment plan payment` for a recorded payment that covers several charges or reaches the principal. `9` is the plan's `installment_count`. The receipt states your account name, your city and state when your account's billing contact holds both, the plan's `description`, the amount and currency, the date, the card brand and its last four digits, the remaining balance and the number of payments remaining (the receipt of the last installment, or of a payment that completes the plan, says the plan is paid in full instead), and a button that opens the invoice of the installment. The principal part of a payment has no invoice and no button. When the card details cannot be read, the receipt prints `Card on file`.
+
+A payment recorded with `external: true` is not a card charge. The customer receives a `Payment recorded` email with the amount and the remaining balance, and no card details. When that payment pays the plan off, the email's subject says the plan is paid in full and its text says so instead of giving a remaining balance.
+
+**Failed payments.** Each declined automatic attempt on an installment, retries included, sends the customer a notice with the invoice number and amount, the line `Installment 3 of 9 of your payment plan.`, the plan's `description`, the date of the next automatic retry when one is scheduled, a button to pay the invoice with another payment method, and this sentence: `You have at least 7 calendar days from the first failed attempt on this installment to pay it with another payment method.` Your account owner is copied on these notices.
+
+A declined down payment sends the customer no email: the request answers `402` `PAYMENT_PLAN_DOWN_PAYMENT_DECLINED`, and no plan exists.
+
+**Description.** A plan created without `description` prints `Payment plan` followed by the plan id in its place.
+
+**Copies of receipts.** Receipts go to the customer only. ChaChing can turn on a copy of every receipt to your account owner; contact ChaChing to enable it.
+
+These emails do not replace the webhooks: `payment_plan.installment_paid`, `payment_plan.installment_failed` and `payment_plan.payment_succeeded` report the same payments to your integration.
+
+---
+
 # Cancel a Plan
 
 `POST /payment-plans/{id}/cancel` answers `200` with the plan in status `canceled` and `canceled_at` set, and ChaChing sends `payment_plan.canceled`. Installments not yet billed are removed at the end of the period already billed and are never charged. Cancellation is not a refund and does not forgive debt: amounts already invoiced stay collectible through `POST /payment-plans/{id}/payments`, and `remaining_balance` shows what is still owed.
@@ -185,7 +218,7 @@ This endpoint is the only way to end a plan early. A payment plan is not a subsc
 
 # Error Codes
 
-Errors use the standard body `{ "statusCode", "message", "error", "timestamp", "path" }`. Branch on `statusCode` and `error`; `message` can change. A request body that fails field validation — a value below its minimum such as `total_amount: 0` or `installment_count: 0`, a negative `down_payment_amount`, a value of the wrong type, or an unknown field such as `terminal` — and a `search` value that is not valid JSON are rejected with `400` and a body that carries no `error` field; `message` describes the problem.
+Errors use the standard body `{ "statusCode", "message", "error", "timestamp", "path" }`. Branch on `statusCode` and `error`; `message` can change. A request body that fails field validation — a value below its minimum such as `total_amount: 0` or `installment_count: 0`, a negative `down_payment_amount`, a value of the wrong type, a `description` longer than 255 characters or containing a line break or another control character, or an unknown field such as `terminal` — and a `search` value that is not valid JSON are rejected with `400` and a body that carries no `error` field; `message` describes the problem.
 
 | **Status** | **`error`** | **When** |
 | --- | --- | --- |
