@@ -166,7 +166,7 @@ Each recorded payment sends `payment_plan.payment_succeeded`, one `payment_plan.
 
 # Card Surcharges
 
-On an account that charges through iPOSpays (Dejavoo), a card charge of a payment plan can carry a card surcharge. The amount is decided by the S.T.E.A.M configuration of your account in the iPOSpays portal and by the card used: a debit card, or an account with no fee configured, adds nothing. ChaChing records the surcharge separately and never changes a plan amount because of it.
+On an account that charges through iPOSpays (Dejavoo), a card charge of a payment plan can carry a card surcharge. Whether a card is surcharged, and how much, is decided by the S.T.E.A.M configuration of your account in the iPOSpays portal and by the card used; in our tests a debit card was not surcharged. ChaChing records the surcharge separately and never changes a plan amount because of it.
 
 These charges carry it:
 
@@ -188,16 +188,16 @@ Two fields report it, always present and in integer cents, on the Installment, P
 | `surcharge_amount` | The card surcharge added to the charge or charges. `0` when none was added. |
 | `amount_charged` | The total charged to the card. It equals `amount_paid` on an installment, `amount` on a payment and on a transaction, and `amount_paid` on an invoice, when nothing was added. |
 
-For example, a $1.00 payment that carried a 3 cent surcharge reads `amount: 100`, `amount_paid: 100`, `surcharge_amount: 3`, `amount_charged: 103`.
+For example, a $1.00 payment that carried a 3 cent surcharge reads `amount: 100`, `surcharge_amount: 3`, `amount_charged: 103`; the installment that payment paid reads `amount_paid: 100`, `surcharge_amount: 3`, `amount_charged: 103`.
 
 - `amount_charged` can exceed the amount plus `surcharge_amount` when the gateway adds another S.T.E.A.M amount for your account. That difference is included in `amount_charged` and is not itemised.
 - A payment that did not succeed never shows a surcharge.
-- ChaChing reads the surcharge from the gateway after the charge. While it cannot be read yet, `surcharge_amount` is `0` and `amount_charged` equals the amount paid. ChaChing keeps trying for up to 7 days, and the objects show the real values as soon as the read succeeds.
+- ChaChing reads the surcharge from the gateway after the charge. While it cannot be read yet, `surcharge_amount` is `0` and `amount_charged` equals the amount paid. ChaChing keeps trying for up to 7 days, and the objects show the real values as soon as the read succeeds. When the surcharge of a charge still cannot be read after those 7 days, or at once when the charge cannot be matched, the installment and payment objects keep `surcharge_amount` at `0` and `amount_charged` equal to the amount paid, and that does not change later. The exact amount charged to the card is then the one shown for that transaction in your Dejavoo (iPOSpays) account.
 - ChaChing does not refund a surcharge: there is no refund operation for payment plan charges.
 
-Before the payer pays, the payment page of an open plan invoice and the dashboard's `Charge customer` sheet tell them that a card surcharge can be added. The payment page says: "<your account name> can add a card surcharge to this amount when you pay by card. The page shows the exact total charged after you pay." The `Charge customer` sheet says: "A card surcharge configured on your Dejavoo account can be added to this amount."
+Before the payer pays, the payment page of an open plan invoice and the dashboard's `Charge customer` sheet tell them that a card surcharge can be added. The payment page says: "<your account name> can add a card surcharge to this amount when you pay by card. The page shows the exact total charged after you pay." ("The merchant" replaces the account name when the account has none.) The `Charge customer` sheet says: "A card surcharge configured on your Dejavoo account can be added to this amount."
 
-In the dashboard, the transactions list, the transaction details, the invoice details and the customer pages show the surcharge and the total charged for a charge that carried one. The dashboard's Total revenue and a customer's total spend include the surcharge for accounts that charge through Dejavoo.
+In the dashboard, the transactions list, the transaction details and the invoice details show the surcharge and the total charged for a charge that carried one. The dashboard's Total revenue and a customer's total spend include the surcharge for accounts that charge through Dejavoo.
 
 ---
 

@@ -52,7 +52,7 @@ Exports the transactions list. When filters are applied, exports only selected t
 | **CSV** | Exports all currently filtered transactions as a CSV file. |
 | **XLSX** | Exports the data as an Excel spreadsheet. |
 
-The export column picker offers **Surcharge** and **Total charged** in addition to the table columns. In the exported file they are the `Surcharge` and `TotalCharged` columns.
+The export column picker offers **Surcharge** and **Total charged** in addition to the table columns. In the exported file they are the `surcharge` and `amountCharged` columns, named by their column ids.
 
 ## Transactions Table
 
@@ -106,7 +106,7 @@ Shown for a charge that carried a card surcharge.
 
 #### **Payment Breakdown**
 
-Provides a financial breakdown of the transaction. The fee and net amount are the card processing fee and are unrelated to the card surcharge.
+Provides a financial breakdown of the transaction. The fee and net amount come from the Stripe processing fee and are unrelated to the card surcharge.
 
 | **Field**          | **Description**                           |
 | ------------------ | ----------------------------------------- |
@@ -157,7 +157,7 @@ Shown for a charge that carried a card surcharge.
 
 #### **Payment Breakdown**
 
-Provides a financial breakdown of the transaction. The fee and net amount are the card processing fee and are unrelated to the card surcharge.
+Provides a financial breakdown of the transaction. The fee and net amount come from the Stripe processing fee and are unrelated to the card surcharge.
 
 | **Field**          | **Description**                           |
 | ------------------ | ----------------------------------------- |
