@@ -38,7 +38,7 @@ The main part of the page contains a table listing all customers.
 | **Name** | Customer’s full name. Includes a checkbox. When selected, a bulk-action panel appears (Export, Delete). |
 | **Email** | The customer’s primary contact email. |
 | **Default payment** | Displays the customer’s default payment method if available. |
-| **Total Spend** | The total amount the customer has paid over their lifetime. |
+| **Total Spend** | The total amount the customer has paid over their lifetime, including the card surcharges collected. |
 | **Payments** | The number of payments associated with the customer. |
 | **Current subscription** | Shows the customer’s active subscription status, if any. |
 ---

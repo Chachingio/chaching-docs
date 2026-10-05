@@ -1,6 +1,6 @@
 # Payment Plans
 
-A payment plan collects a fixed total amount from one customer in a fixed number of scheduled installments. ChaChing stores the plan, charges each installment automatically on its due date against the plan's payment method, retries a declined charge on your account's retry schedule, and reports every change over webhooks. There is no interest and there are no fees: the customer pays exactly the total agreed when the plan was created.
+A payment plan collects a fixed total amount from one customer in a fixed number of scheduled installments. ChaChing stores the plan, charges each installment automatically on its due date against the plan's payment method, retries a declined charge on your account's retry schedule, and reports every change over webhooks. There is no interest. The installments always add up to the total agreed when the plan was created; on an account that charges through iPOSpays (Dejavoo), each card charge of a plan also carries the card surcharge configured for your account in the iPOSpays S.T.E.A.M portal, recorded separately from the plan amounts (see [Card Surcharges](#card-surcharges)).
 
 Payment Plans are available through the API. They are enabled per merchant account by ChaChing and are off by default. While they are off, every `/payment-plans` endpoint answers `403` with the error code `PAYMENT_PLANS_NOT_ENABLED` and the message `Payment Plans are not enabled for this account. Contact Chaching to enable them.`
 
@@ -126,6 +126,8 @@ Change the first two through `PUT /revenue-recovery`; see [Configure Failed-Paym
 
 The Payment Plan object carries `description`: the text sent when the plan was created, or `null` when none was sent. It cannot be changed afterwards.
 
+An installment's `surcharge_amount` and `amount_charged` report the card surcharge of the charges that paid it; see [Card Surcharges](#card-surcharges).
+
 An installment's `status` is `scheduled`, `paid`, `failed` or `canceled`. It reads `failed` after a declined automatic attempt and stays `failed` until it is paid. `attempt_count` counts the automatic charge attempts, retries included, and `next_payment_attempt` is the date of the next retry, or `null` when none is scheduled. An installment not yet billed reads `canceled` when the plan was canceled or paid off, or when a payment that reached the principal shortened the schedule and removed it.
 
 The Invoice object, on the invoice endpoints and in every `invoice.*` webhook, carries `payment_plan` and `installment`. Both are `null` on an invoice that belongs to no payment plan, and an invoice raised for a payment plan reports `subscription: null`.
@@ -162,6 +164,43 @@ Each recorded payment sends `payment_plan.payment_succeeded`, one `payment_plan.
 
 ---
 
+# Card Surcharges
+
+On an account that charges through iPOSpays (Dejavoo), a card charge of a payment plan can carry a card surcharge. Whether a card is surcharged, and how much, is decided by the S.T.E.A.M configuration of your account in the iPOSpays portal and by the card used; in our tests a debit card was not surcharged. ChaChing records the surcharge separately and never changes a plan amount because of it.
+
+These charges carry it:
+
+- the down payment;
+- every automatic installment charge and every automatic retry;
+- every installment invoice paid from the payment page or from the dashboard;
+- every charge of `POST /payment-plans/{id}/payments` that is not `external`, the principal part included.
+
+A payment plan invoice paid with a card through any route — the automatic charge, `POST /invoices/{id}/pay`, the payment page or the dashboard — carries your account's surcharge; a Google Pay payment of a plan invoice does not.
+
+Accounts that charge through NMI never carry a surcharge, and neither does a payment recorded with `external: true`, because nothing is charged.
+
+The plan amounts never include the surcharge: `total_amount`, `installment_amount`, every installment `amount`, `amount_paid`, `remaining_balance`, the invoice totals and the payoff amount stay as agreed.
+
+Two fields report it, always present and in integer cents, on the Installment, Payment, Transaction and Invoice objects:
+
+| **Field** | **Meaning** |
+| --- | --- |
+| `surcharge_amount` | The card surcharge added to the charge or charges. `0` when none was added. |
+| `amount_charged` | The total charged to the card. It equals `amount_paid` on an installment, `amount` on a payment and on a transaction, and `amount_paid` on an invoice, when nothing was added. |
+
+For example, a $1.00 payment that carried a 3 cent surcharge reads `amount: 100`, `surcharge_amount: 3`, `amount_charged: 103`; the installment that payment paid reads `amount_paid: 100`, `surcharge_amount: 3`, `amount_charged: 103`.
+
+- `amount_charged` can exceed the amount plus `surcharge_amount` when the gateway adds another S.T.E.A.M amount for your account. That difference is included in `amount_charged` and is not itemised.
+- A payment that did not succeed never shows a surcharge.
+- ChaChing reads the surcharge from the gateway after the charge. While it cannot be read yet, `surcharge_amount` is `0` and `amount_charged` equals the amount paid. ChaChing keeps trying for up to 7 days, and the objects show the real values as soon as the read succeeds. When the surcharge of a charge still cannot be read after those 7 days, or at once when the charge cannot be matched, the installment and payment objects keep `surcharge_amount` at `0` and `amount_charged` equal to the amount paid, and that does not change later. The exact amount charged to the card is then the one shown for that transaction in your Dejavoo (iPOSpays) account.
+- ChaChing does not refund a surcharge: there is no refund operation for payment plan charges.
+
+Before the payer pays, the payment page of an open plan invoice and the dashboard's `Charge customer` sheet tell them that a card surcharge can be added. The payment page says: `<your account name> can add a card surcharge to this amount when you pay by card. The page shows the exact total charged after you pay.` (`The merchant` replaces the account name when the account has none.) The `Charge customer` sheet says: `A card surcharge configured on your Dejavoo account can be added to this amount.`
+
+In the dashboard, the transactions list, the transaction details and the invoice details show the surcharge and the total charged for a charge that carried one. The dashboard's Total revenue and a customer's total spend include the surcharge for accounts that charge through Dejavoo.
+
+---
+
 # Failed Payments and Payment Plans
 
 Your retry schedule and your failed-payment outcome apply to the whole account — every subscription and every payment plan — and they are read and changed with `GET /revenue-recovery` and `PUT /revenue-recovery`, described in [Configure Failed-Payment Settings](./subscription-lifecycle.md). The two outcome fields take these exact values: `subscription_state_on_payment_failure` is `cancel`, `unpaid` or `past-due`, and `invoice_state_on_payment_failure` is `past-due` or `uncollectible`.
@@ -192,11 +231,11 @@ ChaChing emails the plan's customer at the email address stored on the customer.
 
 An installment invoice that your customer pays from the payment page, or that you pay from the dashboard, sends no receipt email in this release.
 
-The subject is `Receipt from <your account name>: payment 3 of 9` for an installment, `Receipt from <your account name>: down payment` for the down payment, and `Receipt from <your account name>: payment plan payment` for a recorded payment that covers several charges or reaches the principal. `9` is the plan's `installment_count`. The receipt states your account name, your city and state when your account's billing contact holds both, the plan's `description`, the amount and currency, the date, the card brand and its last four digits, the remaining balance and the number of payments remaining (the receipt of the last installment, or of a payment that completes the plan, says the plan is paid in full instead), and a button that opens the invoice of the installment. The principal part of a payment has no invoice and no button. When the card details cannot be read, the receipt prints `Card on file`.
+The subject is `Receipt from <your account name>: payment 3 of 9` for an installment, `Receipt from <your account name>: down payment` for the down payment, and `Receipt from <your account name>: payment plan payment` for a recorded payment that covers several charges or reaches the principal. `9` is the plan's `installment_count`. The receipt states your account name, your city and state when your account's billing contact holds both, the plan's `description`, the amount and currency, the date, the card brand and its last four digits, a `Surcharge` line after the payment lines when the charge carried a surcharge, with `Total charged` as the amount the card was charged, the remaining balance and the number of payments remaining (the receipt of the last installment, or of a payment that completes the plan, says the plan is paid in full instead), and a button that opens the invoice of the installment. The principal part of a payment has no invoice and no button. When the card details cannot be read, the receipt prints `Card on file`.
 
 A payment recorded with `external: true` is not a card charge. The customer receives a `Payment recorded` email with the amount and the remaining balance, and no card details. When that payment pays the plan off, the email's subject says the plan is paid in full and its text says so instead of giving a remaining balance.
 
-**Failed payments.** Each declined automatic attempt on an installment, retries included, sends the customer a notice with the invoice number and amount, the line `Installment 3 of 9 of your payment plan.`, the plan's `description`, the date of the next automatic retry when one is scheduled, a button to pay the invoice with another payment method, and this sentence: `You have at least 7 calendar days from the first failed attempt on this installment to pay it with another payment method.` Your account owner is copied on these notices.
+**Failed payments.** Each declined automatic attempt on an installment, retries included, sends the customer a notice with the invoice number and amount, the line `Installment 3 of 9 of your payment plan.`, the plan's `description`, the date of the next automatic retry when one is scheduled, a button to pay the invoice with another payment method, and this sentence: `You have at least 7 calendar days from the first failed attempt on this installment to pay it with another payment method.` For accounts that charge through iPOSpays, the notice also says: `When your card is charged, <your account name> can add a card surcharge to this amount.` Your account owner is copied on these notices.
 
 A declined down payment sends the customer no email: the request answers `402` `PAYMENT_PLAN_DOWN_PAYMENT_DECLINED`, and no plan exists.
 
