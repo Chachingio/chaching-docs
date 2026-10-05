@@ -52,13 +52,15 @@ Exports the transactions list. When filters are applied, exports only selected t
 | **CSV** | Exports all currently filtered transactions as a CSV file. |
 | **XLSX** | Exports the data as an Excel spreadsheet. |
 
+The export column picker offers **Surcharge** and **Total charged** in addition to the table columns. In the exported file they are the `Surcharge` and `TotalCharged` columns.
+
 ## Transactions Table
 
 Displayed below the filters.
 
 | **Column** | **Description** |
 | --- | --- |
-| **Amount** | Total transaction amount. |
+| **Amount** | The amount applied by the transaction. A charge that carried a card surcharge shows **Surcharge** and **Total charged** under the amount. |
 | **Status** | Transaction status (e.g., *Succeeded, Refunded, Failed*). |
 | **Customer Name** | Name of the customer associated with the transaction. |
 | **Payment method** | The card or payment source used (e.g., *Visa •••• 4242*). |
@@ -80,7 +82,7 @@ Displays the transaction amount and its final status.
 
 | **Field**  | **Description**                                         |
 | ---------- | ------------------------------------------------------- |
-| **Amount** | Total amount of the transaction (e.g., **$317.24**).    |
+| **Amount** | The amount applied by the transaction (e.g., **$317.24**). The title of the page shows the same amount. |
 | **Status** | Final transaction status (e.g., *Succeeded*, *Failed*). |
 
 #### **Timeline**
@@ -92,9 +94,19 @@ Shows the chronological progress of the transaction with timestamps.
 | **Payment started**    | The moment the payment attempt was initiated.              |
 | **Payment authorised** | Confirmation that the payment was successfully authorised. |
 
+#### **Charge**
+
+Shown for a charge that carried a card surcharge.
+
+| **Field**         | **Description**                                         |
+| ----------------- | ------------------------------------------------------- |
+| **Amount**        | The amount applied by the transaction.                  |
+| **Surcharge**     | The card surcharge added to the charge.                 |
+| **Total charged** | The total charged to the card: the amount plus the surcharge. |
+
 #### **Payment Breakdown**
 
-Provides a financial breakdown of the transaction.
+Provides a financial breakdown of the transaction. The fee and net amount are the card processing fee and are unrelated to the card surcharge.
 
 | **Field**          | **Description**                           |
 | ------------------ | ----------------------------------------- |
@@ -121,7 +133,7 @@ Displays the transaction amount and its final status.
 
 | **Field**  | **Description**                                         |
 | ---------- | ------------------------------------------------------- |
-| **Amount** | Total amount of the transaction (e.g., **$317.24**).    |
+| **Amount** | The amount applied by the transaction (e.g., **$317.24**). The title of the page shows the same amount. |
 | **Status** | Final transaction status (e.g., *Succeeded*, *Failed*). |
 
 #### **Timeline**
@@ -133,9 +145,19 @@ Shows the chronological progress of the transaction with timestamps.
 | **Payment started**    | The moment the payment attempt was initiated.              |
 | **Payment authorised** | Confirmation that the payment was successfully authorised. |
 
+#### **Charge**
+
+Shown for a charge that carried a card surcharge.
+
+| **Field**         | **Description**                                         |
+| ----------------- | ------------------------------------------------------- |
+| **Amount**        | The amount applied by the transaction.                  |
+| **Surcharge**     | The card surcharge added to the charge.                 |
+| **Total charged** | The total charged to the card: the amount plus the surcharge. |
+
 #### **Payment Breakdown**
 
-Provides a financial breakdown of the transaction.
+Provides a financial breakdown of the transaction. The fee and net amount are the card processing fee and are unrelated to the card surcharge.
 
 | **Field**          | **Description**                           |
 | ------------------ | ----------------------------------------- |

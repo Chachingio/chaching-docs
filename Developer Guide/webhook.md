@@ -612,6 +612,8 @@ Events:
   "account_name": "string",
   "amount_due": 0,
   "amount_paid": 0,
+  "surcharge_amount": 0,
+  "amount_charged": 0,
   "amount_remaining": 0,
   "attempt_count": 0,
   "next_payment_attempt": 1672531200,
@@ -660,6 +662,8 @@ Events:
 }
 ```
 
+`surcharge_amount` and `amount_charged` sum the invoice's successful payments, in cents: the card surcharge added to them and the total charged to the card. `amount_charged` equals `amount_paid` when no surcharge was added.
+
 ### Example
 
 ```json
@@ -674,6 +678,8 @@ Events:
     "account_name": "Acme Corp",
     "amount_due": 1500,
     "amount_paid": 500,
+    "surcharge_amount": 0,
+    "amount_charged": 500,
     "amount_remaining": 1000,
     "attempt_count": 1,
     "next_payment_attempt": null,
@@ -1114,6 +1120,8 @@ carries the Payment object.
   "due_date": 1672531200,
   "amount": 0,
   "amount_paid": 0,
+  "surcharge_amount": 0,
+  "amount_charged": 0,
   "status": "scheduled | paid | failed | canceled",
   "attempt_count": 0,
   "next_payment_attempt": "1672531200 | null",
@@ -1130,6 +1138,8 @@ carries the Payment object.
   "object": "payment_plan_payment",
   "payment_plan": "pp_XXXXXXXX",
   "amount": 0,
+  "surcharge_amount": 0,
+  "amount_charged": 0,
   "external": false,
   "payment_method": "string | null",
   "invoice": "string | null",
@@ -1158,6 +1168,8 @@ carries the Payment object.
     "due_date": 1763078400,
     "amount": 20000,
     "amount_paid": 0,
+    "surcharge_amount": 0,
+    "amount_charged": 0,
     "status": "failed",
     "attempt_count": 1,
     "next_payment_attempt": 1763164800,
@@ -1215,6 +1227,8 @@ carries the Payment object.
     "object": "payment_plan_payment",
     "payment_plan": "pp_8QN4mTcRk2VwZfLp",
     "amount": 50000,
+    "surcharge_amount": 0,
+    "amount_charged": 50000,
     "external": false,
     "payment_method": "9f3a1c2e-7b45-4d18-a6c0-2f8e5b7d1a94",
     "invoice": "d5b9e2c1-8a41-4f36-9c17-3ad0b1e5f882",
@@ -1236,6 +1250,7 @@ carries the Payment object.
 - `payment_plan.installment_paid` is sent once per installment. The down payment charged at creation sends it with `sequence: 0`
 - `payment_plan.completed` is the single paid-in-full event. It is sent whether the schedule ended with every installment paid or a payoff payment was recorded, and `status` is `paid_off` in both cases
 - `payment_plan.payment_succeeded` is sent for every payment `POST /payment-plans/{id}/payments` records — installment payments, principal payments, payoffs and external payments alike — and never for a declined or refused one. Its `data` is the Payment object at the moment the payment is recorded: `id`, `amount`, `external`, `payment_method`, `invoice` and `payoff` match the endpoint's response, while for a payment that reached the principal `remaining_balance`, `installments_remaining` and `payment_plan_status` describe the plan before its schedule is rebuilt right after — the balance can still include the principal, and a `defaulted` plan that the rebuild returns to `active` still reads `defaulted`; read the plan for the current values. A repeated request with the same `Idempotency-Key` sends nothing again. When a request ends before its payment is fully recorded, ChaChing finishes recording it later and sends the payment's events then
+- `surcharge_amount` and `amount_charged` on the Installment and Payment objects report the card surcharge and the total charged to the card, in cents. While ChaChing cannot read the surcharge from the gateway yet, they read `0` and the amount paid, and the event is not sent again when the real values arrive: read the plan's installments for them. See [Card Surcharges](./payment-plans.md#card-surcharges)
 - The principal part of a payment belongs to no invoice and sends no `invoice.*` event: `payment_plan.payment_succeeded` is the event that reports it
 - The plan status `past_due` means the customer's account is in the late-payment warning. It is not the `past-due` failed-payment outcome: reaching that outcome sends `payment_plan.defaulted`
 - The `invoice.*` events keep firing for every installment invoice; the invoice payload's `payment_plan` and `installment` fields link it back to the plan

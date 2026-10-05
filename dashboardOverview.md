@@ -115,7 +115,7 @@ These sections help you quickly understand changes in your subscriber base.
 
 | Metric | Description |
 | --- | --- |
-| **Total Revenue** | Total amount collected in the selected period |
+| **Total Revenue** | Total amount collected in the selected period, card surcharges included |
 | **Avg. Revenue Per User (ARPU)** | Average recurring revenue per customer |
 | **Total Invoices** | Number of invoices created |
 | **Failed Payments** | Total number of failed payment attempts |
