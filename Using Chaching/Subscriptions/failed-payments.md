@@ -97,11 +97,13 @@ You choose the outcome in **After the last retry fails, the customer's subscript
 | **Automatic payment for the customer** | Turned off | Not changed | Not changed |
 | **Email to the customer** | "Your subscriptions have been cancelled" | "Your access is on hold pending payment" | "Your account is past due" |
 
-While a customer is in any of the three outcomes, do not create or change that customer's subscriptions from the dashboard, the hosted payment page, or the API: such a request does not complete correctly and can disrupt the customer's existing subscriptions. Collect, write off, or void the customer's outstanding invoices first.
+While a customer is in any of the three outcomes, ChaChing rejects a request to create, change, pause, or resume that customer's subscriptions, from the dashboard, the hosted payment page, or the API, and a rejected request does not change the customer's subscriptions. The late-payment warning does not cause this rejection. On the subscription details page, **Edit**, **Pause**, and **Resume** are not shown for a subscription of that customer. You can still cancel a subscription of that customer whose status is not Cancelled or Expired. To create or change subscriptions for the customer, first collect, write off, or void the customer's outstanding invoices.
+
+In the customer portal, a customer who is in any of the three outcomes can add a payment method and change the default payment method. The portal rejects the customer's request to cancel a subscription, and the request to remove a payment method when it is the customer's only one.
 
 ### Cancelled
 
-When ChaChing applies this outcome, it cancels every subscription of the customer that has not ended, immediately. The unpaid balance stays owed: no invoice is voided or written off. ChaChing turns off automatic payment for the customer, so no further automatic charge is made to the customer's payment method. The customer can still pay the unpaid invoices through their invoice payment links, and the cancellation email includes a **Pay now** button for one of them.
+When ChaChing applies this outcome, it cancels every subscription of the customer that has not ended: the customer's access ends at the cancellation, and billing ends at the end of the period already billed. A subscription whose cancellation was already scheduled keeps its scheduled date. The unpaid balance stays owed: no invoice is voided or written off. ChaChing turns off automatic payment for the customer, so no further automatic charge is made to the customer's payment method. The customer can still pay the unpaid invoices through their invoice payment links, and the cancellation email includes a **Pay now** button for one of them.
 
 A later payment never restores the cancelled subscriptions. After every outstanding invoice of the customer is paid in full, written off, or voided, ChaChing turns back on the automatic payment it turned off, for a customer who has a default payment method. To bill the customer again, create new subscriptions after every outstanding invoice of the customer is paid in full, written off, or voided.
 
@@ -109,7 +111,7 @@ A later payment never restores the cancelled subscriptions. After every outstand
 
 When ChaChing applies this outcome, every subscription of the customer that has not ended is put on hold. The subscriptions are not cancelled, and they are not billed while on hold. While on hold they show **Unpaid**, and a subscription can show Trial, Scheduled, Cancelled, or Expired instead, for example while it is still in its trial period.
 
-After every outstanding invoice of the customer is paid in full, written off, or voided, the hold ends. The hold can also end before that, for example when the customer pays the oldest unpaid invoices. When the hold ends, billing resumes, except for a subscription that is paused at that time, including one paused during the hold: that subscription stays paused and is not billed until it is resumed.
+After every outstanding invoice of the customer is paid in full, written off, or voided, the hold ends. The hold can also end before that, for example when the customer pays the oldest unpaid invoices. When the hold ends, billing resumes, except for a subscription that is paused at that time: that subscription stays paused and is not billed until it is resumed. ChaChing rejects a request to pause or resume a subscription while its customer is in the outcome.
 
 ### Kept past due
 

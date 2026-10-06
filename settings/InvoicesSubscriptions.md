@@ -45,7 +45,7 @@ Despite the labels below, the outcome is not triggered by the last retry. It dep
 
 | **Option** | **Description** |
 | --- | --- |
-| **Cancelled** | When the outcome is applied, cancels every subscription of the customer that has not ended, immediately, and turns off automatic payment for that customer. A later payment does not restore the cancelled subscriptions. This is the default. |
+| **Cancelled** | When the outcome is applied, cancels every subscription of the customer that has not ended, and turns off automatic payment for that customer. The customer's access ends at the cancellation, and billing ends at the end of the period already billed. A later payment does not restore the cancelled subscriptions. This is the default. |
 | **Blocked as unpaid** | When the outcome is applied, puts every subscription of the customer that has not ended on hold: billing stops while on hold, and the subscriptions show **Unpaid**; a subscription can show Trial, Scheduled, Cancelled, or Expired instead. |
 | **Kept past due** | When the outcome is applied, does not put the customer's subscriptions on hold, change their status, or stop their billing. |
 
@@ -81,7 +81,7 @@ These values can typically be overridden on individual invoices.
 - Saved settings also apply to customers who already have unpaid invoices. Shortening the retry schedule moves the outcome day earlier. Lengthening it moves the outcome day later and can release a customer from the Unpaid hold or from past due before the customer pays. Subscriptions that were already cancelled stay cancelled.
 - You can change the option in **After the last retry fails, the customer's subscriptions are** at any time. A customer who is already in the previous outcome moves to the new outcome on the next evaluation, or is released when their outstanding invoices are paid in full, written off, or voided.
 - The retry schedule holds at most five rows on this page and at most 10 values through the ChaChing API. See [Configure Failed-Payment Settings](../Developer%20Guide/subscription-lifecycle.md) in the developer guide.
-- While a customer is in an outcome, do not create or change that customer's subscriptions. Collect, write off, or void the customer's outstanding invoices first.
+- While a customer is in an outcome, ChaChing rejects requests to create, change, pause, or resume that customer's subscriptions. Collect, write off, or void the customer's outstanding invoices first.
 - An invoice created with **Request payment** does not count toward the outcome while no payment on it has been attempted. A declined payment on such an invoice can apply the outcome right away when the invoice is past its due date and at least as old as the outcome day. Follow up on invoices whose due date has passed, and collect or void them.
 - The retry schedule applies to automatic payments that are declined. An automatic payment that fails because of a processing error, or whose result cannot be confirmed, can follow this schedule, be retried at other times, or not be retried.
 - These settings can be changed from this page and through the ChaChing API. For the API, see [Configure Failed-Payment Settings](../Developer%20Guide/subscription-lifecycle.md) in the developer guide.
