@@ -59,7 +59,7 @@ Subscription events for an outcome are sent per subscription item, not per subsc
 
 - The late-payment warning sends no subscription webhook. A customer's payment plans can report it with `payment_plan.past_due`; see [Payment Plans](./payment-plans.md).
 - `subscription.resumed` with `reason: "dunning"` and `initiated_by: "system"` can be sent when a hold from the **Blocked as unpaid** outcome ends, and only to subscription items that received `subscription.paused` for that hold. A hold can also end without any `subscription.resumed`, so do not rely on it to learn that a hold ended.
-- A subscription paused through the API or the dashboard before the hold also receives `subscription.paused` for the hold. A subscription that is paused when the hold ends, whether it was paused before or during the hold, can receive `subscription.resumed`, but it stays paused and is not billed until it is resumed.
+- A subscription paused through the API or the dashboard before the hold also receives `subscription.paused` for the hold. A subscription that is paused when the hold ends can receive `subscription.resumed`, but it stays paused and is not billed until it is resumed. A pause or resume request made while the customer is in an outcome is rejected; see **Subscription Changes During an Outcome**.
 - After an `invoice.payment_succeeded` for a customer whose subscriptions are on hold, wait a short time, then re-read the subscription with `GET /subscriptions/{id}` to learn whether the hold ended. The hold is re-evaluated separately from the payment event, so a read made immediately on receipt can show the state from before the payment.
 - A pause, resume, or cancellation requested through the API or the dashboard carries `reason: "requested"` and `initiated_by: "merchant"`.
 
@@ -67,7 +67,9 @@ Subscription events for an outcome are sent per subscription item, not per subsc
 
 # Subscription Changes During an Outcome
 
-While a customer is in any of the three outcomes, do not create or change that customer's subscriptions with `POST /subscriptions` or `PATCH /subscriptions/{id}`. Such a request does not complete correctly and can disrupt the customer's existing subscriptions, including when it returns an error. Collect or void the customer's outstanding invoices first.
+While a customer is in any of the three outcomes, a well-formed `POST /subscriptions`, `PATCH /subscriptions/{id}`, `POST /subscriptions/{id}/pause`, or `POST /subscriptions/{id}/resume` request for that customer is rejected with HTTP `409` and a body whose `statusCode` is `409` and whose `message` is `Account is blocked pending payment`. A request rejected this way does not change the customer's subscriptions. `DELETE /subscriptions/{id}` is not rejected for this reason, and the late-payment warning does not cause this response.
+
+Collect or void the customer's outstanding invoices first. The outcome is re-evaluated separately from a payment, so a request made immediately after the customer pays can still be rejected; wait a short time, then repeat it.
 
 The API exposes no field that states whether a customer is in an outcome, and the failed-payment indicator the dashboard shows for a customer is not available through the API or in webhook payloads. Treat a customer as in an outcome while any of the customer's outstanding invoices is at least as old as the outcome day, counted from its invoice date.
 
