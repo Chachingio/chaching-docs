@@ -1102,7 +1102,26 @@ carries the Payment object.
   "payment_method": "string | null",
   "gateway": "string | null",
   "reference": "string | null",
-  "deposit": "object | null",
+  "deposit": {
+    "reference": "string",
+    "amount": 0,
+    "status": "pending | collected",
+    "transaction_reference": "string | null",
+    "collected_at": "1672531200 | null",
+    "attempt": {
+      "id": "ppda_XXXXXXXX",
+      "object": "payment_plan_deposit_attempt",
+      "terminal": "string",
+      "reference_id": "string",
+      "state": "in_flight | resolving | approved | approved_no_credential | declined | cancelled | not_charged | failed | partial_approval",
+      "started": 1672531200,
+      "resolved": "1672531200 | null",
+      "decline_code": "string | null",
+      "decline_message": "string | null",
+      "surcharge_amount": 0,
+      "amount_charged": 0
+    }
+  },
   "created": 1672531200,
   "ended_at": "1672531200 | null",
   "canceled_at": "1672531200 | null"
@@ -1248,6 +1267,7 @@ carries the Payment object.
 - The Payment Plan object in `data` is the plan after the change, and its `status` is the plan's status when the event is sent. A plan created with a payment method sends `payment_plan.created` and `payment_plan.activated` with the same object, `status: "active"`
 - `payment_plan.installment_failed` is sent once per declined automatic charge attempt, retries included. A declined payment through `POST /payment-plans/{id}/payments` answers the request with an error instead and sends no `payment_plan.installment_failed`. `attempt_count` counts the attempts made on the installment, and `next_payment_attempt` is the date of the next retry, or `null` when no retry is scheduled
 - `payment_plan.installment_paid` is sent once per installment. The down payment charged at creation sends it with `sequence: 0`
+- `deposit` is `null` for a plan created with a payment method. For a plan created without one, `deposit.attempt` is `null` until the first terminal attempt and then holds the latest attempt; see [Collect the First Installment on a Terminal](./payment-plans.md#collect-the-first-installment-on-a-terminal)
 - `payment_plan.completed` is the single paid-in-full event. It is sent whether the schedule ended with every installment paid or a payoff payment was recorded, and `status` is `paid_off` in both cases
 - `payment_plan.payment_succeeded` is sent for every payment `POST /payment-plans/{id}/payments` records — installment payments, principal payments, payoffs and external payments alike — and never for a declined or refused one. Its `data` is the Payment object at the moment the payment is recorded: `id`, `amount`, `external`, `payment_method`, `invoice` and `payoff` match the endpoint's response, while for a payment that reached the principal `remaining_balance`, `installments_remaining` and `payment_plan_status` describe the plan before its schedule is rebuilt right after — the balance can still include the principal, and a `defaulted` plan that the rebuild returns to `active` still reads `defaulted`; read the plan for the current values. A repeated request with the same `Idempotency-Key` sends nothing again. When a request ends before its payment is fully recorded, ChaChing finishes recording it later and sends the payment's events then
 - `surcharge_amount` and `amount_charged` on the Installment and Payment objects report the card surcharge and the total charged to the card, in cents. While ChaChing cannot read the surcharge from the gateway yet, they read `0` and the amount paid, and the event is not sent again when the real values arrive: read the plan's installments for them. When ChaChing cannot read the surcharge of a charge (after retrying for up to 7 days, or at once when the charge cannot be matched), the objects keep `surcharge_amount` at `0` and `amount_charged` equal to the amount paid, and that does not change later; the exact amount charged to the card is then the one shown for that transaction in your Dejavoo (iPOSpays) account. See [Card Surcharges](./payment-plans.md#card-surcharges)
