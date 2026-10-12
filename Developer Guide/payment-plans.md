@@ -347,9 +347,8 @@ ChaChing emails the plan's customer at the email address stored on the customer.
 - the down payment, when the plan is created;
 - the first installment collected on a terminal, when the plan is activated;
 - each installment charged automatically on its due date or by an automatic retry;
-- each payment recorded with `POST /payment-plans/{id}/payments` that is not `external`. One receipt lists every charge of that payment.
-
-An installment invoice that your customer pays from the payment page, or that you pay from the dashboard, sends no receipt email in this release.
+- each payment recorded with `POST /payment-plans/{id}/payments` that is not `external`. One receipt lists every charge of that payment;
+- an installment invoice paid by card through ChaChing outside those endpoints: by your customer from the payment page, or by you from the dashboard or with `PUT /invoices/{id}`.
 
 The subject is `Receipt from <your account name>: payment 3 of 9` for an installment, `Receipt from <your account name>: down payment` for the down payment, and `Receipt from <your account name>: payment plan payment` for a recorded payment that covers several charges or reaches the principal. `9` is the plan's `installment_count`. The receipt states your account name, your city and state when your account's billing contact holds both, the plan's `description`, the amount and currency, the date, the card brand and its last four digits, a `Surcharge` line after the payment lines when the charge carried a surcharge, with `Total charged` as the amount the card was charged, the remaining balance and the number of payments remaining (the receipt of the last installment, or of a payment that completes the plan, says the plan is paid in full instead), and a button that opens the invoice of the installment. The principal part of a payment has no invoice and no button. When the card details cannot be read, the receipt prints `Card on file`.
 
