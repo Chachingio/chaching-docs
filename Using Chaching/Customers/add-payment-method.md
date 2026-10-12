@@ -29,4 +29,4 @@ When viewing a customer's profile, you can add a new payment method.
 ---
 ## Add Payment Method Button
 
-Saves and attaches the new payment method to the customer profile using the provided details.
+Saves and attaches the new payment method to the customer profile using the provided details. When the card is already saved for this customer, ChaChing keeps the saved card instead of adding it a second time (accounts on Stripe and on Dejavoo).

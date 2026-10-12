@@ -77,7 +77,7 @@ Request body:
 | `installment_amount` | one of the two | Integer cents, at least `1`. Send exactly one of `installment_count` and `installment_amount`; ChaChing derives the other. |
 | `down_payment_amount` | no | Integer cents, `0` or more and less than `total_amount`. Default `0`. |
 | `interval` | no | `weekly`, `biweekly` or `monthly`. Default `monthly`. |
-| `start_date` | no | Unix seconds: the due date of installment 1. It must fall on a later calendar day (UTC) than the request; a date on the day of the request is refused. Default: one interval after the day of the request. |
+| `start_date` | no | Unix seconds: the due date of installment 1. Only the UTC calendar date is used: the time of day is dropped, the plan starts at 00:00:00 UTC of that date, and that is the `start_date` the plan returns. It must fall on a later calendar day (UTC) than the request; a date on the day of the request is refused. Default: one interval after the day of the request. |
 | `remainder_placement` | no | `first` or `last`. Default `first`. |
 | `payment_method` | yes | The id of a payment method of this customer, as returned by the payment-methods endpoints. |
 
@@ -158,11 +158,19 @@ The amount is applied first to the plan's billed installments that are not fully
 
 - **Extra payment.** An amount below `remaining_balance`. When it reaches the principal, the installment amount and the due dates do not change: the plan ends sooner, and its last installment is reduced to what is left.
 - **Payoff.** An amount equal to `remaining_balance`. It pays every open installment, closes the rest of the schedule, and moves the plan to `paid_off`.
-- **Several charges.** A payment spanning several billed installments, or billed installments and the principal, is charged as one charge per installment invoice plus one charge for the principal, in that order. When the first charge is declined the request answers `402` `PAYMENT_DECLINED` and nothing is applied. When a later charge is declined, the charges already approved stay applied and the request answers `201` with the `amount` actually applied. When a later charge's outcome cannot be confirmed, the request still answers `201`, but `amount` reads `0` even when earlier charges of the same payment were approved: the payment is recorded only once every one of its charges is resolved. Do not retry with a new `Idempotency-Key`. Wait for `payment_plan.payment_succeeded`, which ChaChing sends with the amount actually applied once it finishes recording the payment, and read the plan's installments when the event does not arrive.
+- **Several charges.** A payment spanning several billed installments, or billed installments and the principal, is charged as one charge per installment invoice plus one charge for the principal, in that order. When the first charge is declined the request answers `402` `PAYMENT_DECLINED` and nothing is applied. When a later charge is declined, the charges already approved stay applied and the request answers `201` with the `amount` actually applied. When a later charge's outcome cannot be confirmed, the request still answers `201`, with `status` `processing` and `amount` `0` even when earlier charges of the same payment were approved: the payment is recorded only once every one of its charges is resolved. Do not retry with a new `Idempotency-Key`. Wait for `payment_plan.payment_succeeded`, which ChaChing sends with the amount actually applied once it finishes recording the payment, and read the plan's installments when the event does not arrive.
 - **The principal has no invoice.** The principal part of a payment belongs to no invoice: it does not appear on the invoice endpoints and sends no `invoice.*` webhook. `payment_plan.payment_succeeded` reports it.
 - A payment on a `past_due` or `defaulted` plan is never refused because of its status. While an earlier payment's schedule rebuild is still being completed, a further payment answers `409` `PAYMENT_PLAN_REPLAN_PENDING`; retry it later.
 
-Each recorded payment sends `payment_plan.payment_succeeded`, one `payment_plan.installment_paid` for every installment it paid in full, and `payment_plan.completed` when it is a payoff. A declined or refused payment sends none of them. When a request ends before its payment is fully recorded (for example a `502` `PAYMENT_PLAN_PAYMENT_UNCONFIRMED`, or a `201` whose later charge could not be confirmed), ChaChing finishes recording the payment later and sends these events then.
+The Payment object's `status` tells you how far the recording went:
+
+| **`status`** | **Meaning** |
+| --- | --- |
+| `applied` | Every charge was approved and the whole amount was applied. |
+| `partially_applied` | A later charge was declined or not attempted. `amount` is the part that was applied. |
+| `processing` | At least one charge has no confirmed outcome yet. Nothing is recorded yet and `amount` reads `0`. ChaChing finishes recording the payment and then sends `payment_plan.payment_succeeded` with the final `status` and `amount`. |
+
+Each recorded payment sends `payment_plan.payment_succeeded`, one `payment_plan.installment_paid` for every installment it paid in full, and `payment_plan.completed` when it is a payoff. For one payment they are sent in this order: `payment_plan.installment_paid` for each installment it paid in full, then `payment_plan.payment_succeeded`, then `payment_plan.completed`. A declined or refused payment sends none of them. When a request ends before its payment is fully recorded (for example a `502` `PAYMENT_PLAN_PAYMENT_UNCONFIRMED`, or a `201` whose later charge could not be confirmed), ChaChing finishes recording the payment later and sends these events then.
 
 ---
 
@@ -279,6 +287,7 @@ Errors use the standard body `{ "statusCode", "message", "error", "timestamp", "
 | `404` | `CUSTOMER_NOT_FOUND` | The customer id does not resolve for this account. |
 | `404` | `PAYMENT_METHOD_NOT_FOUND` | The payment method does not resolve, or it does not belong to the customer. |
 | `409` | `PAYMENT_PLAN_CREDENTIAL_NOT_ESTABLISHED` | The saved card was not established for automatic payments. Create the plan with a down payment, or ask the customer to enter the card again. |
+| `409` | `PAYMENT_PLAN_PAYMENT_METHOD_NOT_SUPPORTED` | The payment method is not a card saved with the account's current payment gateway. Nothing was created or charged. The same answer is given when `payment_method` is omitted and the customer's default payment method is not such a card. Send a payment method returned by the payment-methods endpoints. |
 | `409` | `PAYMENT_PLAN_UNPAID_OUTCOME_NOT_SUPPORTED` | Your failed-payment outcome is `unpaid`. |
 | `409` | `PAYMENT_PLAN_DUNNING_SCHEDULE_TOO_SHORT` | Your `payment_retries` sum to less than 7 days. |
 | `409` | `PAYMENT_PLAN_CUSTOMER_DELINQUENT` | The customer's account is in the late-payment warning or a failed-payment outcome, or carries an invoice unpaid for one day or more. |
@@ -309,7 +318,7 @@ Payment Plans send ten webhook event types on the same endpoints, envelope, sign
 | --- | --- | --- |
 | `payment_plan.created` | A plan is created. | Payment Plan |
 | `payment_plan.activated` | A plan starts running. A plan created with `payment_method` sends it right after `payment_plan.created`. | Payment Plan |
-| `payment_plan.installment_paid` | An installment is paid by its automatic charge or a retry, by a payment through `POST /payment-plans/{id}/payments`, or as the down payment at creation (sequence `0`). | Installment |
+| `payment_plan.installment_paid` | An installment is paid by its automatic charge or a retry, by a payment through `POST /payment-plans/{id}/payments`, by a payment of its invoice made through ChaChing (the hosted invoice page, the dashboard or `PUT /invoices/{id}`), by credit on the customer's account that settles its invoice, or as the down payment at creation (sequence `0`). | Installment |
 | `payment_plan.installment_failed` | An automatic charge attempt on an installment is declined, once per attempt, retries included. | Installment |
 | `payment_plan.past_due` | The plan changes to `past_due`. | Payment Plan |
 | `payment_plan.defaulted` | The plan changes to `defaulted`. | Payment Plan |
@@ -317,5 +326,7 @@ Payment Plans send ten webhook event types on the same endpoints, envelope, sign
 | `payment_plan.completed` | The plan changes to `paid_off`. | Payment Plan |
 | `payment_plan.canceled` | The plan is canceled. | Payment Plan |
 | `payment_plan.payment_succeeded` | `POST /payment-plans/{id}/payments` records a payment. | Payment |
+
+An installment whose invoice is settled by credit on the customer's account, with no card charge, becomes `paid` with `amount_paid` equal to its `amount` and `surcharge_amount` `0`. `paid_at` is the moment ChaChing recorded it, which can be up to about 10 minutes after the credit was applied. `payment_plan.installment_paid` is sent once and no receipt email is sent.
 
 Read the plan with `GET /payment-plans/{id}` whenever you need its current state: the plan and installment endpoints are the source of truth, and deliveries can arrive in a different order than the changes happened.
