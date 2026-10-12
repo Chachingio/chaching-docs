@@ -287,7 +287,7 @@ Errors use the standard body `{ "statusCode", "message", "error", "timestamp", "
 | `404` | `CUSTOMER_NOT_FOUND` | The customer id does not resolve for this account. |
 | `404` | `PAYMENT_METHOD_NOT_FOUND` | The payment method does not resolve, or it does not belong to the customer. |
 | `409` | `PAYMENT_PLAN_CREDENTIAL_NOT_ESTABLISHED` | The saved card was not established for automatic payments. Create the plan with a down payment, or ask the customer to enter the card again. |
-| `409` | `PAYMENT_PLAN_PAYMENT_METHOD_NOT_SUPPORTED` | The payment method is not a card saved with the account's current payment gateway. Nothing was created or charged. The same answer is given when `payment_method` is omitted and the customer's default payment method is not such a card. Send a payment method returned by the payment-methods endpoints. |
+| `409` | `PAYMENT_PLAN_PAYMENT_METHOD_NOT_SUPPORTED` | The payment method is not a card saved with the account's current payment gateway. Nothing was created or charged. On `POST /payment-plans/{id}/payments` the same answer is given when `payment_method` is omitted and the customer's default payment method is not such a card. Send a payment method returned by the payment-methods endpoints. |
 | `409` | `PAYMENT_PLAN_UNPAID_OUTCOME_NOT_SUPPORTED` | Your failed-payment outcome is `unpaid`. |
 | `409` | `PAYMENT_PLAN_DUNNING_SCHEDULE_TOO_SHORT` | Your `payment_retries` sum to less than 7 days. |
 | `409` | `PAYMENT_PLAN_CUSTOMER_DELINQUENT` | The customer's account is in the late-payment warning or a failed-payment outcome, or carries an invoice unpaid for one day or more. |
