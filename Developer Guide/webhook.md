@@ -1113,7 +1113,7 @@ carries the Payment object.
       "object": "payment_plan_deposit_attempt",
       "terminal": "string",
       "reference_id": "string",
-      "state": "in_flight | resolving | approved | approved_no_credential | declined | cancelled | not_charged | failed | partial_approval",
+      "state": "in_flight | resolving | approved | approved_no_credential | declined | cancelled | not_charged | failed | partial_approval | force_closed",
       "started": 1672531200,
       "resolved": "1672531200 | null",
       "decline_code": "string | null",

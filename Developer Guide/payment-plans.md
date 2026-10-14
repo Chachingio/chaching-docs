@@ -187,6 +187,7 @@ The `deposit` object while the customer is at the terminal:
 | `resolving` | The terminal's answer did not arrive, or did not say whether the card was charged, and the outcome is not known yet. The card can have been charged. | Call `POST /payment-plans/{id}/deposit`. Do not ask the customer to pay again: a new attempt is refused until this one is resolved. |
 | `approved_no_credential` | The card was charged, but ChaChing has not saved it for the next installments yet. The plan stays `awaiting_deposit`. | Call `POST /payment-plans/{id}/deposit` again five minutes later. Do not charge the customer again. |
 | `partial_approval` | The card was charged an amount different from installment 1, or only part of it. The plan is not activated. | Void the sale on the terminal, then start a new attempt. |
+| `force_closed` | ChaChing staff closed an attempt whose outcome could not be confirmed. The plan stays `awaiting_deposit`; you can start a new attempt or cancel the plan. The card can have been charged: check the sale in your Dejavoo (iPOSpays) account. | Start a new attempt only after that check. |
 
 Fields of the attempt object:
 
