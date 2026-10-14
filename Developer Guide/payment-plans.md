@@ -145,7 +145,7 @@ A plan created without `payment_method` collects its first installment on one of
    ```
 
    It answers `202` with the Payment Plan object, and `deposit.attempt.state` is `in_flight`. The terminal shows the amount, including the card surcharge your account adds; the customer confirms it and presents the card.
-3. Poll `GET /payment-plans/{id}` every 2 to 3 seconds until `deposit.attempt.state` is no longer `in_flight`. The customer has up to 180 seconds at the terminal. When the terminal's answer is lost, ChaChing keeps confirming the sale for up to 60 more seconds, so an attempt leaves `in_flight` at most 240 seconds after it started.
+3. Poll `GET /payment-plans/{id}` every 2 to 3 seconds until `deposit.attempt.state` is no longer `in_flight`. The request allows the customer up to 180 seconds at the terminal; the terminal itself times out the card prompt earlier (about 30 seconds idle plus 90 seconds of card entry on the P1, measured 2026-10-14). When the terminal's answer is lost, ChaChing keeps confirming the sale for up to 60 more seconds, so an attempt leaves `in_flight` at most 240 seconds after it started.
 
 The `deposit` object while the customer is at the terminal:
 
@@ -280,7 +280,7 @@ The Payment object's `status` tells you how far the recording went:
 | `partially_applied` | A later charge was declined or not attempted, or the terminal approved less than the amount sent. `amount` is the part that was applied. |
 | `processing` | At least one charge has no confirmed outcome yet. Nothing is recorded yet and `amount` reads `0`. ChaChing finishes recording the payment and then sends `payment_plan.payment_succeeded` with the final `status` and `amount`. |
 | `declined` | The first charge was declined, or the terminal sale was declined. Nothing was applied. |
-| `not_attempted` | The first charge was not attempted, or the terminal sale did not take place: it was cancelled, the terminal confirmed that nothing was charged, the terminal refused the request, or ChaChing staff closed it. Nothing was applied. |
+| `not_attempted` | The first charge was not attempted, or the terminal sale did not take place: it was cancelled, the terminal confirmed that nothing was charged, the terminal refused the request, or ChaChing staff closed it. Nothing was applied. A payment also reads `not_attempted` when the terminal approved and charged the card but the plan could absorb none of the amount: `terminal.state` is then `approved` and `amount_charged` carries the collected amount, so do not ask the customer to pay again. |
 | `unconfirmed` | The outcome of the first charge could not be confirmed. Nothing was recorded; read the plan before retrying. |
 
 The `201` of `POST /payment-plans/{id}/payments` and `payment_plan.payment_succeeded` carry only `processing`, `applied` and `partially_applied`. `GET /payment-plans/{id}/payments/{payment_id}` returns any payment of the plan with its `status` as recorded, so it can also read `declined`, `not_attempted` or `unconfirmed`.
@@ -301,7 +301,7 @@ A customer who comes to your counter can pay an installment, make an extra payme
    ```
 
    It answers `201` with the Payment object in `status: processing`, with `amount: 0` and a `terminal` object whose `state` is `in_flight`. The terminal shows the amount, including the card surcharge your account adds; the customer confirms it and presents the card.
-2. Poll `GET /payment-plans/{id}/payments/{payment_id}` every 2 to 3 seconds until `terminal.state` is no longer `in_flight`. The customer has up to 180 seconds at the terminal. When the terminal's answer is lost, ChaChing keeps confirming the sale for up to 60 more seconds, so a payment leaves `in_flight` at most 240 seconds after it started.
+2. Poll `GET /payment-plans/{id}/payments/{payment_id}` every 2 to 3 seconds until `terminal.state` is no longer `in_flight`. The request allows the customer up to 180 seconds at the terminal; the terminal itself times out the card prompt earlier (about 30 seconds idle plus 90 seconds of card entry on the P1, measured 2026-10-14). When the terminal's answer is lost, ChaChing keeps confirming the sale for up to 60 more seconds, so a payment leaves `in_flight` at most 240 seconds after it started.
 3. When the sale is approved, ChaChing records the payment: `status` becomes `applied` and `amount` the amount applied, `surcharge_amount` and `amount_charged` report the surcharge the terminal added, ChaChing sends `payment_plan.payment_succeeded` (with `payment_plan.installment_paid` for each installment it paid in full and `payment_plan.completed` for a payoff), and the customer receives the receipt. On this payment `external` reads `false` and `payment_method` reads `null`.
 
 The `terminal` object while the customer is at the terminal:
@@ -331,7 +331,7 @@ The `terminal` object while the customer is at the terminal:
 | **`terminal.state`** | **Meaning** | **What you do** |
 | --- | --- | --- |
 | `in_flight` | The customer is at the terminal, or ChaChing is confirming the sale. The payment reads `processing`. | Keep polling. To stop the sale while the card prompt is open, call `POST /payment-plans/{id}/payments/{payment_id}/cancel`. |
-| `approved` | The sale was approved. Once ChaChing has recorded it the payment reads `applied`; when the terminal approved more than the amount sent, the amount sent is applied and `amount_charged` includes the difference. | Nothing. When the payment still reads `processing` a minute later, call `POST /payment-plans/{id}/payments/{payment_id}/resolve`. |
+| `approved` | The sale was approved. Once ChaChing has recorded it the payment reads `applied`; when the terminal approved more than the amount sent, the amount sent is applied and `amount_charged` includes the difference. When the plan could absorb none of the amount, the terminal approved and charged the card but the payment reads `not_attempted`: `terminal.state` is `approved` and `amount_charged` carries the collected amount, so do not ask the customer to pay again. | Nothing. When the payment still reads `processing` a minute later, call `POST /payment-plans/{id}/payments/{payment_id}/resolve`. |
 | `partial_approval` | The terminal approved less than the amount sent. ChaChing records the approved amount and the payment reads `partially_applied`. | Take the rest as a new payment. |
 | `declined` | The card was declined. The payment reads `declined`; nothing was applied. | Take a new payment, with another card when the customer has one. |
 | `cancelled` | The sale was cancelled on the terminal or with the cancel endpoint. The payment reads `not_attempted`; nothing was charged. | Take a new payment when the customer is ready. |
