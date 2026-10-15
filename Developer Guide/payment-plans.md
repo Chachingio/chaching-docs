@@ -45,7 +45,7 @@ For example, $2,100.00 at $200.00 a month with no down payment and the remainder
 | `active`, `past_due` | `defaulted` | The customer's account reaches your failed-payment outcome. | `payment_plan.defaulted` |
 | `defaulted` | `past_due` | Under the `past-due` outcome, the customer's account falls back from the outcome to the late-payment warning. | `payment_plan.past_due` |
 | `past_due`, `defaulted` | `active` | The customer's account clears, or a payment with a principal portion rebuilds the remaining schedule while the account is clear. See **Failed Payments and Payment Plans** for the `cancel` outcome. | `payment_plan.reactivated` |
-| `active`, `past_due`, `defaulted` | `paid_off` | The schedule ends with every installment paid, or a payoff payment is recorded. A `past_due` or `defaulted` plan whose schedule ends while an installment is still unpaid keeps its status until that installment is paid and the customer's account clears. | `payment_plan.completed` |
+| `active`, `past_due`, `defaulted` | `paid_off` | The schedule ends with every installment paid, a payoff payment is recorded, or the last unpaid installment is paid through the hosted invoice page, the dashboard or `PUT /invoices/{id}`, or settled by credit on the customer's account. A `past_due` or `defaulted` plan whose schedule ends while an installment is still unpaid keeps its status until that installment is paid: it changes at once when the payment goes through ChaChing or credit settles it, and when the customer's account clears when its automatic charge or a retry collects it. | `payment_plan.completed` |
 | `active`, `past_due`, `defaulted`, `awaiting_deposit` | `canceled` | You call `POST /payment-plans/{id}/cancel`. | `payment_plan.canceled` |
 
 ---
@@ -105,6 +105,8 @@ Payment Plans run on accounts whose payment gateway is Dejavoo or NMI. On any ot
 - Your failed-payment outcome (`subscription_state_on_payment_failure`) is `unpaid`: `409` `PAYMENT_PLAN_UNPAID_OUTCOME_NOT_SUPPORTED`.
 - Your retry schedule (`payment_retries`) sums to less than 7 days: `409` `PAYMENT_PLAN_DUNNING_SCHEDULE_TOO_SHORT`.
 - The customer's account is in the late-payment warning or in a failed-payment outcome, or it carries an invoice unpaid for one day or more: `409` `PAYMENT_PLAN_CUSTOMER_DELINQUENT`. Collect the balance first.
+- The request has a down payment and automatic payments are turned off for the customer in the billing engine: `409` `PAYMENT_PLAN_AUTO_PAY_OFF`. Create the plan without a down payment.
+- The customer was already invoiced through a date on or after `start_date`, because an invoice was generated ahead of time for the customer's account: `409` `PAYMENT_PLAN_ACCOUNT_INVOICED_AHEAD`. The message names that date; choose a `start_date` after it.
 - The customer's billing state cannot be read: `502` `PAYMENT_PLAN_BILLING_ENGINE_UNAVAILABLE`. Nothing was created; the request is safe to retry with a new `Idempotency-Key`.
 
 Change the first two through `PUT /revenue-recovery`; see [Configure Failed-Payment Settings](./subscription-lifecycle.md).
@@ -398,10 +400,12 @@ Errors use the standard body `{ "statusCode", "message", "error", "timestamp", "
 | `404` | `PAYMENT_METHOD_NOT_FOUND` | The payment method does not resolve, or it does not belong to the customer. |
 | `404` | `DEJAVOO_TERMINAL_NOT_FOUND` | The `terminal_id` does not resolve to a terminal of this account. |
 | `409` | `PAYMENT_PLAN_CREDENTIAL_NOT_ESTABLISHED` | The saved card was not established for automatic payments. Create the plan with a down payment, or ask the customer to enter the card again. |
-| `409` | `PAYMENT_PLAN_PAYMENT_METHOD_NOT_SUPPORTED` | The payment method is not a card saved with the account's current payment gateway. Nothing was created or charged. On `POST /payment-plans/{id}/payments` the same answer is given when `payment_method` is omitted and the customer's default payment method is not such a card. Send a payment method returned by the payment-methods endpoints. |
+| `409` | `PAYMENT_PLAN_PAYMENT_METHOD_NOT_SUPPORTED` | On a create, the payment method is not a card saved with the account's current payment gateway. On `POST /payment-plans/{id}/payments`, on `PUT /invoices/{id}` and on a payment from the hosted invoice page or the dashboard of an invoice that carries an unpaid installment, the card that would be charged — `payment_method`, or the customer's default payment method when it is omitted — is not a card saved with the payment gateway the plan was created on; a plan created before you changed your payment gateway keeps accepting its own cards. Nothing was created or charged. Send a payment method returned by the payment-methods endpoints, or record money you collected yourself with `external: true` on `POST /payment-plans/{id}/payments`. |
 | `409` | `PAYMENT_PLAN_UNPAID_OUTCOME_NOT_SUPPORTED` | Your failed-payment outcome is `unpaid`. |
 | `409` | `PAYMENT_PLAN_DUNNING_SCHEDULE_TOO_SHORT` | Your `payment_retries` sum to less than 7 days. |
 | `409` | `PAYMENT_PLAN_CUSTOMER_DELINQUENT` | The customer's account is in the late-payment warning or a failed-payment outcome, or carries an invoice unpaid for one day or more. |
+| `409` | `PAYMENT_PLAN_AUTO_PAY_OFF` | The plan has a down payment and automatic payments are turned off for the customer in the billing engine. Nothing was created or charged. Create the plan without a down payment. |
+| `409` | `PAYMENT_PLAN_ACCOUNT_INVOICED_AHEAD` | The customer was already invoiced through a date on or after `start_date`. The message names that date. Nothing was created; choose a `start_date` after it. |
 | `409` | `PAYMENT_PLAN_DOWN_PAYMENT_PENDING` | An earlier down-payment invoice of the same amount for this customer is still open, or was settled in a way this request cannot use (a different payment method, no card payment, or more than one such invoice). Nothing was created or charged by this request. Check the customer's invoices and transactions: wait for an open charge to finish, send the `payment_method` that paid, or refund or void the invoices that should not count, then send the request again. |
 | `409` | `PAYMENT_PLAN_NOT_PAYABLE` | The plan is `awaiting_deposit` or `paid_off`. |
 | `409` | `PAYMENT_PLAN_NOT_CANCELABLE` | The plan is already `paid_off` or `canceled`. |
@@ -450,6 +454,8 @@ Payment Plans send ten webhook event types on the same endpoints, envelope, sign
 | `payment_plan.canceled` | The plan is canceled. | Payment Plan |
 | `payment_plan.payment_succeeded` | `POST /payment-plans/{id}/payments` records a payment. | Payment |
 
-An installment whose invoice is settled by credit on the customer's account, with no card charge, becomes `paid` with `amount_paid` equal to its `amount` and `surcharge_amount` `0`. `paid_at` is the moment ChaChing recorded it, which can be up to about 10 minutes after the credit was applied. `payment_plan.installment_paid` is sent once and no receipt email is sent.
+An installment whose invoice is settled by credit on the customer's account, with no card charge, becomes `paid` with `amount_paid` equal to the amount the credit covered and `surcharge_amount` `0`. `paid_at` is the moment ChaChing recorded it, which can be up to about 10 minutes after the credit was applied. `payment_plan.installment_paid` is sent once and no receipt email is sent.
+
+When an installment's invoice is reduced by an adjustment and the rest is paid, the installment becomes `paid` and `amount_paid` is the amount actually collected; the adjusted part is not counted as paid.
 
 Read the plan with `GET /payment-plans/{id}` whenever you need its current state: the plan and installment endpoints are the source of truth, and deliveries can arrive in a different order than the changes happened.
