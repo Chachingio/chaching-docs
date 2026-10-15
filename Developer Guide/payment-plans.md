@@ -357,7 +357,7 @@ Fields of the `terminal` object (`null` on a payment that was not taken on a ter
 | `amount_charged` | The total charged to the card, in integer cents; `0` until the sale is approved. |
 | `transaction_id` | The iPOSpays transaction id of the sale, as your Dejavoo reports show it; `null` until it is known. |
 | `rrn` | The sale's retrieval reference number; `null` until it is known. |
-| `auth_code` | The authorization code of an approved sale; `null` otherwise. |
+| `auth_code` | The authorization code the terminal returned for the sale; `null` until it is known. |
 | `card_last4` | The last four digits of the card; `null` until they are known. |
 | `card_brand` | The card brand in lowercase, for example `visa`; `null` until it is known. |
 | `card_entry_type` | How the card was read, as the terminal reports it, for example `Contactless` or `Chip`; `null` until it is known. |
