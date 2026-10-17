@@ -4,6 +4,8 @@ A payment plan collects a fixed total amount from one customer in a fixed number
 
 Payment Plans are available through the API. They are enabled per merchant account by ChaChing and are off by default. While they are off, every `/payment-plans` endpoint answers `403` with the error code `PAYMENT_PLANS_NOT_ENABLED` and the message `Payment Plans are not enabled for this account. Contact Chaching to enable them.`
 
+Merchants also work with payment plans in the ChaChing dashboard. On an account that charges through iPOSpays (Dejavoo), the dashboard collects the first installment of a plan on one of the account's registered terminals and takes payments on a terminal, through the same deposit and payment flows this page describes. Nothing changes for an integration: every endpoint, object and webhook on this page works as documented.
+
 Every endpoint on this page authenticates with the account API key in the `cc-api-key` header, like every other public endpoint. Amounts are integers in cents, dates and timestamps are Unix seconds, and field names are `snake_case`. For every request and response schema, see the [API Reference](./api.json). For the webhook payloads, see [Webhooks](./webhook.md).
 
 ---
