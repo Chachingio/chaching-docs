@@ -78,7 +78,7 @@ Request body:
 | `installment_count` | one of the two | Integer from `1` to `60`. |
 | `installment_amount` | one of the two | Integer cents, at least `1`. Send exactly one of `installment_count` and `installment_amount`; ChaChing derives the other. |
 | `down_payment_amount` | no | Integer cents, `0` or more and less than `total_amount`. Default `0`. |
-| `interval` | no | `weekly`, `biweekly` or `monthly`. Default `monthly`. |
+| `interval` | no | `weekly`, `biweekly`, `monthly` or `annual`. Default `monthly`. On test environments, such as stage, `daily` is also accepted; production refuses `daily` with `400` `PAYMENT_PLAN_INTERVAL_INVALID`. An `annual` plan cannot start on 29 February. |
 | `start_date` | no | Unix seconds: the due date of installment 1. Only the UTC calendar date is used: the time of day is dropped, the plan starts at 00:00:00 UTC of that date, and that is the `start_date` the plan returns. It must fall on a later calendar day (UTC) than the request; a date on the day of the request is refused. Default: one interval after the day of the request. |
 | `remainder_placement` | no | `first` or `last`. Default `first`. |
 | `payment_method` | no | The id of a payment method of this customer, as returned by the payment-methods endpoints. Leave it out to collect installment 1 on a terminal. |
@@ -87,7 +87,7 @@ Without `payment_method`, the plan opens in `awaiting_deposit`: installment 1 is
 
 What happens when the plan is created:
 
-- Before charging anything, ChaChing checks the schedule it registered against the expected installment dates: every date for a plan of up to 12 installments, and, for a longer plan, the first installment date (plus the second when the first installment carries the odd amount). A date that cannot be projected because the customer has another subscription that bills often, such as a daily one, is not checked, and the plan is still created. A mismatch answers `500` `PAYMENT_PLAN_SCHEDULE_MISMATCH`, and no plan is created.
+- Before charging anything, ChaChing checks the schedule it registered against the expected installment dates: every date for a plan of up to 12 installments, and, for a longer plan, the first installment date (plus the second when the first installment carries the odd amount). A date that cannot be projected because the customer has another subscription that bills often, such as a daily one, is not checked, and the plan is still created. A date more than 36 months after the day of the request (UTC) is not checked either, and the plan is still created. A mismatch answers `500` `PAYMENT_PLAN_SCHEDULE_MISMATCH`, and no plan is created.
 - When `down_payment_amount` is greater than `0`, ChaChing charges it immediately against `payment_method` and records it as installment sequence `0`, already paid. When the charge is declined, the request answers `402` `PAYMENT_PLAN_DOWN_PAYMENT_DECLINED` and no plan is created. When its outcome cannot be confirmed, the request answers `502` `PAYMENT_PLAN_DOWN_PAYMENT_UNCONFIRMED`, no plan is created, and the charge is not reversed because it can still settle.
 - Before it charges a down payment, ChaChing looks for an earlier down-payment invoice of the same customer and the same amount that no plan uses, which is what a create that did not finish leaves behind. When that invoice was paid with the same `payment_method` and was not refunded, the new plan uses that payment: nothing is charged again, and installment `0` carries that earlier invoice in `invoice` and the time of that payment in `paid_at`. When its charge failed, ChaChing voids it and charges the down payment again. When that invoice is still open without a confirmed outcome, when it was settled with a different payment method or without a card payment, when more than one such invoice was paid, or when a failed invoice cannot be voided, the request answers `409` `PAYMENT_PLAN_DOWN_PAYMENT_PENDING`, no plan is created and nothing is charged. From the next UTC day, an earlier down-payment invoice that is still unpaid answers `409` `PAYMENT_PLAN_CUSTOMER_DELINQUENT` instead, until it is paid or voided. An earlier down-payment invoice of a different amount is not matched, so check the customer's invoices before you change `down_payment_amount` after a `502`.
 - `payment_method` becomes the customer's default payment method, and the installments are charged against it.
@@ -490,8 +490,8 @@ Errors use the standard body `{ "statusCode", "message", "error", "timestamp", "
 | --- | --- | --- |
 | `400` | `PAYMENT_PLAN_SCHEDULE_INVALID` | Both or neither of `installment_count` and `installment_amount` were sent, `installment_count` is above `60` or larger than the amount to finance allows, `installment_amount` is larger than the amount to finance, or the amounts do not form a valid schedule. |
 | `400` | `PAYMENT_PLAN_AMOUNT_INVALID` | `down_payment_amount` is not below `total_amount`, or a payment's `amount` is below `1`. |
-| `400` | `PAYMENT_PLAN_INTERVAL_INVALID` | `interval` is not `weekly`, `biweekly` or `monthly`. |
-| `400` | `PAYMENT_PLAN_START_DATE_INVALID` | `start_date` is not after the day of the request. |
+| `400` | `PAYMENT_PLAN_INTERVAL_INVALID` | `interval` is not one of the values this environment accepts: `weekly`, `biweekly`, `monthly` and `annual` everywhere, and `daily` on test environments only. |
+| `400` | `PAYMENT_PLAN_START_DATE_INVALID` | `start_date` is not after the day of the request, or `interval` is `annual` and `start_date` is 29 February (UTC). |
 | `400` | `PAYMENT_PLAN_DOWN_PAYMENT_NOT_ALLOWED` | A down payment was sent without `payment_method`. |
 | `400` | `PAYMENT_PLAN_GATEWAY_NOT_SUPPORTED` | The account's payment gateway does not support Payment Plans. |
 | `400` | `PAYMENT_PLAN_AMOUNT_EXCEEDS_BALANCE` | A payment is larger than what the plan accepts. Nothing is charged. |
@@ -527,7 +527,7 @@ Errors use the standard body `{ "statusCode", "message", "error", "timestamp", "
 | `409` | `DEJAVOO_TERMINAL_BUSY` | The terminal is running another sale, a deposit or a payment. |
 | `409` | `DEJAVOO_TERMINAL_OFFLINE` | The terminal is not connected. Turn it on and try again. |
 | `409` | `SPIN_AUTH_KEY_UNREADABLE` | The terminal's stored Auth Key cannot be read. Re-enter it with `PATCH /dejavoo/terminals/{id}`. |
-| `409` | `PAYMENT_PLAN_INSTALLMENT_BILLING_IN_PROGRESS` | The payment reaches the principal and the next installment is due within 24 hours or is being billed. Nothing is charged. |
+| `409` | `PAYMENT_PLAN_INSTALLMENT_BILLING_IN_PROGRESS` | The payment reaches the principal and the next installment is due within 24 hours, or, for a `daily` plan, is billed within 1 hour, or is being billed. Nothing is charged. |
 | `409` | `PAYMENT_PLAN_PAYMENT_PENDING_CONFIRMATION` | An earlier payment on this plan is still being confirmed, a terminal payment that reads `processing` included. Nothing is charged; retry later. On `POST /payment-plans/{id}/cancel`, a terminal payment of the plan is unresolved. |
 | `409` | `PAYMENT_PLAN_REPLAN_PENDING` | An earlier payment's schedule rebuild is still being completed. Nothing is charged; retry later. |
 | `409` | `PAYMENT_PLAN_PAYMENT_NOT_ATTEMPTED` | The first charge was not attempted. Nothing is charged. |
