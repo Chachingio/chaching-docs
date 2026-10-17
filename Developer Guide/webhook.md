@@ -1092,7 +1092,7 @@ carries the Payment object.
   "down_payment_amount": 0,
   "installment_amount": 0,
   "installment_count": 0,
-  "interval": "weekly | biweekly | monthly",
+  "interval": "daily | weekly | biweekly | monthly | annual",
   "start_date": 1672531200,
   "remainder_placement": "first | last",
   "remaining_balance": 0,
