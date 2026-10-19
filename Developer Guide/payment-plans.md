@@ -395,16 +395,16 @@ Fields of the `terminal` object (`null` on a payment that was not taken on a ter
 
 # Card Surcharges
 
-On an account that charges through iPOSpays (Dejavoo), a card charge of a payment plan can carry a card surcharge. Whether a card is surcharged, and how much, is decided by the S.T.E.A.M configuration of your account in the iPOSpays portal and by the card used; in our tests a debit card was not surcharged. ChaChing records the surcharge separately and never changes a plan amount because of it.
+On an account that charges through iPOSpays (Dejavoo), every card charge can carry a card surcharge, payment plan charges included; [Card Surcharges](./card-surcharges.md) describes the rule for every charge. Whether a card is surcharged, and how much, is decided by the S.T.E.A.M configuration of your account in the iPOSpays portal and by the card used; in our tests a debit card was not surcharged. ChaChing records the surcharge separately and never changes a plan amount because of it.
 
-These charges carry it:
+These payment plan charges carry it:
 
 - the down payment;
 - every automatic installment charge and every automatic retry;
 - every installment invoice paid from the payment page or from the dashboard;
 - every charge of `POST /payment-plans/{id}/payments` that is not `external`, the principal part included, and every payment taken on a terminal.
 
-A payment plan invoice paid with a card through any route — the automatic charge, `POST /invoices/{id}/pay`, the payment page or the dashboard — carries your account's surcharge; a Google Pay payment of a plan invoice does not.
+A payment plan invoice paid with a card or with Google Pay through any route — the automatic charge, `POST /invoices/{id}/pay`, the payment page or the dashboard — carries your account's surcharge.
 
 Accounts that charge through NMI never carry a surcharge, and neither does a payment recorded with `external: true`, because nothing is charged.
 
@@ -424,7 +424,7 @@ For example, a $1.00 payment that carried a 3 cent surcharge reads `amount: 100`
 - ChaChing reads the surcharge from the gateway after the charge. While it cannot be read yet, `surcharge_amount` is `0` and `amount_charged` equals the amount paid. ChaChing keeps trying for up to 7 days, and the objects show the real values as soon as the read succeeds. When the surcharge of a charge still cannot be read after those 7 days, or at once when the charge cannot be matched, the installment and payment objects keep `surcharge_amount` at `0` and `amount_charged` equal to the amount paid, and that does not change later. The exact amount charged to the card is then the one shown for that transaction in your Dejavoo (iPOSpays) account.
 - ChaChing does not refund a surcharge: there is no refund operation for payment plan charges.
 
-Before the payer pays, the payment page of an open plan invoice and the dashboard's `Charge customer` sheet tell them that a card surcharge can be added. The payment page says: `<your account name> can add a card surcharge to this amount when you pay by card. The page shows the exact total charged after you pay.` (`The merchant` replaces the account name when the account has none.) The `Charge customer` sheet says: `A card surcharge configured on your Dejavoo account can be added to this amount.`
+Before the payer pays, the payment page of an open invoice and the dashboard's `Charge customer` sheet tell them that a card surcharge can be added; [Card Surcharges](./card-surcharges.md#what-your-customer-sees-before-paying) lists every notice and its exact wording.
 
 In the dashboard, the transactions list, the transaction details and the invoice details show the surcharge and the total charged for a charge that carried one. The dashboard's Total revenue and a customer's total spend include the surcharge for accounts that charge through Dejavoo.
 

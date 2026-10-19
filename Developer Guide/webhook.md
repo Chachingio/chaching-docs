@@ -662,7 +662,7 @@ Events:
 }
 ```
 
-`surcharge_amount` and `amount_charged` sum the invoice's successful payments, in cents: the card surcharge added to them and the total charged to the card. `amount_charged` equals `amount_paid` when no surcharge was added.
+`surcharge_amount` and `amount_charged` sum the invoice's successful payments, in cents: the card surcharge added to them and the total charged to the card. `amount_charged` equals `amount_paid` when no surcharge was added. Every card payment of an account that charges through iPOSpays (Dejavoo) can carry a surcharge; see [Card Surcharges](./card-surcharges.md).
 
 ### Example
 
@@ -735,6 +735,7 @@ Events:
 - The `lines` field contains invoice line items (structure may vary)
 - Some fields may be `null` depending on invoice state and configuration
 - `attempt_count` is present on every invoice event. `next_payment_attempt` is present only on `invoice.payment_succeeded` and `invoice.payment_failed` for an automatic charge; see [Track subscription lifecycle and failed payments](./subscription-lifecycle.md) for when it is present and what `null` means
+- `invoice.payment_succeeded` for a payment made through ChaChing (the dashboard, the payment page or an API request that pays the invoice) describes the invoice after that payment: its `amount_paid`, `surcharge_amount`, `amount_charged`, `status` and `attempt_count` include it
 - `next_payment_attempt` is a Unix timestamp in seconds, matching every other timestamp in this payload
 - `payment_plan` and `installment` name the payment plan and the installment an invoice was raised for. Both are `null` on an invoice that belongs to no payment plan, and an invoice raised for a payment plan reports `subscription: null`. See [Payment Plans](./payment-plans.md)
 
