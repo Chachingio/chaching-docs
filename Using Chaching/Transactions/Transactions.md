@@ -60,7 +60,7 @@ Displayed below the filters.
 
 | **Column** | **Description** |
 | --- | --- |
-| **Amount** | The amount applied by the transaction. A charge that carried a card surcharge shows **Surcharge** and **Total charged** under the amount. |
+| **Amount** | The amount applied by the transaction. A charge that carried a card surcharge shows **Surcharge** and **Total charged** under the amount; see [Card Surcharges](../../Developer%20Guide/card-surcharges.md). |
 | **Status** | Transaction status (e.g., *Succeeded, Refunded, Failed*). |
 | **Customer Name** | Name of the customer associated with the transaction. |
 | **Payment method** | The card or payment source used (e.g., *Visa •••• 4242*). |

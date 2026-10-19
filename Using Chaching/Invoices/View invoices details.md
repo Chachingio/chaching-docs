@@ -89,7 +89,7 @@ Clicking the three dots in a payment row opens a detailed payment timeline.
 
 | **Field** | **Description** |
 | --- | --- |
-| **Amount** | The attempted payment amount. A payment that carried a card surcharge also shows the **Surcharge** and the **Total charged**. |
+| **Amount** | The attempted payment amount. A payment that carried a card surcharge also shows the **Surcharge** and the **Total charged**; see [Card Surcharges](../../Developer%20Guide/card-surcharges.md). |
 | **Status** | The detailed internal status (e.g., *PURCHASE_ERRORED*). |
 | **Timeline** | Step-by-step history such as *Payment started*, *Payment failed*, with timestamps. |
 | **Error message** | Shows reason for failure when applicable. |
