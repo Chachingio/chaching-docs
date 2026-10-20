@@ -4,7 +4,7 @@ A payment plan collects a fixed total amount from one customer in a fixed number
 
 Payment Plans are available through the API. They are enabled per merchant account by ChaChing and are off by default. While they are off, every `/payment-plans` endpoint answers `403` with the error code `PAYMENT_PLANS_NOT_ENABLED` and the message `Payment Plans are not enabled for this account. Contact Chaching to enable them.`
 
-Merchants also work with payment plans in the ChaChing dashboard. On an account that charges through iPOSpays (Dejavoo), the dashboard collects the first installment of a plan on one of the account's registered terminals and takes payments on a terminal, through the same deposit and payment flows this page describes. Nothing changes for an integration: every endpoint, object and webhook on this page works as documented.
+Merchants also work with payment plans in the ChaChing dashboard. On an account that charges through iPOSpays (Dejavoo), the dashboard collects the deposit of a plan — its down payment, or its first installment when it has none — on one of the account's registered terminals and takes payments on a terminal, through the same deposit and payment flows this page describes. Nothing changes for an integration: every endpoint, object and webhook on this page works as documented.
 
 Every endpoint on this page authenticates with the account API key in the `cc-api-key` header, like every other public endpoint. Amounts are integers in cents, dates and timestamps are Unix seconds, and field names are `snake_case`. For every request and response schema, see the [API Reference](./api.json). For the webhook payloads, see [Webhooks](./webhook.md).
 
@@ -16,7 +16,7 @@ Every endpoint on this page authenticates with the account API key in the `cc-ap
 | --- | --- |
 | Payment plan | An agreement to collect `total_amount` from one customer in a fixed number of installments. Its id starts with `pp_`. |
 | Installment | One scheduled payment of a plan. Its id starts with `ppi_`. Each installment has a sequence number, a due date, an amount and a status, and it produces its own invoice when it is billed. |
-| Down payment | An amount charged when the plan is created, before any installment. It is recorded as installment sequence `0`, and it is not counted in `installment_count`. |
+| Down payment | An amount paid before any installment: charged when a plan is created with `payment_method`, or collected on one of your Dejavoo terminals for a plan created without one. It is recorded as installment sequence `0`, and it is not counted in `installment_count`. |
 | Payment | A payment you record on a plan with `POST /payment-plans/{id}/payments`. Its id starts with `ppp_`. |
 
 The amounts always add up: `down_payment_amount` plus the sum of the scheduled installment amounts equals `total_amount`. When the amount left after the down payment does not divide evenly, one installment carries the odd amount: installment 1 with `remainder_placement: "first"` (the default), or the last installment with `"last"`. Every other installment carries exactly `installment_amount`.
@@ -34,7 +34,7 @@ For example, $2,100.00 at $200.00 a month with no down payment and the remainder
 | `defaulted` | The customer's account reached your failed-payment outcome. What still runs depends on that outcome; see **Failed Payments and Payment Plans** below. |
 | `paid_off` | The plan is paid in full. Nothing more is charged. |
 | `canceled` | You canceled the plan. Installments not yet billed are removed; amounts already invoiced stay collectible. |
-| `awaiting_deposit` | The plan was created without a payment method and waits for its first installment, which the customer pays on one of your Dejavoo terminals. See **Collect the First Installment on a Terminal**. |
+| `awaiting_deposit` | The plan was created without a payment method and waits for its deposit — the down payment when the plan has one, else its first installment — which the customer pays on one of your Dejavoo terminals. See **Collect the First Installment on a Terminal**. |
 
 `paid_off` and `canceled` are final. The status value is `canceled`, with one `l`.
 
@@ -42,7 +42,7 @@ For example, $2,100.00 at $200.00 a month with no down payment and the remainder
 | --- | --- | --- | --- |
 | — | `active` | You create the plan with `payment_method`. | `payment_plan.created`, then `payment_plan.activated` |
 | — | `awaiting_deposit` | You create the plan without `payment_method`. | `payment_plan.created` |
-| `awaiting_deposit` | `active` | The first installment collected on your terminal is confirmed and its card is saved. A plan with one installment goes to `paid_off` instead. | `payment_plan.activated` and `payment_plan.installment_paid`, plus `payment_plan.completed` for `paid_off` |
+| `awaiting_deposit` | `active` | The deposit collected on your terminal is confirmed and its card is saved. A plan with one installment and no down payment goes to `paid_off` instead. | `payment_plan.activated` and `payment_plan.installment_paid`, plus `payment_plan.completed` for `paid_off` |
 | `active` | `past_due` | The customer's account enters the late-payment warning. | `payment_plan.past_due` |
 | `active`, `past_due` | `defaulted` | The customer's account reaches your failed-payment outcome. | `payment_plan.defaulted` |
 | `defaulted` | `past_due` | Under the `past-due` outcome, the customer's account falls back from the outcome to the late-payment warning. | `payment_plan.past_due` |
@@ -83,11 +83,11 @@ Request body:
 | `interval` | no | `weekly`, `biweekly`, `monthly` or `annual`. Default `monthly`. On test environments, such as stage, `daily` is also accepted; production refuses `daily` with `400` `PAYMENT_PLAN_INTERVAL_INVALID`. An `annual` plan cannot start on 29 February. |
 | `start_date` | no | Unix seconds: the due date of installment 1. Only the UTC calendar date is used: the time of day is dropped, the plan starts at 00:00:00 UTC of that date, and that is the `start_date` the plan returns. It must fall on a later calendar day (UTC) than the request; a date on the day of the request is refused. Default: one interval after the day of the request. |
 | `remainder_placement` | no | `first` or `last`. Default `first`. |
-| `payment_method` | no | The id of a payment method of this customer, as returned by the payment-methods endpoints. Leave it out to collect installment 1 on a terminal. |
+| `payment_method` | no | The id of a payment method of this customer, as returned by the payment-methods endpoints. Leave it out to collect the deposit on a terminal: the down payment when `down_payment_amount` is above `0`, else installment 1. |
 
-Without `payment_method`, the plan opens in `awaiting_deposit`: installment 1 is the deposit, collected on one of your Dejavoo terminals, and nothing is charged and no installment is scheduled until it is collected. A plan in this mode takes no down payment (`down_payment_amount` above `0` answers `400` `PAYMENT_PLAN_DOWN_PAYMENT_NOT_ALLOWED`), and it runs only on an account whose payment gateway is Dejavoo. The request fields `terminal` and `reference` are rejected with `400`: you choose the terminal when you collect the deposit, and ChaChing creates the plan's `reference`.
+Without `payment_method`, the plan opens in `awaiting_deposit`, and its deposit is collected on one of your Dejavoo terminals: the down payment when `down_payment_amount` is above `0`, else installment 1. Nothing is charged and no installment is scheduled until the deposit is collected. With a down payment, the terminal collects that amount only, and installment 1 is charged on `start_date` to the card the terminal saved. A plan in this mode runs only on an account whose payment gateway is Dejavoo. The request fields `terminal` and `reference` are rejected with `400`: you choose the terminal when you collect the deposit, and ChaChing creates the plan's `reference`.
 
-What happens when the plan is created:
+What happens when a plan is created with `payment_method`:
 
 - Before charging anything, ChaChing checks the schedule it registered against the expected installment dates: every date for a plan of up to 12 installments, and, for a longer plan, the first installment date (plus the second when the first installment carries the odd amount). A date that cannot be projected because the customer has another subscription that bills often, such as a daily one, is not checked, and the plan is still created. A date more than 36 months after the day the check runs (UTC) is not checked either, and the plan is still created. A mismatch answers `500` `PAYMENT_PLAN_SCHEDULE_MISMATCH`, and no plan is created.
 - When `down_payment_amount` is greater than `0`, ChaChing charges it immediately against `payment_method` and records it as installment sequence `0`, already paid. When the charge is declined, the request answers `402` `PAYMENT_PLAN_DOWN_PAYMENT_DECLINED` and no plan is created. When its outcome cannot be confirmed, the request answers `502` `PAYMENT_PLAN_DOWN_PAYMENT_UNCONFIRMED`, no plan is created, and the charge is not reversed because it can still settle.
@@ -107,7 +107,7 @@ Payment Plans run on accounts whose payment gateway is Dejavoo or NMI. On any ot
 - Your failed-payment outcome (`subscription_state_on_payment_failure`) is `unpaid`: `409` `PAYMENT_PLAN_UNPAID_OUTCOME_NOT_SUPPORTED`.
 - Your retry schedule (`payment_retries`) sums to less than 7 days: `409` `PAYMENT_PLAN_DUNNING_SCHEDULE_TOO_SHORT`.
 - The customer's account is in the late-payment warning or in a failed-payment outcome, or it carries an invoice unpaid for one day or more: `409` `PAYMENT_PLAN_CUSTOMER_DELINQUENT`. Collect the balance first.
-- The request has a down payment and automatic payments are turned off for the customer in the billing engine: `409` `PAYMENT_PLAN_AUTO_PAY_OFF`. Create the plan without a down payment.
+- The request has `payment_method` and a down payment, and automatic payments are turned off for the customer in the billing engine: `409` `PAYMENT_PLAN_AUTO_PAY_OFF`. Create the plan without a down payment.
 - The customer was already invoiced through a date on or after `start_date`, because an invoice was generated ahead of time for the customer's account: `409` `PAYMENT_PLAN_ACCOUNT_INVOICED_AHEAD`. The message names that date; choose a `start_date` after it.
 - The customer's billing state cannot be read: `502` `PAYMENT_PLAN_BILLING_ENGINE_UNAVAILABLE`. Nothing was created; the request is safe to retry with a new `Idempotency-Key`.
 
@@ -128,7 +128,7 @@ Change the first two through `PUT /revenue-recovery`; see [Configure Failed-Paym
 
 # Collect the First Installment on a Terminal
 
-A plan created without `payment_method` collects its first installment on one of your Dejavoo terminals. The customer pays it with their card at the counter. ChaChing saves that card, activates the plan, and charges installments 2 onward to the same card automatically, exactly like a plan created with a card on file.
+A plan created without `payment_method` collects its deposit on one of your Dejavoo terminals: the down payment when the plan has one, else its first installment. The customer pays it with their card at the counter. ChaChing saves that card, activates the plan, and charges the remaining installments to the same card automatically — installments 1 onward after a down payment, installments 2 onward otherwise — exactly like a plan created with a card on file.
 
 ## Before You Start
 
@@ -139,7 +139,7 @@ A plan created without `payment_method` collects its first installment on one of
 
 ## Start the Deposit
 
-1. Create the plan without `payment_method`. It answers `201` in status `awaiting_deposit`, and its `deposit` object carries the plan's `reference`, the `amount` of installment 1, `status: "pending"` and `attempt: null`.
+1. Create the plan without `payment_method`. It answers `201` in status `awaiting_deposit`, and its `deposit` object carries the plan's `reference`, its `kind`, the `amount` the terminal collects, `status: "pending"` and `attempt: null`. `kind` is `down_payment` when the plan has a down payment, and `amount` is then the down payment; otherwise `kind` is `installment_1` and `amount` is the amount of installment 1. Until the deposit is collected, a down payment counts as an unpaid installment: `remaining_balance` is `total_amount`, `installments_remaining` counts it, and `next_due_date` is the day the plan was created.
 2. Call `POST /payment-plans/{id}/deposit/terminal` with the terminal:
 
    ```json
@@ -156,6 +156,7 @@ The `deposit` object while the customer is at the terminal:
 ```json
 "deposit": {
   "reference": "K7Q2M9XA",
+  "kind": "installment_1",
   "amount": 20000,
   "status": "pending",
   "transaction_reference": null,
@@ -183,14 +184,14 @@ The `deposit` object while the customer is at the terminal:
 | **State** | **Meaning** | **What you do** |
 | --- | --- | --- |
 | `in_flight` | The customer is at the terminal, or ChaChing is confirming the sale. | Keep polling. To stop the sale while the card prompt is open, call `POST /payment-plans/{id}/deposit/cancel`. |
-| `approved` | Installment 1 is paid and the card is saved. The plan is `active`, or `paid_off` for a plan with one installment, and `deposit.status` is `collected`. `deposit.transaction_reference` is the gateway transaction id of the sale, or the attempt's `reference_id` when the sale was confirmed only through the iPOSpays Transaction Status Check. | Nothing. |
+| `approved` | The deposit is paid and the card is saved: the down payment, recorded as installment `0`, or installment 1. The plan is `active`, or `paid_off` for a plan with one installment and no down payment, and `deposit.status` is `collected`. `deposit.transaction_reference` is the gateway transaction id of the sale, or the attempt's `reference_id` when the sale was confirmed only through the iPOSpays Transaction Status Check. | Nothing. |
 | `declined` | The card was declined. Nothing was charged. | Start a new attempt, with another card when the customer has one. |
 | `cancelled` | The sale was cancelled on the terminal or with the cancel endpoint. Nothing was charged. | Start a new attempt when the customer is ready. |
 | `not_charged` | The terminal confirmed that no sale took place. | Start a new attempt. |
 | `failed` | The terminal or the SPIn proxy refused the request without producing an authorization, for example because the terminal was busy with another sale, was not connected, or cannot accept that card type; nothing was charged. `decline_message` gives the reason. | Start a new attempt; when `decline_message` reads `busy; retry after <n> s`, wait that long first. |
 | `resolving` | The terminal's answer did not arrive, or did not say whether the card was charged, and the outcome is not known yet. The card can have been charged. | Call `POST /payment-plans/{id}/deposit`. Do not ask the customer to pay again: a new attempt is refused until this one is resolved. |
 | `approved_no_credential` | The card was charged, but ChaChing has not saved it for the next installments yet. The plan stays `awaiting_deposit`. | Call `POST /payment-plans/{id}/deposit` again five minutes later. Do not charge the customer again. |
-| `partial_approval` | The card was charged an amount different from installment 1, or only part of it. The plan is not activated. | Void the sale on the terminal, then start a new attempt. |
+| `partial_approval` | The card was charged an amount different from the deposit (`deposit.amount`), or only part of it. The plan is not activated. | Void the sale on the terminal, then start a new attempt. |
 | `force_closed` | ChaChing staff closed an attempt whose outcome could not be confirmed. The plan stays `awaiting_deposit`; you can start a new attempt or cancel the plan. The card can have been charged: check the sale in your Dejavoo (iPOSpays) account. | Start a new attempt only after that check. |
 
 Fields of the attempt object:
@@ -229,7 +230,7 @@ Fields of the attempt object:
 - One attempt runs at a time on a plan, and one on a terminal. A second start answers `409` `PAYMENT_PLAN_DEPOSIT_IN_FLIGHT` for the same plan, and `409` `DEJAVOO_TERMINAL_BUSY` for the same terminal.
 - A plan accepts up to 99 attempts; the next one answers `409` `PAYMENT_PLAN_DEPOSIT_ATTEMPTS_EXHAUSTED`.
 - A plan whose latest attempt is not resolved yet (`in_flight`, `resolving` or `approved_no_credential`) cannot be canceled: `POST /payment-plans/{id}/cancel` answers `409` `PAYMENT_PLAN_DEPOSIT_IN_FLIGHT` with the message `A terminal deposit attempt is unresolved. Resolve it with POST /payment-plans/{id}/deposit before canceling the plan.` until the attempt reaches a final state. Resolve it first with `POST /payment-plans/{id}/deposit`.
-- When the plan is activated, ChaChing sends `payment_plan.activated` and `payment_plan.installment_paid` for installment 1 (and `payment_plan.completed` for a plan with one installment), and emails the customer the receipt for payment 1.
+- When the plan is activated, ChaChing sends `payment_plan.activated` and `payment_plan.installment_paid` for the installment the deposit paid — sequence `0` for a down payment, else sequence `1` — (and `payment_plan.completed` for a plan with one installment and no down payment), and emails the customer the receipt for the down payment or for payment 1.
 - Every Payment Plan object, in the responses and in the webhooks, carries `deposit.attempt`.
 
 ---
@@ -450,12 +451,12 @@ For the subscription side of the same rules, see [Track subscription lifecycle a
 
 # Emails Your Customer Receives
 
-ChaChing emails the plan's customer at the email address stored on the customer. These emails are best effort: a customer with no email address receives none, and an email that fails to send does not change the response, the plan or the webhooks. A receipt is not sent for a charge more than 48 hours old when the receipt step runs; for the first installment collected on a terminal, the 48 hours count from the moment the plan is activated.
+ChaChing emails the plan's customer at the email address stored on the customer. These emails are best effort: a customer with no email address receives none, and an email that fails to send does not change the response, the plan or the webhooks. A receipt is not sent for a charge more than 48 hours old when the receipt step runs; for a deposit collected on a terminal, the 48 hours count from the moment the plan is activated.
 
 **Receipts.** The customer receives one receipt for each of these card charges:
 
 - the down payment, when the plan is created;
-- the first installment collected on a terminal, when the plan is activated;
+- the deposit collected on a terminal (the down payment, or the first installment), when the plan is activated;
 - each installment charged automatically on its due date or by an automatic retry;
 - each payment recorded with `POST /payment-plans/{id}/payments` that is not `external`, a payment taken on a terminal included. One receipt lists every charge of that payment;
 - an installment invoice paid by card through ChaChing outside those endpoints: by your customer from the payment page, or by you from the dashboard or with `PUT /invoices/{id}`.
@@ -494,7 +495,6 @@ Errors use the standard body `{ "statusCode", "message", "error", "timestamp", "
 | `400` | `PAYMENT_PLAN_AMOUNT_INVALID` | `down_payment_amount` is not below `total_amount`, or a payment's `amount` is below `1`. |
 | `400` | `PAYMENT_PLAN_INTERVAL_INVALID` | `interval` is not one of the values this environment accepts: `weekly`, `biweekly`, `monthly` and `annual` everywhere, and `daily` on test environments only. |
 | `400` | `PAYMENT_PLAN_START_DATE_INVALID` | `start_date` is not after the day of the request, or `interval` is `annual` and `start_date` is 29 February (UTC). |
-| `400` | `PAYMENT_PLAN_DOWN_PAYMENT_NOT_ALLOWED` | A down payment was sent without `payment_method`. |
 | `400` | `PAYMENT_PLAN_GATEWAY_NOT_SUPPORTED` | The account's payment gateway does not support Payment Plans. |
 | `400` | `PAYMENT_PLAN_AMOUNT_EXCEEDS_BALANCE` | A payment is larger than what the plan accepts. Nothing is charged. |
 | `400` | `PAYMENT_METHOD_REQUIRED` | A payment was sent with no `payment_method`, it is not external, and the customer has no default payment method. |
@@ -514,7 +514,7 @@ Errors use the standard body `{ "statusCode", "message", "error", "timestamp", "
 | `409` | `PAYMENT_PLAN_UNPAID_OUTCOME_NOT_SUPPORTED` | Your failed-payment outcome is `unpaid`. |
 | `409` | `PAYMENT_PLAN_DUNNING_SCHEDULE_TOO_SHORT` | Your `payment_retries` sum to less than 7 days. |
 | `409` | `PAYMENT_PLAN_CUSTOMER_DELINQUENT` | The customer's account is in the late-payment warning or a failed-payment outcome, or carries an invoice unpaid for one day or more. |
-| `409` | `PAYMENT_PLAN_AUTO_PAY_OFF` | The plan has a down payment and automatic payments are turned off for the customer in the billing engine. Nothing was created or charged. Create the plan without a down payment. |
+| `409` | `PAYMENT_PLAN_AUTO_PAY_OFF` | A plan created with `payment_method` has a down payment and automatic payments are turned off for the customer in the billing engine. Nothing was created or charged. Create the plan without a down payment. |
 | `409` | `PAYMENT_PLAN_ACCOUNT_INVOICED_AHEAD` | The customer was already invoiced through a date on or after `start_date`. The message names that date. Nothing was created; choose a `start_date` after it. |
 | `409` | `PAYMENT_PLAN_DOWN_PAYMENT_PENDING` | An earlier down-payment invoice of the same amount for this customer is still open, or was settled in a way this request cannot use (a different payment method, no card payment, or more than one such invoice). Nothing was created or charged by this request. Check the customer's invoices and transactions: wait for an open charge to finish, send the `payment_method` that paid, or refund or void the invoices that should not count, then send the request again. |
 | `409` | `PAYMENT_PLAN_NOT_PAYABLE` | The plan is `awaiting_deposit` or `paid_off`. |
@@ -559,8 +559,8 @@ Payment Plans send ten webhook event types on the same endpoints, envelope, sign
 | **Event** | **Sent when** | **`data`** |
 | --- | --- | --- |
 | `payment_plan.created` | A plan is created. | Payment Plan |
-| `payment_plan.activated` | A plan starts running. A plan created with `payment_method` sends it right after `payment_plan.created`; a plan created without it sends it when its first installment, collected on a terminal, is confirmed. | Payment Plan |
-| `payment_plan.installment_paid` | An installment is paid by its automatic charge or a retry, by a payment through `POST /payment-plans/{id}/payments`, by a payment of its invoice made through ChaChing (the hosted invoice page, the dashboard or `PUT /invoices/{id}`), by credit on the customer's account that settles its invoice, as the down payment at creation (sequence `0`), or as the first installment collected on a terminal (sequence `1`). | Installment |
+| `payment_plan.activated` | A plan starts running. A plan created with `payment_method` sends it right after `payment_plan.created`; a plan created without it sends it when its deposit, collected on a terminal, is confirmed. | Payment Plan |
+| `payment_plan.installment_paid` | An installment is paid by its automatic charge or a retry, by a payment through `POST /payment-plans/{id}/payments`, by a payment of its invoice made through ChaChing (the hosted invoice page, the dashboard or `PUT /invoices/{id}`), by credit on the customer's account that settles its invoice, as the down payment, charged at creation or collected on a terminal (sequence `0`), or as the first installment collected on a terminal (sequence `1`). | Installment |
 | `payment_plan.installment_failed` | An automatic charge attempt on an installment is declined, once per attempt, retries included. | Installment |
 | `payment_plan.past_due` | The plan changes to `past_due`. | Payment Plan |
 | `payment_plan.defaulted` | The plan changes to `defaulted`. | Payment Plan |
