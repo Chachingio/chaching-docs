@@ -52,7 +52,7 @@ Exports the transactions list. When filters are applied, exports only selected t
 | **CSV** | Exports all currently filtered transactions as a CSV file. |
 | **XLSX** | Exports the data as an Excel spreadsheet. |
 
-The export column picker offers **Surcharge** and **Total charged** in addition to the table columns. In the exported file they are the `surcharge` and `amountCharged` columns, named by their column ids.
+The export column picker offers **Credit card surcharge** and **Total charged** in addition to the table columns. In the exported file they are the `surcharge` and `amountCharged` columns, named by their column ids.
 
 ## Transactions Table
 
@@ -60,7 +60,7 @@ Displayed below the filters.
 
 | **Column** | **Description** |
 | --- | --- |
-| **Amount** | The amount applied by the transaction. A charge that carried a card surcharge shows **Surcharge** and **Total charged** under the amount; see [Card Surcharges](../../Developer%20Guide/card-surcharges.md). |
+| **Amount** | The amount applied by the transaction. A charge that carried a credit card surcharge shows **Credit card surcharge** and **Total charged** under the amount; see [Credit Card Surcharges](../../Developer%20Guide/card-surcharges.md). |
 | **Status** | Transaction status (e.g., *Succeeded, Refunded, Failed*). |
 | **Customer Name** | Name of the customer associated with the transaction. |
 | **Payment method** | The card or payment source used (e.g., *Visa •••• 4242*). |
@@ -96,17 +96,17 @@ Shows the chronological progress of the transaction with timestamps.
 
 #### **Charge**
 
-Shown for a charge that carried a card surcharge.
+Shown for a charge that carried a credit card surcharge.
 
 | **Field**         | **Description**                                         |
 | ----------------- | ------------------------------------------------------- |
 | **Amount**        | The amount applied by the transaction.                  |
-| **Surcharge**     | The card surcharge added to the charge.                 |
+| **Credit card surcharge** | The credit card surcharge added to the charge. |
 | **Total charged** | The total charged to the card: the amount plus the surcharge. |
 
 #### **Payment Breakdown**
 
-Provides a financial breakdown of the transaction. The fee and net amount come from the Stripe processing fee and are unrelated to the card surcharge.
+Provides a financial breakdown of the transaction. The fee and net amount come from the Stripe processing fee and are unrelated to the credit card surcharge.
 
 | **Field**          | **Description**                           |
 | ------------------ | ----------------------------------------- |
@@ -147,17 +147,17 @@ Shows the chronological progress of the transaction with timestamps.
 
 #### **Charge**
 
-Shown for a charge that carried a card surcharge.
+Shown for a charge that carried a credit card surcharge.
 
 | **Field**         | **Description**                                         |
 | ----------------- | ------------------------------------------------------- |
 | **Amount**        | The amount applied by the transaction.                  |
-| **Surcharge**     | The card surcharge added to the charge.                 |
+| **Credit card surcharge** | The credit card surcharge added to the charge. |
 | **Total charged** | The total charged to the card: the amount plus the surcharge. |
 
 #### **Payment Breakdown**
 
-Provides a financial breakdown of the transaction. The fee and net amount come from the Stripe processing fee and are unrelated to the card surcharge.
+Provides a financial breakdown of the transaction. The fee and net amount come from the Stripe processing fee and are unrelated to the credit card surcharge.
 
 | **Field**          | **Description**                           |
 | ------------------ | ----------------------------------------- |
