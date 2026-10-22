@@ -72,7 +72,7 @@ Displays system-generated events showing how the invoice progressed.
 ---
 ## Payments
 
-Table showing all payments attempts for this invoice.
+Table showing all payments attempts for this invoice. A payment that carried a card surcharge shows **Card surcharge** and **Total charged** under its amount.
 
 ### Payments Table
 
@@ -112,6 +112,8 @@ Clicking the three dots in a payment row opens a detailed payment timeline.
 | **Total excluding tax** | Total amount recalculated without tax included (used when tax is inclusive). |
 | **Sales tax** | Calculated tax amount. Shows: tax rate, tax basis, and resulting value. Example: *(4.00% inclusive on $9.62) = $0.38*. |
 | **Total** | Full invoice amount including all taxes. It never includes a card surcharge. |
+| **Card surcharge** | The card surcharges the invoice's successful payments carried. Shown only when a payment carried one; see [Card Surcharges](../../Developer%20Guide/card-surcharges.md). |
+| **Total charged** | What the cards were charged for the invoice's successful payments, surcharges included. Shown only when it differs from the amount paid. |
 | **Amount due** | Remaining amount the customer owes after previous payments or adjustments. |
 ---
 ## Tax Calculation

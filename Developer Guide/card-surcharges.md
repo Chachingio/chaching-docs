@@ -2,7 +2,7 @@
 
 On an account that charges through iPOSpays (Dejavoo), every card charge ChaChing makes can carry a card surcharge: the first charge and every renewal of a subscription, one-time payments from the hosted checkout and from payment links, invoice payments from the payment page, the dashboard and the API, payment plan charges, and Google Pay payments. Whether a charge is surcharged, and how much, is decided by the S.T.E.A.M configuration of your account in the iPOSpays portal and by the card used; in our tests a credit card was surcharged and a debit card was not. ChaChing records the surcharge separately and never changes an amount you set because of it: prices, invoice totals, `amount_due`, `amount_paid` and payment plan amounts stay as agreed.
 
-Accounts that charge through NMI or Stripe never carry a surcharge. A payment recorded as external carries none, because nothing is charged to a card.
+Accounts that charge through NMI or Stripe never carry a surcharge. A payment recorded as external carries none, because nothing is charged to a card. A payment plan payment taken on your terminal carries the surcharge the terminal added, and the invoices and transactions it paid report it.
 
 The rule applies to every account that charges through iPOSpays; ChaChing has no setting that turns it off. An account with no fee configured in S.T.E.A.M is charged no surcharge.
 
@@ -52,7 +52,9 @@ These notices say that a surcharge can be added, not its rate: ChaChing cannot r
 
 ## What your customer sees after paying
 
-- The payment page of a paid invoice shows **Surcharge** and **Total charged** under **Amount paid** when the payment carried a surcharge.
+- The payment page of a paid invoice shows **Card surcharge** and **Total charged** under **Amount paid** when the payments carried a surcharge.
+- The payment page of an open invoice that was partly paid shows **Card surcharge** and **Total charged** under **Total** when those payments carried a surcharge.
+- The invoice email and the invoice PDF show **Card surcharge** and **Total charged** under **Amount paid** when the invoice's payments carried a surcharge. On an invoice that is still open, **Amount paid** is then the amount already paid, and **Amount remaining** in the email and **Amount due** in the PDF are what is left to pay.
 - The hosted checkout's confirmation shows **Total charged** when the total charged differs from the amount, and **Surcharge** when a surcharge above zero was added. A payment that carried nothing extra shows neither line.
 - When an automatic charge fails, the failed-payment email says: `When your card is charged, <your account name> can add a card surcharge to this amount.`
 
@@ -60,4 +62,4 @@ These notices say that a surcharge can be added, not its rate: ChaChing cannot r
 
 ## In the dashboard
 
-The transactions list, the transaction details, the transactions export and the invoice details show the surcharge and the total charged for a charge that carried one. The dashboard's Total revenue and a customer's total spend include the surcharge.
+The transactions list, the transaction details, the transactions export and the invoice details show the surcharge and the total charged for a charge that carried one. The **Pricing** table of the invoice details and the downloaded invoice show **Card surcharge** and **Total charged** under **Total** when the invoice's payments carried a surcharge. The dashboard's Total revenue and a customer's total spend include the surcharge of the card charges ChaChing sends to iPOSpays; the surcharge of a payment taken on your terminal is not included in them yet.
