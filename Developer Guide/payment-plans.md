@@ -251,6 +251,44 @@ An installment's `status` is `scheduled`, `paid`, `failed` or `canceled`. It rea
 
 The Invoice object, on the invoice endpoints and in every `invoice.*` webhook, carries `payment_plan` and `installment`. Both are `null` on an invoice that belongs to no payment plan, and an invoice raised for a payment plan reports `subscription: null`.
 
+## Preview a Schedule
+
+`POST /payment-plans/preview` takes the body of `POST /payment-plans` and answers `200` with the schedule that body would produce, without creating anything:
+
+```json
+{
+  "object": "payment_plan_preview",
+  "mode": "card_on_file",
+  "customer": "cus_739c07713fd4b68565a969cd",
+  "total_amount": 120000,
+  "down_payment_amount": 20000,
+  "financed_amount": 100000,
+  "installment_amount": 25000,
+  "installment_count": 4,
+  "interval": "monthly",
+  "remainder_placement": "first",
+  "start_date": 1796083200,
+  "installments": [
+    { "sequence": 1, "due_date": 1796083200, "amount": 25000 },
+    { "sequence": 2, "due_date": 1798761600, "amount": 25000 },
+    { "sequence": 3, "due_date": 1801440000, "amount": 25000 },
+    { "sequence": 4, "due_date": 1803859200, "amount": 25000 }
+  ]
+}
+```
+
+`mode` is `card_on_file` when the body carries `payment_method` and `terminal_deposit` when it does not. `installments` lists installments 1 to N; the down payment appears only in `down_payment_amount`. `description` is accepted and ignored.
+
+The preview checks the customer, your payment gateway, the interval, `start_date` and the amounts, with the codes `POST /payment-plans` uses for the same checks: `404` `CUSTOMER_NOT_FOUND`, and `400` `PAYMENT_PLAN_GATEWAY_NOT_SUPPORTED`, `PAYMENT_PLAN_INTERVAL_INVALID`, `PAYMENT_PLAN_START_DATE_INVALID`, `PAYMENT_PLAN_SCHEDULE_INVALID` and `PAYMENT_PLAN_AMOUNT_INVALID`. It does not check the payment method, the customer's account standing and unpaid invoices, an earlier down payment still pending, nor your retry settings, so `POST /payment-plans` can still refuse a body whose preview succeeded: with `404` `PAYMENT_METHOD_NOT_FOUND`; with `409` `PAYMENT_PLAN_PAYMENT_METHOD_NOT_SUPPORTED`, `PAYMENT_PLAN_CREDENTIAL_NOT_ESTABLISHED`, `PAYMENT_PLAN_AUTO_PAY_OFF`, `PAYMENT_PLAN_ACCOUNT_INVOICED_AHEAD`, `PAYMENT_PLAN_CUSTOMER_DELINQUENT`, `PAYMENT_PLAN_DUNNING_SCHEDULE_TOO_SHORT`, `PAYMENT_PLAN_UNPAID_OUTCOME_NOT_SUPPORTED` and `PAYMENT_PLAN_DOWN_PAYMENT_PENDING`; and with every outcome of the down-payment charge, the billing engine and the `Idempotency-Key` that [When a Plan Cannot Be Created](#when-a-plan-cannot-be-created) and [Duplicate Requests](#duplicate-requests) describe.
+
+## List a Plan's Payments
+
+`GET /payment-plans/{id}/payments` lists the plan's payments, newest first, with the page parameters `page` and `take` (`take` at most `50`). Each entry is the Payment object that `GET /payment-plans/{id}/payments/{payment_id}` returns. Filter by status with `search`, a URL-encoded JSON object holding one status: `{"status": "declined"}`. `status` is `processing`, `applied`, `partially_applied`, `declined`, `not_attempted` or `unconfirmed`; any other value, or a `search` value that is not a JSON object, answers `400`.
+
+`payment_plan_status`, `remaining_balance` and `installments_remaining` describe the plan at the time of the request, not at the time of each payment. A down payment collected on a terminal is not a payment: read it as installment `0` of `GET /payment-plans/{id}/installments` and in the plan's `deposit`.
+
+Both endpoints require the account's secret API key (`sk_…`): a publishable key answers `403` with `SECRET_API_KEY_REQUIRED`, and a request that also carries an `Authorization` header answers `409`.
+
 ---
 
 # Record Payments, Extra Payments and a Payoff
@@ -505,7 +543,7 @@ Errors use the standard body `{ "statusCode", "message", "error", "timestamp", "
 | `402` | `PAYMENT_PLAN_DOWN_PAYMENT_DECLINED` | The down payment was declined. No plan was created. |
 | `402` | `PAYMENT_DECLINED` | The first charge of a payment was declined. Nothing was applied. |
 | `403` | `PAYMENT_PLANS_NOT_ENABLED` | Payment Plans are not enabled for this account. |
-| `403` | `SECRET_API_KEY_REQUIRED` | A deposit endpoint or a terminal payment endpoint was called with a publishable (`pk_…`) API key. |
+| `403` | `SECRET_API_KEY_REQUIRED` | A deposit endpoint, a terminal payment endpoint, the schedule preview or the payments list was called with a publishable (`pk_…`) API key. |
 | `404` | `PAYMENT_PLAN_NOT_FOUND` | The plan id does not resolve for this account. |
 | `404` | `CUSTOMER_NOT_FOUND` | The customer id does not resolve for this account. |
 | `404` | `PAYMENT_METHOD_NOT_FOUND` | The payment method does not resolve, or it does not belong to the customer. |
