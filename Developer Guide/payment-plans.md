@@ -398,7 +398,7 @@ Fields of the `terminal` object (`null` on a payment that was not taken on a ter
 
 # Card Surcharges
 
-On an account that charges through iPOSpays (Dejavoo), every card charge can carry a card surcharge, payment plan charges included; [Card Surcharges](./card-surcharges.md) describes the rule for every charge. Whether a card is surcharged, and how much, is decided by the S.T.E.A.M configuration of your account in the iPOSpays portal and by the card used; in our tests a debit card was not surcharged. ChaChing records the surcharge separately and never changes a plan amount because of it.
+On an account that charges through iPOSpays (Dejavoo), every card charge can carry a card surcharge, payment plan charges included; [Card Surcharges](./card-surcharges.md) describes the rule for every charge. Whether a card is surcharged, and how much, is decided by the S.T.E.A.M configuration of your account in the iPOSpays portal. ChaChing records the surcharge separately and never changes a plan amount because of it.
 
 These payment plan charges carry it:
 
