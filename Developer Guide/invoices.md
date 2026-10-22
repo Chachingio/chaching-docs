@@ -14,7 +14,7 @@ For every request and response schema, see the [API Reference](./api.json).
 
 - **To:** the email address of the invoice's customer. No other recipient can be chosen.
 - **Cc:** the owner of your ChaChing account (its first Super Admin user). When the owner's address is the customer's address, the email is sent to it once.
-- **Content:** the invoice summary, a link to download the PDF and, while the invoice is payable, a **Pay** button that opens the invoice's hosted page.
+- **Content:** the invoice summary, a link to download the PDF and, while the invoice is payable, a **Pay this invoice** button that opens the invoice's hosted page.
 
 The endpoint answers `200` with the Invoice object and sends the `invoice.sent` webhook once. Every call sends a new email; the endpoint takes no `Idempotency-Key`.
 
@@ -34,7 +34,7 @@ When the invoice's customer has no email address, the endpoint answers `409` wit
 }
 ```
 
-`url` is the permanent link of the invoice's hosted page, the link the **Pay** button of the invoice email opens. It does not expire and is the same on every call. The page shows the invoice as payable, paid or cancelled according to its status.
+`url` is the permanent link of the invoice's hosted page, the link the **Pay this invoice** button of the invoice email opens. It does not expire and is the same on every call. The page shows the invoice as payable, paid or cancelled according to its status.
 
 ---
 

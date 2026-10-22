@@ -213,7 +213,7 @@ An `id` that is not one of your endpoints answers `404` with `WEBHOOK_ENDPOINT_N
 GET /webhook-endpoints/{id}/logs
 ```
 
-Lists the deliveries sent to the endpoint's current URL, newest first, with the page parameters `page` and `take`. Filter by status with `search`, a URL-encoded JSON object: `{"status": "failure,retry"}`. Each entry carries `id` (the `id` of the delivered event payload), `object` (`webhook_delivery`), `webhook_endpoint`, `event_type`, `status` (`success`, `retry` while another attempt is scheduled, or `failure`), `response_status_code` (the HTTP status your server answered, or `null` when no response arrived), `created` and `updated` (Unix seconds). A delivery appears in the log after its first attempt. Deliveries are matched by URL: after you change an endpoint's URL, its log lists the deliveries sent to the new URL.
+Lists the deliveries sent to the endpoint's current URL, newest first, with the page parameters `page` and `take`. Filter by status with `search`, a URL-encoded JSON object: `{"status": "failure,retry"}`. `search` also accepts `pending`, but a pending delivery has no endpoint recorded yet, so the log never returns one. Each entry carries `id` (the `id` of the delivered event payload), `object` (`webhook_delivery`), `webhook_endpoint`, `event_type`, `status` (`success`, `retry` while another attempt is scheduled, or `failure`), `response_status_code` (the HTTP status your server answered, or `null` when no response arrived), `created` and `updated` (Unix seconds). A delivery appears in the log after its first attempt. Deliveries are matched by URL: after you change an endpoint's URL, its log lists the deliveries sent to the new URL.
 
 ### Signing
 
