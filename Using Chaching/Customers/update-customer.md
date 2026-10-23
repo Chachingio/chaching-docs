@@ -19,7 +19,7 @@ The **Edit Customer** page allows business users to update customer profile info
 | **Field / Element** | **Description** |
 | --- | --- |
 | **Customer Name** | The customer’s full name displayed in records. |
-| **Email** | Primary customer email used for receipts, login, and notifications. |
+| **Email** | Primary customer email used for receipts, login, and notifications. On an account that takes payments through Dejavoo you can clear it; on accounts that take payments through Stripe or NMI it stays required. |
 | **Show advanced option** | Expands the form to include Billing and Shipping details. |
 ---
 ## Billing Details
