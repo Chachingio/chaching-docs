@@ -1,6 +1,6 @@
 # Payment Plans
 
-A payment plan collects a fixed total amount from one customer in a fixed number of scheduled installments. ChaChing stores the plan, charges each installment automatically on its due date against the plan's payment method, retries a declined charge on your account's retry schedule, and reports every change over webhooks. There is no interest. The installments always add up to the total agreed when the plan was created; on an account that charges through iPOSpays (Dejavoo), each card charge of a plan also carries the card surcharge configured for your account in the iPOSpays S.T.E.A.M portal, recorded separately from the plan amounts (see [Card Surcharges](#card-surcharges)).
+A payment plan collects a fixed total amount from one customer in a fixed number of scheduled installments. ChaChing stores the plan, charges each installment automatically on its due date against the plan's payment method, retries a declined charge on your account's retry schedule, and reports every change over webhooks. There is no interest. The installments always add up to the total agreed when the plan was created; on an account that charges through iPOSpays (Dejavoo), each credit card charge of a plan also carries the credit card surcharge configured for your account in the iPOSpays S.T.E.A.M portal, recorded separately from the plan amounts; debit card charges carry none (see [Credit Card Surcharges](#credit-card-surcharges)).
 
 Payment Plans are available through the API. They are enabled per merchant account by ChaChing and are off by default. While they are off, every `/payment-plans` endpoint answers `403` with the error code `PAYMENT_PLANS_NOT_ENABLED` and the message `Payment Plans are not enabled for this account. Contact Chaching to enable them.`
 
@@ -148,7 +148,7 @@ A plan created without `payment_method` collects its deposit on one of your Deja
    }
    ```
 
-   It answers `202` with the Payment Plan object, and `deposit.attempt.state` is `in_flight`. The terminal shows the amount, including the card surcharge your account adds; the customer confirms it and presents the card.
+   It answers `202` with the Payment Plan object, and `deposit.attempt.state` is `in_flight`. The terminal shows the amount, including the credit card surcharge your account adds when the card is a credit card; the customer confirms it and presents the card.
 3. Poll `GET /payment-plans/{id}` every 2 to 3 seconds until `deposit.attempt.state` is no longer `in_flight`. The request allows the customer up to 180 seconds at the terminal; the terminal itself times out the card prompt earlier (about 30 seconds idle plus 90 seconds of card entry on the P1, measured 2026-10-14). When the terminal's answer is lost, ChaChing keeps confirming the sale for up to 60 more seconds, so an attempt leaves `in_flight` at most 240 seconds after it started.
 
 The `deposit` object while the customer is at the terminal:
@@ -206,7 +206,7 @@ Fields of the attempt object:
 | `resolved` | When its outcome was read, Unix seconds; `null` while it is not known. |
 | `decline_code` | The terminal's status code for a `declined`, `cancelled`, `failed` or `partial_approval` attempt; `null` otherwise. |
 | `decline_message` | The terminal's message for those same states; `null` otherwise. |
-| `surcharge_amount` | The card surcharge the terminal added, in integer cents; `0` when none or not known. |
+| `surcharge_amount` | The credit card surcharge the terminal added, in integer cents; `0` when none or not known. A debit card sale carries none. |
 | `amount_charged` | The total charged to the card, in integer cents; `0` until the sale is approved. |
 
 ## Confirm a Deposit Whose Answer Was Lost
@@ -243,13 +243,13 @@ Fields of the attempt object:
 
 The Payment Plan object carries `description`: the text sent when the plan was created, or `null` when none was sent. It cannot be changed afterwards.
 
-An installment's `surcharge_amount` and `amount_charged` report the card surcharge of the charges that paid it; see [Card Surcharges](#card-surcharges).
+An installment's `surcharge_amount` and `amount_charged` report the credit card surcharge of the charges that paid it; see [Credit Card Surcharges](#credit-card-surcharges).
 
-An installment's `invoice` is `null` for a down payment collected on a terminal.
+An installment's `invoice` is the invoice of its charge. For a deposit collected on a terminal (the down payment, or the first installment), it is the invoice ChaChing raises when the plan is activated; a deposit collected on a terminal before ChaChing raised these invoices reads `null`.
 
 An installment's `status` is `scheduled`, `paid`, `failed` or `canceled`. It reads `failed` after a declined automatic attempt and stays `failed` until it is paid. `attempt_count` counts the automatic charge attempts, retries included, and `next_payment_attempt` is the date of the next retry, or `null` when none is scheduled. An installment not yet billed reads `canceled` when the plan was canceled or paid off, or when a payment that reached the principal shortened the schedule and removed it.
 
-The Invoice object, on the invoice endpoints and in every `invoice.*` webhook, carries `payment_plan` and `installment`. Both are `null` on an invoice that belongs to no payment plan, and an invoice raised for a payment plan reports `subscription: null`.
+The Invoice object, on the invoice endpoints and in every `invoice.*` webhook, carries `payment_plan`, `installment` and `payment_plan_charge`. All three are `null` on an invoice that belongs to no payment plan, and an invoice raised for a payment plan reports `subscription: null`. `payment_plan_charge` describes the plan charge the invoice records: `{ "id": "pp_1ef17ace4b4d96ff32461285", "installment": "ppi_9c1a3d0e2f4b8756a1c0d3ef", "sequence": 3, "payment": "ppp_5d2c8e1f0a3b4c6d7e8f9a0b", "kind": "installment" }`. `id` is the plan; `installment` and `sequence` are the installment the charge pays, both `null` for an extra payment and a payoff; `payment` is the Payment object that paid the invoice, `null` for the down payment charged when the plan is created, for a deposit collected on a terminal and for an installment paid by its automatic charge; `kind` is `down_payment`, `deposit` (the first installment collected on a terminal), `installment`, `extra_payment` or `payoff`. `payment_plan_charge` is also `null` on a plan invoice not matched to an installment yet. An invoice that records the principal part of a payment reports `installment: null`.
 
 ## Preview a Schedule
 
@@ -314,7 +314,7 @@ The amount is applied first to the plan's billed installments that are not fully
 - **Extra payment.** An amount below `remaining_balance`. When it reaches the principal, the installment amount and the due dates do not change: the plan ends sooner, and its last installment is reduced to what is left.
 - **Payoff.** An amount equal to `remaining_balance`. It pays every open installment, closes the rest of the schedule, and moves the plan to `paid_off`.
 - **Several charges.** A payment spanning several billed installments, or billed installments and the principal, is charged as one charge per installment invoice plus one charge for the principal, in that order. When the first charge is declined the request answers `402` `PAYMENT_DECLINED` and nothing is applied. When a later charge is declined, the charges already approved stay applied and the request answers `201` with the `amount` actually applied. When a later charge's outcome cannot be confirmed, the request still answers `201`, with `status` `processing` and `amount` `0` even when earlier charges of the same payment were approved: the payment is recorded only once every one of its charges is resolved. Do not retry with a new `Idempotency-Key`. Wait for `payment_plan.payment_succeeded`, which ChaChing sends with the amount actually applied once it finishes recording the payment, and read the plan's installments when the event does not arrive.
-- **The principal has no invoice.** The principal part of a payment belongs to no invoice: it does not appear on the invoice endpoints and sends no `invoice.*` webhook. `payment_plan.payment_succeeded` reports it.
+- **The principal has its own invoice.** The principal part of a payment is recorded on its own invoice, returned by `GET /invoices` and `GET /invoices/{id}` with `installment: null` and `payment_plan_charge.kind` `extra_payment`, or `payoff` for a payoff. When the principal is recorded, ChaChing sends `invoice.payment_succeeded` for that invoice, and `invoice.payment_failed` when its card charge is declined. `payment_plan.payment_succeeded` reports the same money: count each payment once, and use `payment_plan_charge.kind` to recognize the invoice events of a plan payment. A principal recorded before ChaChing raised these invoices has no invoice. A principal recorded while the account holds credit, while automatic or manual payment is switched off for the account, or while invoicing was unavailable at that moment is recorded without an invoice and raises no `invoice.*` event; `payment_plan.payment_succeeded` still reports it. Send the invoice by email with `POST /invoices/{id}/send`, create its hosted payment link with `GET /invoices/{id}/hosted-link` and download its PDF with `GET /invoices/{id}/pdf`.
 - A payment on a `past_due` or `defaulted` plan is never refused because of its status. While an earlier payment's schedule rebuild is still being completed, a further payment answers `409` `PAYMENT_PLAN_REPLAN_PENDING`; retry it later.
 
 The Payment object's `status` tells you how far the recording went:
@@ -345,7 +345,7 @@ A customer who comes to your counter can pay an installment, make an extra payme
    }
    ```
 
-   It answers `201` with the Payment object in `status: processing`, with `amount: 0` and a `terminal` object whose `state` is `in_flight`. The terminal shows the amount, including the card surcharge your account adds; the customer confirms it and presents the card.
+   It answers `201` with the Payment object in `status: processing`, with `amount: 0` and a `terminal` object whose `state` is `in_flight`. The terminal shows the amount, including the credit card surcharge your account adds when the card is a credit card; the customer confirms it and presents the card.
 2. Poll `GET /payment-plans/{id}/payments/{payment_id}` every 2 to 3 seconds until `terminal.state` is no longer `in_flight`. The request allows the customer up to 180 seconds at the terminal; the terminal itself times out the card prompt earlier (about 30 seconds idle plus 90 seconds of card entry on the P1, measured 2026-10-14). When the terminal's answer is lost, ChaChing keeps confirming the sale for up to 60 more seconds, so a payment leaves `in_flight` at most 240 seconds after it started.
 3. When the sale is approved, ChaChing records the payment: `status` becomes `applied` and `amount` the amount applied, `surcharge_amount` and `amount_charged` report the surcharge the terminal added, ChaChing sends `payment_plan.payment_succeeded` (with `payment_plan.installment_paid` for each installment it paid in full and `payment_plan.completed` for a payoff), and the customer receives the receipt. On this payment `external` reads `false` and `payment_method` reads `null`.
 
@@ -398,7 +398,7 @@ Fields of the `terminal` object (`null` on a payment that was not taken on a ter
 | `resolved` | When its outcome was read, Unix seconds; `null` while it is not known. |
 | `decline_code` | The terminal's status code for a `declined`, `cancelled`, `failed` or `partial_approval` sale; `null` otherwise. |
 | `decline_message` | The terminal's message for those same states; `null` otherwise. |
-| `surcharge_amount` | The card surcharge the terminal added, in integer cents; `0` when none or not known. |
+| `surcharge_amount` | The credit card surcharge the terminal added, in integer cents; `0` when none or not known. A debit card sale carries none. |
 | `amount_charged` | The total charged to the card, in integer cents; `0` until the sale is approved. |
 | `transaction_id` | The iPOSpays transaction id of the sale, as your Dejavoo reports show it; `null` until it is known. |
 | `rrn` | The sale's retrieval reference number; `null` until it is known. |
@@ -434,9 +434,9 @@ Fields of the `terminal` object (`null` on a payment that was not taken on a ter
 
 ---
 
-# Card Surcharges
+# Credit Card Surcharges
 
-On an account that charges through iPOSpays (Dejavoo), every card charge can carry a card surcharge, payment plan charges included; [Card Surcharges](./card-surcharges.md) describes the rule for every charge. Whether a card is surcharged, and how much, is decided by the S.T.E.A.M configuration of your account in the iPOSpays portal. ChaChing records the surcharge separately and never changes a plan amount because of it.
+On an account that charges through iPOSpays (Dejavoo), every credit card charge can carry a credit card surcharge, payment plan charges included, and debit card charges carry none; [Credit Card Surcharges](./card-surcharges.md) describes the rule for every charge. Whether a credit card charge is surcharged, and how much, is decided by the S.T.E.A.M configuration of your account in the iPOSpays portal. ChaChing records the surcharge separately and never changes a plan amount because of it.
 
 These payment plan charges carry it:
 
@@ -445,7 +445,7 @@ These payment plan charges carry it:
 - every installment invoice paid from the payment page or from the dashboard;
 - every charge of `POST /payment-plans/{id}/payments` that is not `external`, the principal part included, and every payment taken on a terminal.
 
-A payment plan invoice paid with a card or with Google Pay through any route — the automatic charge, `POST /invoices/{id}/pay`, the payment page or the dashboard — carries your account's surcharge.
+A payment plan invoice paid with a credit card, directly or through Google Pay, through any route — the automatic charge, `POST /invoices/{id}/pay`, the payment page or the dashboard — carries your account's credit card surcharge.
 
 Accounts that charge through NMI never carry a surcharge, and neither does a payment recorded with `external: true`, because nothing is charged.
 
@@ -455,7 +455,7 @@ Two fields report it, always present and in integer cents, on the Installment, P
 
 | **Field** | **Meaning** |
 | --- | --- |
-| `surcharge_amount` | The card surcharge added to the charge or charges. `0` when none was added. |
+| `surcharge_amount` | The credit card surcharge added to the charge or charges. `0` when none was added, which is always the case for a debit card charge. |
 | `amount_charged` | The total charged to the card. It equals `amount_paid` on an installment, `amount` on a payment and on a transaction, and `amount_paid` on an invoice, when nothing was added. |
 
 For example, a $1.00 payment that carried a 3 cent surcharge reads `amount: 100`, `surcharge_amount: 3`, `amount_charged: 103`; the installment that payment paid reads `amount_paid: 100`, `surcharge_amount: 3`, `amount_charged: 103`.
@@ -465,7 +465,7 @@ For example, a $1.00 payment that carried a 3 cent surcharge reads `amount: 100`
 - ChaChing reads the surcharge from the gateway after the charge. While it cannot be read yet, `surcharge_amount` is `0` and `amount_charged` equals the amount paid. ChaChing keeps trying for up to 7 days, and the objects show the real values as soon as the read succeeds. When the surcharge of a charge still cannot be read after those 7 days, or at once when the charge cannot be matched, the installment and payment objects keep `surcharge_amount` at `0` and `amount_charged` equal to the amount paid, and that does not change later. The exact amount charged to the card is then the one shown for that transaction in your Dejavoo (iPOSpays) account.
 - ChaChing does not refund a surcharge: there is no refund operation for payment plan charges.
 
-Before the payer pays, the payment page of an open invoice and the dashboard's `Charge customer` sheet tell them that a card surcharge can be added; [Card Surcharges](./card-surcharges.md#what-your-customer-sees-before-paying) lists every notice and its exact wording.
+Before the payer pays, the payment page of an open invoice and the dashboard's `Charge customer` sheet tell them that a credit card surcharge can be added and that debit cards are not surcharged; [Credit Card Surcharges](./card-surcharges.md#what-your-customer-sees-before-paying) lists every notice and its exact wording.
 
 In the dashboard, the transactions list, the transaction details and the invoice details show the surcharge and the total charged for a charge that carried one. The dashboard's Total revenue and a customer's total spend include the surcharge for accounts that charge through Dejavoo.
 
@@ -501,11 +501,11 @@ ChaChing emails the plan's customer at the email address stored on the customer.
 - each payment recorded with `POST /payment-plans/{id}/payments` that is not `external`, a payment taken on a terminal included. One receipt lists every charge of that payment;
 - an installment invoice paid by card through ChaChing outside those endpoints: by your customer from the payment page, or by you from the dashboard or with `PUT /invoices/{id}`.
 
-The subject is `Receipt from <your account name>: payment 3 of 9` for an installment, `Receipt from <your account name>: down payment` for the down payment, and `Receipt from <your account name>: payment plan payment` for a recorded payment that covers several charges or reaches the principal. `9` is the plan's `installment_count`. The receipt states your account name, your city and state when your account's billing contact holds both, the plan's `description`, the amount and currency, the date, the card brand and its last four digits, a `Surcharge` line after the payment lines when the charge carried a surcharge, with `Total charged` as the amount the card was charged, the remaining balance and the number of payments remaining (the receipt of the last installment, or of a payment that completes the plan, says the plan is paid in full instead), and a button that opens the invoice of the installment. The principal part of a payment has no invoice and no button. A deposit collected on a terminal has no invoice and no button. When the card details cannot be read, the receipt prints `Card on file`.
+The subject is `Receipt from <your account name>: payment 3 of 9` for an installment, `Receipt from <your account name>: down payment` for the down payment, and `Receipt from <your account name>: payment plan payment` for a recorded payment that covers several charges or reaches the principal. `9` is the plan's `installment_count`. The receipt states your account name, your city and state when your account's billing contact holds both, the plan's `description`, the amount and currency, the date, the card brand and its last four digits, a `Credit card surcharge` line after the payment lines when the charge carried a surcharge, with `Total charged` as the amount the card was charged, the remaining balance and the number of payments remaining (the receipt of the last installment, or of a payment that completes the plan, says the plan is paid in full instead), and a button that opens the invoice of the installment. The receipt of the principal part of a payment and of a deposit collected on a terminal carries no invoice button; their invoices are returned by `GET /invoices` and `GET /invoices/{id}`. When the card details cannot be read, the receipt prints `Card on file`.
 
 A payment recorded with `external: true` is not a card charge. The customer receives a `Payment recorded` email with the amount and the remaining balance, and no card details. When that payment pays the plan off, the email's subject says the plan is paid in full and its text says so instead of giving a remaining balance.
 
-**Failed payments.** Each declined automatic attempt on an installment, retries included, sends the customer a notice with the invoice number and amount, the line `Installment 3 of 9 of your payment plan.`, the plan's `description`, the date of the next automatic retry when one is scheduled, a button to pay the invoice with another payment method, and this sentence: `You have at least 7 calendar days from the first failed attempt on this installment to pay it with another payment method.` For accounts that charge through iPOSpays, the notice also says: `When your card is charged, <your account name> can add a card surcharge to this amount.` Your account owner is copied on these notices.
+**Failed payments.** Each declined automatic attempt on an installment, retries included, sends the customer a notice with the invoice number and amount, the line `Installment 3 of 9 of your payment plan.`, the plan's `description`, the date of the next automatic retry when one is scheduled, a button to pay the invoice with another payment method, and this sentence: `You have at least 7 calendar days from the first failed attempt on this installment to pay it with another payment method.` For accounts that charge through iPOSpays, the notice also says: `If the card is a credit card, <your account name> can add a credit card surcharge to this amount. Debit cards are not surcharged.` Your account owner is copied on these notices.
 
 A declined down payment sends the customer no email: the request answers `402` `PAYMENT_PLAN_DOWN_PAYMENT_DECLINED`, and no plan exists.
 

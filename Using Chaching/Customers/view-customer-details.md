@@ -27,7 +27,7 @@ Displays core metadata for the customer.
 ---
 ## Spending Trend
 
-Shows the historical graphs once payments exist. The total spend includes the card surcharges collected; see [Card Surcharges](../../Developer%20Guide/card-surcharges.md).
+Shows the historical graphs once payments exist. The total spend includes the credit card surcharges collected; see [Credit Card Surcharges](../../Developer%20Guide/card-surcharges.md).
 ---
 ## Subscriptions
 
