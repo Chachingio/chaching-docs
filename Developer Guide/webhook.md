@@ -94,7 +94,7 @@ Retries are **not** triggered when the endpoint returns any other non-`2xx` stat
 
 Webhooks can be managed via the **UI** (Settings → Developer → Webhooks) or programmatically via the **REST API**. Both approaches support the full lifecycle: create, list, update, enable/disable, and delete endpoints.
 
-> Only users with the **Developer** or **SuperAdmin** role can manage webhooks. For user roles details, refer to the section Manage → Users in the left panel of the ChaChing application.
+> In the UI, only users with the **Developer** or **SuperAdmin** role can manage webhooks. Through the REST API, the account's secret API key manages them. For user roles details, refer to the section Manage → Users in the left panel of the ChaChing application.
 
 ## Via the UI
 
@@ -125,80 +125,99 @@ After creation:
 
 ## Via the REST API
 
-All endpoints require authentication.
+Manage webhook endpoints with the account **secret** API key (`sk_…`) in the `cc-api-key` header. A publishable key (`pk_…`) is refused with `403` and the error code `SECRET_API_KEY_REQUIRED`, and a request that also carries an `Authorization` header is refused with `409`. An account holds at most 16 endpoints.
 
 ### Endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `POST` | `/webhook/destination` | Create a new webhook endpoint |
-| `GET` | `/webhook/destination` | List all webhook endpoints |
-| `PUT` | `/webhook/destination/:id` | Update a webhook endpoint |
-| `DELETE` | `/webhook/destination/:id` | Delete a webhook endpoint |
-| `PATCH` | `/webhook/destination/:id/enable` | Enable a webhook endpoint |
-| `PATCH` | `/webhook/destination/:id/disable` | Disable a webhook endpoint |
-| `GET` | `/webhook/logs` | Retrieve webhook delivery logs |
+| `POST` | `/webhook-endpoints` | Create a webhook endpoint |
+| `GET` | `/webhook-endpoints` | List the account's webhook endpoints, newest first |
+| `GET` | `/webhook-endpoints/{id}` | Retrieve a webhook endpoint |
+| `PUT` | `/webhook-endpoints/{id}` | Change the URL of a webhook endpoint |
+| `DELETE` | `/webhook-endpoints/{id}` | Delete a webhook endpoint |
+| `POST` | `/webhook-endpoints/{id}/enable` | Enable a webhook endpoint |
+| `POST` | `/webhook-endpoints/{id}/disable` | Disable a webhook endpoint |
+| `GET` | `/webhook-endpoints/{id}/logs` | List the deliveries sent to a webhook endpoint |
 
-### Create Endpoint
+### The Webhook Endpoint Object
+
+```json
+{
+  "id": "0b6f7a52-3c1e-4d8a-9f43-2a7d1c5e8b90",
+  "object": "webhook_endpoint",
+  "endpoint": "https://your-server.com/webhook",
+  "status": "active",
+  "created": 1761091200,
+  "updated": 1761091200
+}
+```
+
+`status` is `active` or `inactive`; events are sent only to `active` endpoints. `created` and `updated` are Unix seconds.
+
+### Create an Endpoint
 
 ```
-POST /webhook/destination
+POST /webhook-endpoints
 ```
 
 **Request body:**
 
 ```json
 {
-  "url": "https://your-server.com/webhook"
+  "endpoint": "https://your-server.com/webhook"
 }
 ```
 
-**Response:** the created webhook destination object, including its `id` and active status.
+`endpoint` must be an `https` URL in production; an `http` URL is accepted only on non-production environments. A URL whose host is `localhost`, ends in `.local`, or is an IPv4 or IPv6 address in a private, loopback or link-local range is refused with `400`. The endpoint is created `active`, and the response is `201` with the Webhook Endpoint object. Creating a 17th endpoint answers `409` with the error code `WEBHOOK_ENDPOINTS_LIMIT_REACHED`.
 
-### List Endpoints
-
-```
-GET /webhook/destination
-```
-
-**Response:** array of all webhook destination objects for the account.
-
-### Update Endpoint
+### List and Retrieve Endpoints
 
 ```
-PUT /webhook/destination/:id
+GET /webhook-endpoints
+GET /webhook-endpoints/{id}
 ```
 
-**Request body:**
+The list takes the page parameters `page` and `take` (`take` at most `50`) and answers `{ "data": [...], "meta": { "page": 1, "take": 10, "itemsTotal": 2, "pagesTotal": 1 } }`.
 
-```json
-{
-  "url": "https://your-server.com/new-webhook"
-}
-```
-
-### Enable / Disable Endpoint
+### Update an Endpoint
 
 ```
-PATCH /webhook/destination/:id/enable
-PATCH /webhook/destination/:id/disable
+PUT /webhook-endpoints/{id}
 ```
 
-No request body required.
+The request body is the same `{ "endpoint": "..." }` object as the create. The endpoint keeps its `id` and its `status`.
 
-### Delete Endpoint
+### Enable / Disable an Endpoint
 
 ```
-DELETE /webhook/destination/:id
+POST /webhook-endpoints/{id}/enable
+POST /webhook-endpoints/{id}/disable
 ```
+
+No request body. Enabling an `active` endpoint answers `400` with `WEBHOOK_ENDPOINT_ALREADY_ACTIVE`, and disabling an `inactive` endpoint answers `400` with `WEBHOOK_ENDPOINT_ALREADY_INACTIVE`.
+
+### Delete an Endpoint
+
+```
+DELETE /webhook-endpoints/{id}
+```
+
+Deletes the endpoint permanently and answers `200` with the Webhook Endpoint object as it was before the deletion.
+
+An `id` that is not one of your endpoints answers `404` with `WEBHOOK_ENDPOINT_NOT_FOUND`.
 
 ### Retrieve Delivery Logs
 
 ```
-GET /webhook/logs
+GET /webhook-endpoints/{id}/logs
 ```
 
-**Response:** list of webhook delivery log entries. Each entry includes the event type, payload, and status (`pending` / `retry` / `success` / `failure`).
+Lists the deliveries sent to the endpoint's current URL, newest first, with the page parameters `page` and `take`. Filter by status with `search`, a URL-encoded JSON object: `{"status": "failure,retry"}`. `search` also accepts `pending`, but a pending delivery has no endpoint recorded yet, so the log never returns one. Each entry carries `id` (the `id` of the delivered event payload), `object` (`webhook_delivery`), `webhook_endpoint`, `event_type`, `status` (`success`, `retry` while another attempt is scheduled, or `failure`), `response_status_code` (the HTTP status your server answered, or `null` when no response arrived), `created` and `updated` (Unix seconds). A delivery appears in the log after its first attempt. Deliveries are matched by URL: after you change an endpoint's URL, its log lists the deliveries sent to the new URL.
+
+### Signing
+
+Every delivery is signed with your account's secret API key — the same `sk_…` key you send in `cc-api-key` — as described in [Webhook Signatures](#webhook-signatures). Endpoints have no signing secret of their own; a per-endpoint signing secret is planned.
 
 ---
 

@@ -49,6 +49,7 @@
     - page: ./Developer Guide/subscription-lifecycle.md
     - page: ./Developer Guide/payment-plans.md
     - page: ./Developer Guide/card-surcharges.md
+    - page: ./Developer Guide/invoices.md
 
 - group: Settings
   items:

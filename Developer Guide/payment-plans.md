@@ -6,7 +6,7 @@ Payment Plans are available through the API. They are enabled per merchant accou
 
 Merchants also work with payment plans in the ChaChing dashboard. On an account that charges through iPOSpays (Dejavoo), the dashboard collects the deposit of a plan — its down payment, or its first installment when it has none — on one of the account's registered terminals and takes payments on a terminal, through the same deposit and payment flows this page describes. Nothing changes for an integration: every endpoint, object and webhook on this page works as documented.
 
-Every endpoint on this page authenticates with the account API key in the `cc-api-key` header, like every other public endpoint. Amounts are integers in cents, dates and timestamps are Unix seconds, and field names are `snake_case`. For every request and response schema, see the [API Reference](./api.json). For the webhook payloads, see [Webhooks](./webhook.md).
+Every endpoint on this page authenticates with the account API key in the `cc-api-key` header, like every other public endpoint. Amounts are integers in cents, dates and timestamps are Unix seconds, and field names are `snake_case`. For every request and response schema, see the [API Reference](./api.json). For the webhook payloads, see [Webhooks](./webhook.md). Some endpoints require the secret key (`sk_`); each such section says so.
 
 ---
 
@@ -251,6 +251,44 @@ An installment's `status` is `scheduled`, `paid`, `failed` or `canceled`. It rea
 
 The Invoice object, on the invoice endpoints and in every `invoice.*` webhook, carries `payment_plan`, `installment` and `payment_plan_charge`. All three are `null` on an invoice that belongs to no payment plan, and an invoice raised for a payment plan reports `subscription: null`. `payment_plan_charge` describes the plan charge the invoice records: `{ "id": "pp_1ef17ace4b4d96ff32461285", "installment": "ppi_9c1a3d0e2f4b8756a1c0d3ef", "sequence": 3, "payment": "ppp_5d2c8e1f0a3b4c6d7e8f9a0b", "kind": "installment" }`. `id` is the plan; `installment` and `sequence` are the installment the charge pays, both `null` for an extra payment and a payoff; `payment` is the Payment object that paid the invoice, `null` for the down payment charged when the plan is created, for a deposit collected on a terminal and for an installment paid by its automatic charge; `kind` is `down_payment`, `deposit` (the first installment collected on a terminal), `installment`, `extra_payment` or `payoff`. `payment_plan_charge` is also `null` on a plan invoice not matched to an installment yet. An invoice that records the principal part of a payment reports `installment: null`.
 
+## Preview a Schedule
+
+`POST /payment-plans/preview` takes the body of `POST /payment-plans` and answers `200` with the schedule that body would produce, without creating anything:
+
+```json
+{
+  "object": "payment_plan_preview",
+  "mode": "card_on_file",
+  "customer": "cus_739c07713fd4b68565a969cd",
+  "total_amount": 120000,
+  "down_payment_amount": 20000,
+  "financed_amount": 100000,
+  "installment_amount": 25000,
+  "installment_count": 4,
+  "interval": "monthly",
+  "remainder_placement": "first",
+  "start_date": 1796083200,
+  "installments": [
+    { "sequence": 1, "due_date": 1796083200, "amount": 25000 },
+    { "sequence": 2, "due_date": 1798761600, "amount": 25000 },
+    { "sequence": 3, "due_date": 1801440000, "amount": 25000 },
+    { "sequence": 4, "due_date": 1803859200, "amount": 25000 }
+  ]
+}
+```
+
+`mode` is `card_on_file` when the body carries `payment_method` and `terminal_deposit` when it does not. `installments` lists installments 1 to N; the down payment appears only in `down_payment_amount`. `description` is accepted and ignored.
+
+The preview checks the customer, your payment gateway, the interval, `start_date` and the amounts, with the codes `POST /payment-plans` uses for the same checks: `404` `CUSTOMER_NOT_FOUND`, and `400` `PAYMENT_PLAN_GATEWAY_NOT_SUPPORTED`, `PAYMENT_PLAN_INTERVAL_INVALID`, `PAYMENT_PLAN_START_DATE_INVALID`, `PAYMENT_PLAN_SCHEDULE_INVALID` and `PAYMENT_PLAN_AMOUNT_INVALID`. It does not check the payment method, the customer's account standing and unpaid invoices, an earlier down payment still pending, nor your retry settings, so `POST /payment-plans` can still refuse a body whose preview succeeded: with `404` `PAYMENT_METHOD_NOT_FOUND`; with `409` `PAYMENT_PLAN_PAYMENT_METHOD_NOT_SUPPORTED`, `PAYMENT_PLAN_CREDENTIAL_NOT_ESTABLISHED`, `PAYMENT_PLAN_AUTO_PAY_OFF`, `PAYMENT_PLAN_ACCOUNT_INVOICED_AHEAD`, `PAYMENT_PLAN_CUSTOMER_DELINQUENT`, `PAYMENT_PLAN_DUNNING_SCHEDULE_TOO_SHORT`, `PAYMENT_PLAN_UNPAID_OUTCOME_NOT_SUPPORTED` and `PAYMENT_PLAN_DOWN_PAYMENT_PENDING`; and with every outcome of the down-payment charge, the billing engine and the `Idempotency-Key` that [When a Plan Cannot Be Created](#when-a-plan-cannot-be-created) and [Duplicate Requests](#duplicate-requests) describe.
+
+## List a Plan's Payments
+
+`GET /payment-plans/{id}/payments` lists the plan's payments, newest first, with the page parameters `page` and `take` (`take` at most `50`). Each entry is the Payment object that `GET /payment-plans/{id}/payments/{payment_id}` returns. Filter by status with `search`, a URL-encoded JSON object holding one status: `{"status": "declined"}`. `status` is `processing`, `applied`, `partially_applied`, `declined`, `not_attempted` or `unconfirmed`; any other value, or a `search` value that is not a JSON object, answers `400`.
+
+`payment_plan_status`, `remaining_balance` and `installments_remaining` describe the plan at the time of the request, not at the time of each payment. A down payment collected on a terminal is not a payment: read it as installment `0` of `GET /payment-plans/{id}/installments` and in the plan's `deposit`.
+
+Both endpoints require the account's secret API key (`sk_…`): a publishable key answers `403` with `SECRET_API_KEY_REQUIRED`, and a request that also carries an `Authorization` header answers `409`.
+
 ---
 
 # Record Payments, Extra Payments and a Payoff
@@ -276,7 +314,7 @@ The amount is applied first to the plan's billed installments that are not fully
 - **Extra payment.** An amount below `remaining_balance`. When it reaches the principal, the installment amount and the due dates do not change: the plan ends sooner, and its last installment is reduced to what is left.
 - **Payoff.** An amount equal to `remaining_balance`. It pays every open installment, closes the rest of the schedule, and moves the plan to `paid_off`.
 - **Several charges.** A payment spanning several billed installments, or billed installments and the principal, is charged as one charge per installment invoice plus one charge for the principal, in that order. When the first charge is declined the request answers `402` `PAYMENT_DECLINED` and nothing is applied. When a later charge is declined, the charges already approved stay applied and the request answers `201` with the `amount` actually applied. When a later charge's outcome cannot be confirmed, the request still answers `201`, with `status` `processing` and `amount` `0` even when earlier charges of the same payment were approved: the payment is recorded only once every one of its charges is resolved. Do not retry with a new `Idempotency-Key`. Wait for `payment_plan.payment_succeeded`, which ChaChing sends with the amount actually applied once it finishes recording the payment, and read the plan's installments when the event does not arrive.
-- **The principal has its own invoice.** The principal part of a payment is recorded on its own invoice, returned by `GET /invoices` and `GET /invoices/{id}` with `installment: null` and `payment_plan_charge.kind` `extra_payment`, or `payoff` for a payoff. When the principal is recorded, ChaChing sends `invoice.payment_succeeded` for that invoice, and `invoice.payment_failed` when its card charge is declined. `payment_plan.payment_succeeded` reports the same money: count each payment once, and use `payment_plan_charge.kind` to recognize the invoice events of a plan payment. A principal recorded before ChaChing raised these invoices has no invoice. A principal recorded while the account holds credit, while automatic or manual payment is switched off for the account, or while invoicing was unavailable at that moment is recorded without an invoice and raises no `invoice.*` event; `payment_plan.payment_succeeded` still reports it.
+- **The principal has its own invoice.** The principal part of a payment is recorded on its own invoice, returned by `GET /invoices` and `GET /invoices/{id}` with `installment: null` and `payment_plan_charge.kind` `extra_payment`, or `payoff` for a payoff. When the principal is recorded, ChaChing sends `invoice.payment_succeeded` for that invoice, and `invoice.payment_failed` when its card charge is declined. `payment_plan.payment_succeeded` reports the same money: count each payment once, and use `payment_plan_charge.kind` to recognize the invoice events of a plan payment. A principal recorded before ChaChing raised these invoices has no invoice. A principal recorded while the account holds credit, while automatic or manual payment is switched off for the account, or while invoicing was unavailable at that moment is recorded without an invoice and raises no `invoice.*` event; `payment_plan.payment_succeeded` still reports it. Send the invoice by email with `POST /invoices/{id}/send`, create its hosted payment link with `GET /invoices/{id}/hosted-link` and download its PDF with `GET /invoices/{id}/pdf`.
 - A payment on a `past_due` or `defaulted` plan is never refused because of its status. While an earlier payment's schedule rebuild is still being completed, a further payment answers `409` `PAYMENT_PLAN_REPLAN_PENDING`; retry it later.
 
 The Payment object's `status` tells you how far the recording went:
@@ -505,7 +543,7 @@ Errors use the standard body `{ "statusCode", "message", "error", "timestamp", "
 | `402` | `PAYMENT_PLAN_DOWN_PAYMENT_DECLINED` | The down payment was declined. No plan was created. |
 | `402` | `PAYMENT_DECLINED` | The first charge of a payment was declined. Nothing was applied. |
 | `403` | `PAYMENT_PLANS_NOT_ENABLED` | Payment Plans are not enabled for this account. |
-| `403` | `SECRET_API_KEY_REQUIRED` | A deposit endpoint or a terminal payment endpoint was called with a publishable (`pk_…`) API key. |
+| `403` | `SECRET_API_KEY_REQUIRED` | A deposit endpoint, a terminal payment endpoint, the schedule preview or the payments list was called with a publishable (`pk_…`) API key. |
 | `404` | `PAYMENT_PLAN_NOT_FOUND` | The plan id does not resolve for this account. |
 | `404` | `CUSTOMER_NOT_FOUND` | The customer id does not resolve for this account. |
 | `404` | `PAYMENT_METHOD_NOT_FOUND` | The payment method does not resolve, or it does not belong to the customer. |
