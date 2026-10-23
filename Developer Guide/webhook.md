@@ -420,6 +420,7 @@ Events:
   "object": "customer",
   "name": "string",
   "email": "string | null",
+  "external_id": "string | null",
   "description": "string | null",
   "phone": "string | null",
   "created": 1672531200,
@@ -451,6 +452,8 @@ Events:
 
 `email` is `null` when the customer has no email address.
 
+`external_id` is your own identifier for the customer, `null` when none was sent; see [External IDs](./payment-plans.md#external-ids).
+
 ---
 
 ### Example
@@ -465,6 +468,7 @@ Events:
     "object": "customer",
     "name": "John Doe",
     "email": "john.doe@example.com",
+    "external_id": "PAT-799601",
     "description": "My First Test Customer",
     "phone": null,
     "created": 1680893993,
@@ -644,6 +648,7 @@ Events:
   "created": 1672531200,
   "currency": "string",
   "customer": "cus_XXXXXXXX",
+  "customer_external_id": "string | null",
   "customer_address": {
     "city": "string",
     "country": "string",
@@ -668,6 +673,7 @@ Events:
   },
   "subscription": "sub_XXXXXXXX",
   "payment_plan": "pp_XXXXXXXX | null",
+  "payment_plan_external_id": "string | null",
   "installment": "ppi_XXXXXXXX | null",
   "subtotal": 0,
   "subtotal_excluding_tax": 0,
@@ -710,6 +716,7 @@ Events:
     "created": 1680645568,
     "currency": "USD",
     "customer": "cus_383fda0065594749023e8c8d",
+    "customer_external_id": "PAT-799601",
     "customer_address": {
       "city": "San Francisco",
       "country": "US",
@@ -1106,7 +1113,9 @@ carries the Payment object.
 {
   "id": "pp_XXXXXXXX",
   "object": "payment_plan",
+  "external_id": "string | null",
   "customer": "cus_XXXXXXXX",
+  "customer_external_id": "string | null",
   "description": "string | null",
   "status": "awaiting_deposit | active | past_due | defaulted | paid_off | canceled",
   "currency": "string",
@@ -1158,6 +1167,9 @@ carries the Payment object.
   "id": "ppi_XXXXXXXX",
   "object": "payment_plan_installment",
   "payment_plan": "pp_XXXXXXXX",
+  "payment_plan_external_id": "string | null",
+  "customer": "cus_XXXXXXXX",
+  "customer_external_id": "string | null",
   "sequence": 0,
   "due_date": 1672531200,
   "amount": 0,
@@ -1179,6 +1191,9 @@ carries the Payment object.
   "id": "ppp_XXXXXXXX",
   "object": "payment_plan_payment",
   "payment_plan": "pp_XXXXXXXX",
+  "payment_plan_external_id": "string | null",
+  "customer": "cus_XXXXXXXX",
+  "customer_external_id": "string | null",
   "status": "processing | applied | partially_applied",
   "amount": 0,
   "surcharge_amount": 0,
@@ -1210,6 +1225,9 @@ The `terminal` object the event emits carries all 17 keys of the terminal object
     "id": "ppi_Mc8yS3Rb",
     "object": "payment_plan_installment",
     "payment_plan": "pp_8QN4mTcRk2VwZfLp",
+    "payment_plan_external_id": "PLAN-2026-0117",
+    "customer": "cus_739c07713fd4b68565a969cd",
+    "customer_external_id": "PAT-799601",
     "sequence": 2,
     "due_date": 1763078400,
     "amount": 20000,
@@ -1235,7 +1253,9 @@ The `terminal` object the event emits carries all 17 keys of the terminal object
   "data": {
     "id": "pp_8QN4mTcRk2VwZfLp",
     "object": "payment_plan",
+    "external_id": "PLAN-2026-0117",
     "customer": "cus_739c07713fd4b68565a969cd",
+    "customer_external_id": "PAT-799601",
     "description": "Orthodontic treatment, upper and lower braces",
     "status": "paid_off",
     "currency": "USD",
@@ -1272,6 +1292,9 @@ The `terminal` object the event emits carries all 17 keys of the terminal object
     "id": "ppp_4Hk9Tz2W",
     "object": "payment_plan_payment",
     "payment_plan": "pp_8QN4mTcRk2VwZfLp",
+    "payment_plan_external_id": "PLAN-2026-0117",
+    "customer": "cus_739c07713fd4b68565a969cd",
+    "customer_external_id": "PAT-799601",
     "status": "applied",
     "amount": 50000,
     "surcharge_amount": 0,

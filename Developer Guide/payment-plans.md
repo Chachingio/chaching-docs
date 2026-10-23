@@ -61,6 +61,7 @@ Request body:
 ```json
 {
   "customer": "cus_739c07713fd4b68565a969cd",
+  "external_id": "PLAN-2026-0117",
   "description": "Orthodontic treatment, upper and lower braces",
   "total_amount": 210000,
   "down_payment_amount": 30000,
@@ -76,6 +77,7 @@ Request body:
 | --- | --- | --- |
 | `customer` | yes | An existing customer id, `cus_…`. |
 | `description` | no | A short text describing what the plan pays for. ChaChing shows it to the customer on the plan's receipts and failed-payment emails. Up to 255 characters, with no line breaks or other control characters. Leading and trailing spaces are removed, and a value that is empty or only spaces is stored as no description. With an `Idempotency-Key`, sending such a value and leaving `description` out are the same request; adding a non-empty `description` to a request you retry with the same key, or changing it, answers `422`. |
+| `external_id` | no | Your own identifier for this plan, for example the plan id in your system. Up to 255 characters, with no control characters. Leading and trailing spaces, tabs and line breaks are removed, and a blank value is stored as none. Unique among all payment plans of your account, whatever their status: a second create with the same value answers `409` `PAYMENT_PLAN_EXTERNAL_ID_EXISTS`. It cannot be changed after the plan is created. See **External IDs**. |
 | `total_amount` | yes | Integer cents, at least `1`. |
 | `installment_count` | one of the two | Integer from `1` to `60`. |
 | `installment_amount` | one of the two | Integer cents, at least `1`. Send exactly one of `installment_count` and `installment_amount`; ChaChing derives the other. |
@@ -237,7 +239,7 @@ Fields of the attempt object:
 
 # Read Plans and Installments
 
-- `GET /payment-plans` lists your plans, newest first, with the page parameters `page` and `take` (`take` at most `50`). Filter with `search`, a URL-encoded JSON object: `{"customer": "cus_739c07713fd4b68565a969cd", "status": "past_due,defaulted"}`. `status` takes one status or a comma-separated list. A `search` value that is not valid JSON answers `400`.
+- `GET /payment-plans` lists your plans, newest first, with the page parameters `page` and `take` (`take` at most `50`). Filter with `search`, a URL-encoded JSON object: `{"customer": "cus_739c07713fd4b68565a969cd", "status": "past_due,defaulted"}`. `status` takes one status or a comma-separated list. A `search` value that is not valid JSON answers `400`. Add `external_id` to return only the plan whose `external_id` equals that value exactly (case-sensitive); a value that matches nothing returns an empty page, and an empty or blank value answers `400`.
 - `GET /payment-plans/{id}` returns one plan.
 - `GET /payment-plans/{id}/installments` returns the plan's installments in ascending `sequence` order, the down payment first when there is one.
 
@@ -536,9 +538,24 @@ This endpoint is the only way to end a plan early. A payment plan is not a subsc
 
 ---
 
+# External IDs
+
+Customers and payment plans accept an optional `external_id` when you create them: your own identifier, such as the patient id or the plan id in your system. It holds up to 255 characters with no control characters; leading and trailing spaces, tabs and line breaks are removed, and a blank value means none.
+
+- **Scope.** A customer's `external_id` is unique among the active customers of your account, and a plan's among all payment plans of your account, whatever their status. A customer and a plan can carry the same value, and another account can use the same value.
+- **Set once.** The value is set when the object is created and never changes. `PATCH /customers/{id}` with `external_id` in the body answers `400` `CUSTOMER_EXTERNAL_ID_IMMUTABLE`; payment plans have no update endpoint. Customers and plans created before external ids existed have `external_id: null`.
+- **Duplicates.** `POST /customers` with a value an active customer of your account already carries answers `409` `CUSTOMER_EXTERNAL_ID_EXISTS`; `POST /payment-plans` with a value a plan of your account already carries answers `409` `PAYMENT_PLAN_EXTERNAL_ID_EXISTS`. The message names the existing `cus_…` or `pp_…` id and does not repeat the external id. A deleted customer frees its value.
+- **Retries.** Send an `Idempotency-Key` header on every `POST /payment-plans` that carries an `external_id`. A retry with the same key replays the first answer instead of creating, or refusing, a second plan. Two concurrent creates with the same `external_id` and different keys can leave a charged down payment without a plan; refund it from its invoice.
+- **Lookup.** `GET /customers?external_id=…` and `GET /payment-plans?external_id=…` return the normal page, filtered by an exact, case-sensitive match. A value that matches nothing returns an empty page; an empty or blank value answers `400`.
+- **Echo.** The Customer and Payment Plan objects carry `external_id`. The Payment Plan object also carries `customer_external_id`; the Installment and Payment objects carry `customer`, `customer_external_id` and `payment_plan_external_id`; the Invoice object carries `customer_external_id` and `payment_plan_external_id`. Webhooks carry the same objects.
+
+Chaching stores only the customer name, payment method, amounts and external ids. Do not put clinical or other protected health information — no diagnosis, no procedure, no date of birth — in `description` or `external_id`.
+
+---
+
 # Error Codes
 
-Errors use the standard body `{ "statusCode", "message", "error", "timestamp", "path" }` plus the fields a row names. Branch on `statusCode` and `error`; `message` can change. A request body that fails field validation — a value below its minimum such as `total_amount: 0` or `installment_count: 0`, a negative `down_payment_amount`, a value of the wrong type, a `description` longer than 255 characters or containing a line break or another control character, or an unknown field such as `terminal` — and a `search` value that is not valid JSON are rejected with `400` and a body that carries no `error` field; `message` describes the problem.
+Errors use the standard body `{ "statusCode", "message", "error", "timestamp", "path" }` plus the fields a row names. Branch on `statusCode` and `error`; `message` can change. A request body that fails field validation — a value below its minimum such as `total_amount: 0` or `installment_count: 0`, a negative `down_payment_amount`, a value of the wrong type, a `description` longer than 255 characters or containing a line break or another control character, an `external_id` that is not 1 to 255 characters or contains a control character, or an unknown field such as `terminal` — and a `search` value that is not valid JSON are rejected with `400` and a body that carries no `error` field; `message` describes the problem.
 
 | **Status** | **`error`** | **When** |
 | --- | --- | --- |
@@ -568,6 +585,7 @@ Errors use the standard body `{ "statusCode", "message", "error", "timestamp", "
 | `409` | `PAYMENT_PLAN_AUTO_PAY_OFF` | A plan created with `payment_method` has a down payment and automatic payments are turned off for the customer in the billing engine. Nothing was created or charged. Create the plan without a down payment. |
 | `409` | `PAYMENT_PLAN_ACCOUNT_INVOICED_AHEAD` | The customer was already invoiced through a date on or after `start_date`. The message names that date. Nothing was created; choose a `start_date` after it. |
 | `409` | `PAYMENT_PLAN_DOWN_PAYMENT_PENDING` | An earlier down-payment invoice of the same amount for this customer is still open, or was settled in a way this request cannot use (a different payment method, no card payment, or more than one such invoice). Nothing was created or charged by this request. Check the customer's invoices and transactions: wait for an open charge to finish, send the `payment_method` that paid, or refund or void the invoices that should not count, then send the request again. |
+| `409` | `PAYMENT_PLAN_EXTERNAL_ID_EXISTS` | A payment plan of your account already carries this `external_id`. The message names that plan's `pp_…` id. Nothing was created or charged by this request. |
 | `409` | `PAYMENT_PLAN_NOT_PAYABLE` | The plan is `awaiting_deposit` or `paid_off`. |
 | `409` | `PAYMENT_PLAN_NOT_CANCELABLE` | The plan is already `paid_off` or `canceled`. |
 | `409` | `PAYMENT_PLAN_BUSY` | Another payment or a cancellation on this plan is in progress. Retry shortly. |
