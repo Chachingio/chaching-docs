@@ -42,7 +42,7 @@ Displays system-generated events showing how the invoice progressed.
 
 | **Activity** | **Description** |
 | --- | --- |
-| **Payment applied** | A payment that carried a card surcharge shows the surcharge and the total charged, for example *$1.00 payment successfully applied (surcharge $0.03, total charged $1.03)*. |
+| **Payment applied** | A payment that carried a credit card surcharge shows the surcharge and the total charged, for example *$1.00 payment successfully applied (credit card surcharge $0.03, total charged $1.03)*. |
 | **Payment failure messages** | Shows failed payment attempts and the associated error messages (e.g., *Amount must be at least $0.50 USD*). |
 | **Invoice creation & finalization** | Logs timestamps when the invoice was created, finalized, and marked open. |
 | **Timestamps** | Each entry includes the exact date and time of the event. |
@@ -72,7 +72,7 @@ Displays system-generated events showing how the invoice progressed.
 ---
 ## Payments
 
-Table showing all payments attempts for this invoice. A payment that carried a card surcharge shows **Card surcharge** and **Total charged** under its amount.
+Table showing all payments attempts for this invoice. A payment that carried a credit card surcharge shows **Credit card surcharge** and **Total charged** under its amount.
 
 ### Payments Table
 
@@ -89,7 +89,7 @@ Clicking the three dots in a payment row opens a detailed payment timeline.
 
 | **Field** | **Description** |
 | --- | --- |
-| **Amount** | The attempted payment amount. A payment that carried a card surcharge also shows the **Surcharge** and the **Total charged**; see [Card Surcharges](../../Developer%20Guide/card-surcharges.md). |
+| **Amount** | The attempted payment amount. A payment that carried a credit card surcharge also shows the **Credit card surcharge** and the **Total charged**; see [Credit Card Surcharges](../../Developer%20Guide/card-surcharges.md). |
 | **Status** | The detailed internal status (e.g., *PURCHASE_ERRORED*). |
 | **Timeline** | Step-by-step history such as *Payment started*, *Payment failed*, with timestamps. |
 | **Error message** | Shows reason for failure when applicable. |
@@ -111,8 +111,8 @@ Clicking the three dots in a payment row opens a detailed payment timeline.
 | **Subtotal** | Sum of all line item amounts before adjusting for tax inclusivity/exclusivity. |
 | **Total excluding tax** | Total amount recalculated without tax included (used when tax is inclusive). |
 | **Sales tax** | Calculated tax amount. Shows: tax rate, tax basis, and resulting value. Example: *(4.00% inclusive on $9.62) = $0.38*. |
-| **Total** | Full invoice amount including all taxes. It never includes a card surcharge. |
-| **Card surcharge** | The card surcharges the invoice's successful payments carried. Shown only when a payment carried one; see [Card Surcharges](../../Developer%20Guide/card-surcharges.md). |
+| **Total** | Full invoice amount including all taxes. It never includes a credit card surcharge. |
+| **Credit card surcharge** | The credit card surcharges the invoice's successful payments carried. Shown only when a payment carried one; see [Credit Card Surcharges](../../Developer%20Guide/card-surcharges.md). |
 | **Total charged** | What the cards were charged for the invoice's successful payments, surcharges included. Shown only when it differs from the amount paid. |
 | **Amount due** | Remaining amount the customer owes after previous payments or adjustments. |
 ---
