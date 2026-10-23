@@ -253,6 +253,17 @@ The Invoice object, on the invoice endpoints and in every `invoice.*` webhook, c
 
 ---
 
+# Billing Time of Day
+
+ChaChing charges installments at 10:00 UTC: 5:00 a.m. Eastern Standard Time in winter and 6:00 a.m. Eastern Daylight Time in summer. The time is fixed in UTC and does not move with daylight saving time.
+
+- Each installment is invoiced and charged at 10:00 UTC on its due date.
+- An automatic retry after a declined charge runs the number of days after the declined attempt that your retry schedule (`payment_retries`) sets, at about 10:00 UTC; each retry can start a few seconds later than the attempt before it.
+- The down payment is charged when the plan is created.
+- A customer created before ChaChing introduced this fixed billing time keeps the time of day at which the customer was created: that customer's installments and retries run at that time.
+
+---
+
 # Record Payments, Extra Payments and a Payoff
 
 `POST /payment-plans/{id}/payments` records every payment made outside the automatic schedule and answers `201` with the Payment object.

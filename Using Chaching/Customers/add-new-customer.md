@@ -10,7 +10,7 @@ Click **Add new customer** to create a customer.
 | **Name** | **Description** | **Required / Optional** |
 | --- | --- | --- |
 | **Customer Name** | Full name of the customer used for identification across billing records and subscriptions. | Required |
-| **Email** | Primary customer email used for receipts, invoices, and all system notifications. | Required |
+| **Email** | Primary customer email used for receipts, invoices, and all system notifications. A customer with no email receives none of them. | Required on accounts that take payments through Stripe or NMI; optional on accounts that take payments through Dejavoo |
 | **Show advanced options** | Expands the form to include billing and shipping sections. | — |
 ---
 ## Billing Details

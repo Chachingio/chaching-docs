@@ -400,7 +400,7 @@ Events:
   "id": "cus_XXXXXXXX",
   "object": "customer",
   "name": "string",
-  "email": "string",
+  "email": "string | null",
   "description": "string | null",
   "phone": "string | null",
   "created": 1672531200,
@@ -429,6 +429,8 @@ Events:
   }
 }
 ```
+
+`email` is `null` when the customer has no email address.
 
 ---
 
