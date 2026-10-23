@@ -40,7 +40,7 @@ When the invoice's customer has no email address, the endpoint answers `409` wit
 
 # Download the Invoice PDF
 
-`GET /invoices/{id}/pdf` answers `200` with the PDF (`Content-Type: application/pdf`) as an attachment named after the invoice number, for example `INVOICE-1234.pdf`. The PDF is generated on each request and is not stored. On an account that charges through iPOSpays (Dejavoo), an invoice whose card payments carried a surcharge shows the `Card surcharge` and `Total charged` rows (see [Card Surcharges](./card-surcharges.md)).
+`GET /invoices/{id}/pdf` answers `200` with the PDF (`Content-Type: application/pdf`) as an attachment named after the invoice number, for example `INVOICE-1234.pdf`. The PDF is generated on each request and is not stored. On an account that charges through iPOSpays (Dejavoo), an invoice whose card payments carried a surcharge shows the `Credit card surcharge` and `Total charged` rows (see [Card Surcharges](./card-surcharges.md)).
 
 ---
 
