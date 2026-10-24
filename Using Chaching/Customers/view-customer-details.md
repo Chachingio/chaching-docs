@@ -20,6 +20,7 @@ Displays core metadata for the customer.
 | **Field** | **Value Example** | **Description** |
 | --- | --- | --- |
 | **Customer ID** | `cus_3b9273da31c01bed2987cc7a` | Unique ID assigned to the customer. |
+| **External ID** | `PAT-799601` | Your system's identifier for this customer. Shown only when one was sent when the customer was created through the API. |
 | **Customer since** | `12-03-2025` | Date when the customer was created. |
 | **Billing email** | `email@gmail.com` | Email used for billing communication. |
 | **Billing details** | `2399 Michael Islands Apt. 996, +38010663795388` | Address and phone number entered during customer creation. |
