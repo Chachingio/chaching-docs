@@ -124,7 +124,7 @@ Change the first two through `PUT /revenue-recovery`; see [Configure Failed-Paym
 - The same key while the first request is still running answers `409` `IDEMPOTENCY_KEY_IN_PROGRESS`.
 - When the first request never completed, the key answers `502` `IDEMPOTENCY_REQUEST_INCOMPLETE` after ten minutes. Read the plan before retrying with a new key.
 - A request refused with a `4xx` other than `402` is not stored: fix it and retry with the same key.
-- A `402`, `500` or `502` answer is stored and replayed for the same key for 24 hours, so a retry after one of them needs a new key. The exception is `502` `PAYMENT_PLAN_DOWN_PAYMENT_UNCONFIRMED`: it is not stored, and the same key is evaluated again on the next request.
+- A `402`, `500` or `502` answer is stored and replayed for the same key for 24 hours, so a retry after one of them needs a new key. The exceptions are `502` `PAYMENT_PLAN_DOWN_PAYMENT_UNCONFIRMED` and `502` `PAYMENT_PLAN_EXTERNAL_ID_CHECK_FAILED`: they are not stored, and the same key is evaluated again on the next request.
 
 ---
 
@@ -615,6 +615,7 @@ Errors use the standard body `{ "statusCode", "message", "error", "timestamp", "
 | `502` | `PAYMENT_PLAN_DOWN_PAYMENT_UNCONFIRMED` | The down payment's outcome could not be confirmed. No plan was created and the charge is not reversed. `down_payment_invoice_id` is the id of the down-payment invoice to check. Once its charge has settled, send the same request again; this answer is not stored, so the same `Idempotency-Key` is accepted. A retry that itself answers a stored `502`, for example `PAYMENT_PLAN_BILLING_ENGINE_UNAVAILABLE`, needs a new key. A charge paid with the same `payment_method` is used for the new plan and is not taken again. From the next UTC day, the request answers `409` `PAYMENT_PLAN_CUSTOMER_DELINQUENT` instead until that invoice is paid or voided. Check the customer's invoices before you change the amount. |
 | `502` | `PAYMENT_PLAN_PAYMENT_UNCONFIRMED` | The first charge's outcome could not be confirmed. It is not reversed; read the plan before retrying. |
 | `502` | `PAYMENT_PLAN_BILLING_ENGINE_UNAVAILABLE` | Billing data could not be read. Nothing was created or charged; safe to retry with a new `Idempotency-Key`. |
+| `502` | `PAYMENT_PLAN_EXTERNAL_ID_CHECK_FAILED` | The duplicate check of `external_id` right before the down payment could not be read. Nothing was created or charged; the same `Idempotency-Key` is evaluated again on the next request. |
 | `502` | `PAYMENT_PLAN_CANCEL_INCOMPLETE` | The cancellation did not complete. The plan keeps its status and installments, but part of its schedule can already be stopped. Repeat the request: a repeat completes the rest. |
 | `502` | `IDEMPOTENCY_REQUEST_INCOMPLETE` | The first request with this `Idempotency-Key` never completed. |
 | `503` | `SPIN_UNREACHABLE` | SPIn could not be reached to check the terminal. Nothing was started; try again. |
