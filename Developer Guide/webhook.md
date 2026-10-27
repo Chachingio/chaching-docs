@@ -402,7 +402,7 @@ Every webhook sent by ChaChing follows this structure:
 ## Fields Description
 
 - `id` — Unique event identifier. Use it to deduplicate: a retried delivery carries the same `id`
-- `account` — The merchant account the event belongs to: `id` (`acc_…`), `external_id`, and its `company` with `id` (`com_…`) and `external_id`. `external_id` is `null` until your platform assigns one
+- `account` — The merchant account the event belongs to: `id` (`acc_…`), `external_id`, and its `company` with `id` (`com_…`) and `external_id`. `external_id` is `null` for every account today; reserved for platform accounts
 - `created` — When the event was generated, in Unix seconds
 - `createdAt` — The same instant as an ISO 8601 string. Deprecated: use `created`
 - `data` — **Entity payload** (varies depending on event type)
@@ -1328,7 +1328,9 @@ carries the Payment object.
 
 The `terminal` object the event emits carries all 17 keys of the terminal object described in [Take a Payment on a Terminal](./payment-plans.md#take-a-payment-on-a-terminal), and its `state` is `approved` or `partial_approval` at emission.
 
-`card` is `{ "brand": "string | null", "last4": "string | null" }`, or `null` when the card cannot be read.
+`card` is `{ "brand": "string | null", "last4": "string | null" }`, or `null` when the card cannot be read. `card.brand` is the gateway's card network label as stored; it is not guaranteed to be lowercase, so compare it case-insensitively.
+
+`first_failed_at` is the time ChaChing recorded the first confirmed decline of the installment, in Unix seconds. It is `null` for an installment whose only declines predate this field, and it does not change on later retries.
 
 ### Schema — Payment Allocation
 

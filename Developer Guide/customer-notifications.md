@@ -27,12 +27,17 @@ Send a receipt for every installment and every payment ChaChing collects by card
 | Credit card surcharge | `surcharge_amount`, printed when above `0` |
 | Total charged | `amount_charged` |
 | Date | `paid_at` |
-| Card brand and last four digits | `card.brand`, `card.last4`; print `Card on file` when `card` is `null` |
+| Card brand and last four digits | `card.brand`, `card.last4`; print `Card on file` when `card` is `null`; `card.brand` is the gateway's card network label, not guaranteed lowercase |
 | Transaction type | The word `Purchase` |
 | Remaining balance and payments remaining | `payment_plan_summary.remaining_balance`, `payment_plan_summary.installments_remaining` |
 | Invoice link | `hosted_invoice_url` |
 
 Send one receipt for each `payment_plan.payment_succeeded`: its `allocations` list every installment and principal amount the payment paid, each with its own `hosted_invoice_url`. Send one receipt for each `payment_plan.installment_paid` whose installment `id` is not listed in the `allocations` of a `payment_plan.payment_succeeded` of the same plan. ChaChing sends the `payment_plan.installment_paid` events of a payment before its `payment_plan.payment_succeeded`.
+
+Deliveries can arrive out of order after retries, so an `installment_paid` can reach you before the `payment_succeeded` that lists it. Choose one rule for the whole integration:
+
+- **One receipt per payment.** Send the receipt on `payment_plan.payment_succeeded`, and do not send a separate receipt for an `installment_paid` whose installment is listed in that payment's `allocations`. Before you treat an `installment_paid` as standalone, wait up to 70 minutes for a `payment_succeeded` of the same plan that lists it: ChaChing can hold a `payment_succeeded` for up to an hour, plus the delivery retry. Send the standalone receipt when none arrives.
+- **One receipt per installment.** Send one receipt for each `payment_plan.installment_paid` and ignore `payment_plan.payment_succeeded` for receipts.
 
 The card networks set what a receipt for an installment must carry. The receipt ChaChing sends meets these obligations, and a receipt you send in its place has to meet them too, as set out in the Visa Core Rules and Visa Product and Service Rules (Table 5-33 and Table 5-34 on receipt content, and the electronic receipt rules of section 5.9.1.2) and in Visa Business News AI09536:
 
@@ -64,6 +69,8 @@ The card networks set what a receipt for an installment must carry. The receipt 
 | First decline | `first_failed_at` |
 
 Card network rules give the customer at least 7 calendar days from the first declined attempt on an installment to pay it with another payment method. `first_failed_at` is that first declined attempt, in Unix seconds; it does not change on later retries.
+
+`first_failed_at` is the time ChaChing recorded the first confirmed decline. It is `null` for an installment whose only declines predate this field.
 
 `failure_code` and `failure_message` are `null` when the most recent attempt was not declined.
 
