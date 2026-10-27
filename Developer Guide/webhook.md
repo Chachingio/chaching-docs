@@ -380,11 +380,20 @@ Every webhook sent by ChaChing follows this structure:
 ```json
 {
   "id": "evt_123456",
-  "event": "customer.updated", // specific to the event type 
+  "account": {
+    "id": "acc_3c1f0a9e2b7d4c58a1e6f204",
+    "external_id": null,
+    "company": {
+      "id": "com_9d2e7b41c6a0f3e85b17d920",
+      "external_id": null
+    }
+  },
+  "created": 1773400500,
   "createdAt": "2026-03-13T11:15:00Z",
   "data": {
     // Entity-specific payload
-  }
+  },
+  "event": "customer.updated"
 }
 ```
 
@@ -392,10 +401,12 @@ Every webhook sent by ChaChing follows this structure:
 
 ## Fields Description
 
-- `id` — Unique event identifier (used for deduplication)
-- `event` — Event type (see Event Types section)
-- `createdAt` — Timestamp when the event was generated
+- `id` — Unique event identifier. Use it to deduplicate: a retried delivery carries the same `id`
+- `account` — The merchant account the event belongs to: `id` (`acc_…`), `external_id`, and its `company` with `id` (`com_…`) and `external_id`. `external_id` is `null` until your platform assigns one
+- `created` — When the event was generated, in Unix seconds
+- `createdAt` — The same instant as an ISO 8601 string. Deprecated: use `created`
 - `data` — **Entity payload** (varies depending on event type)
+- `event` — Event type (see Event Types section)
 
 > ❗ Important: `data` already contains the object. There is **no `data.object` nesting**.
 > 
@@ -660,7 +671,15 @@ Events:
   "customer_email": "string",
   "customer_name": "string",
   "customer_phone": "string",
-  "lines": [],
+  "due_date": 1672531200,
+  "failure_code": "string | null",
+  "failure_message": "string | null",
+  "hosted_invoice_url": "string | null",
+  "lines": {
+    "object": "list",
+    "data": [],
+    "total_count": 0
+  },
   "number": "string",
   "paid": true,
   "period_end": 1672531200,
@@ -680,12 +699,14 @@ Events:
   "tax": 0,
   "total": 0,
   "total_excluding_tax": 0,
-  "total_taxes": {
-    "amount": 0,
-    "tax_behavior": "inclusive | exclusive",
-    "tax_rate": "txr_XXXXXXXX",
-    "taxable_amount": 0
-  }
+  "total_taxes": [
+    {
+      "amount": 0,
+      "tax_behavior": "inclusive | exclusive",
+      "tax_rate": "txr_XXXXXXXX",
+      "taxable_amount": 0
+    }
+  ]
 }
 ```
 
@@ -728,7 +749,15 @@ Events:
     "customer_email": "john.doe@example.com",
     "customer_name": "John Doe",
     "customer_phone": "+1234567890",
-    "lines": [],
+    "due_date": 1680645568,
+    "failure_code": null,
+    "failure_message": null,
+    "hosted_invoice_url": "https://acme.pay.example.com/checkout/a80baa67-1341-4184-b712-b6f9b85b5a2b",
+    "lines": {
+      "object": "list",
+      "data": [],
+      "total_count": 0
+    },
     "number": "INV-1001",
     "paid": true,
     "period_end": 1680645568,
@@ -745,12 +774,14 @@ Events:
     "tax": 150,
     "total": 1650,
     "total_excluding_tax": 1500,
-    "total_taxes": {
-      "amount": 150,
-      "tax_behavior": "exclusive",
-      "tax_rate": "txr_1S2tlWDZYOQH9uHkltYEi1ap",
-      "taxable_amount": 1500
-    }
+    "total_taxes": [
+      {
+        "amount": 150,
+        "tax_behavior": "exclusive",
+        "tax_rate": "txr_1S2tlWDZYOQH9uHkltYEi1ap",
+        "taxable_amount": 1500
+      }
+    ]
   }
 }
 ```
@@ -766,6 +797,7 @@ Events:
 - `invoice.payment_succeeded` for a payment made through ChaChing (the dashboard, the payment page or an API request that pays the invoice) describes the invoice after that payment: its `amount_paid`, `surcharge_amount`, `amount_charged`, `status` and `attempt_count` include it
 - `next_payment_attempt` is a Unix timestamp in seconds, matching every other timestamp in this payload
 - `payment_plan`, `installment` and `payment_plan_charge` name the payment plan, the installment and the plan charge an invoice was raised for. All three are `null` on an invoice that belongs to no payment plan, and an invoice raised for a payment plan reports `subscription: null`. `payment_plan_charge` is `{ id, installment, sequence, payment, kind }`, with `kind` one of `down_payment`, `deposit`, `installment`, `extra_payment`, `payoff`. See [Payment Plans](./payment-plans.md). `payment_plan_external_id` is the plan's `external_id`, `null` when the invoice belongs to no plan or the plan has none.
+- `due_date` is the invoice due date in Unix seconds. `hosted_invoice_url` is the permanent link to the invoice's payment page, the same URL `GET /invoices/{id}/hosted-link` returns. `failure_code` and `failure_message` describe the decline of the invoice's most recent payment attempt, and are `null` when that attempt was not declined or the invoice has no payment attempt
 
 ---
 
@@ -1176,11 +1208,18 @@ carries the Payment object.
   "amount_paid": 0,
   "surcharge_amount": 0,
   "amount_charged": 0,
+  "surcharge_status": "final | unavailable",
   "status": "scheduled | paid | failed | canceled",
   "attempt_count": 0,
   "next_payment_attempt": "1672531200 | null",
   "paid_at": "1672531200 | null",
-  "invoice": "string | null"
+  "first_failed_at": "1672531200 | null",
+  "failure_code": "string | null",
+  "failure_message": "string | null",
+  "card": "object | null",
+  "invoice": "string | null",
+  "hosted_invoice_url": "string | null",
+  "payment_plan_summary": "object"
 }
 ```
 
@@ -1198,19 +1237,61 @@ carries the Payment object.
   "amount": 0,
   "surcharge_amount": 0,
   "amount_charged": 0,
+  "surcharge_status": "final | unavailable",
   "external": false,
   "payment_method": "string | null",
+  "card": "object | null",
   "invoice": "string | null",
+  "hosted_invoice_url": "string | null",
   "payoff": false,
   "created": 1672531200,
   "payment_plan_status": "awaiting_deposit | active | past_due | defaulted | paid_off | canceled",
   "remaining_balance": 0,
   "installments_remaining": 0,
+  "allocations": "array",
+  "payment_plan_summary": "object",
   "terminal": "object | null"
 }
 ```
 
 The `terminal` object the event emits carries all 17 keys of the terminal object described in [Take a Payment on a Terminal](./payment-plans.md#take-a-payment-on-a-terminal), and its `state` is `approved` or `partial_approval` at emission.
+
+`card` is `{ "brand": "string | null", "last4": "string | null" }`, or `null` when the card cannot be read.
+
+### Schema — Payment Allocation
+
+`allocations` lists the installment and principal amounts a payment paid, in the order they were applied. It is `[]` for a payment whose `status` is not `applied` or `partially_applied`.
+
+```json
+{
+  "installment": "ppi_XXXXXXXX | null",
+  "sequence": "0 | null",
+  "kind": "installment | principal",
+  "amount": 0,
+  "surcharge_amount": 0,
+  "amount_charged": 0,
+  "surcharge_status": "final | unavailable",
+  "invoice": "string | null",
+  "hosted_invoice_url": "string | null"
+}
+```
+
+### Schema — Plan Summary
+
+`payment_plan_summary` carries the same values as the same-named keys of the Payment Plan object.
+
+```json
+{
+  "installment_count": 0,
+  "currency": "string",
+  "description": "string | null",
+  "remaining_balance": 0,
+  "installments_paid": 0,
+  "installments_remaining": 0,
+  "next_due_date": "1672531200 | null",
+  "status": "awaiting_deposit | active | past_due | defaulted | paid_off | canceled"
+}
+```
 
 ### Example
 
@@ -1219,6 +1300,15 @@ The `terminal` object the event emits carries all 17 keys of the terminal object
 ```json
 {
   "id": "evt_9f2a7c41",
+  "account": {
+    "id": "acc_3c1f0a9e2b7d4c58a1e6f204",
+    "external_id": null,
+    "company": {
+      "id": "com_9d2e7b41c6a0f3e85b17d920",
+      "external_id": null
+    }
+  },
+  "created": 1763110812,
   "event": "payment_plan.installment_failed",
   "createdAt": "2025-11-14T09:00:12Z",
   "data": {
@@ -1234,11 +1324,30 @@ The `terminal` object the event emits carries all 17 keys of the terminal object
     "amount_paid": 0,
     "surcharge_amount": 0,
     "amount_charged": 0,
+    "surcharge_status": "final",
     "status": "failed",
     "attempt_count": 1,
     "next_payment_attempt": 1763164800,
     "paid_at": null,
-    "invoice": "c1f0d9aa-2b44-4d19-9d02-77b2aa4e1c30"
+    "first_failed_at": 1763078412,
+    "failure_code": "05",
+    "failure_message": "Do Not Honor",
+    "card": {
+      "brand": "visa",
+      "last4": "4242"
+    },
+    "invoice": "c1f0d9aa-2b44-4d19-9d02-77b2aa4e1c30",
+    "hosted_invoice_url": "https://acme.pay.example.com/checkout/c1f0d9aa-2b44-4d19-9d02-77b2aa4e1c30",
+    "payment_plan_summary": {
+      "installment_count": 9,
+      "currency": "USD",
+      "description": "Orthodontic treatment, upper and lower braces",
+      "remaining_balance": 160000,
+      "installments_paid": 1,
+      "installments_remaining": 8,
+      "next_due_date": 1763078400,
+      "status": "past_due"
+    }
   }
 }
 ```
@@ -1248,6 +1357,15 @@ The `terminal` object the event emits carries all 17 keys of the terminal object
 ```json
 {
   "id": "evt_d41c07ab",
+  "account": {
+    "id": "acc_3c1f0a9e2b7d4c58a1e6f204",
+    "external_id": null,
+    "company": {
+      "id": "com_9d2e7b41c6a0f3e85b17d920",
+      "external_id": null
+    }
+  },
+  "created": 1781395651,
   "event": "payment_plan.completed",
   "createdAt": "2026-06-14T00:07:31Z",
   "data": {
@@ -1286,6 +1404,15 @@ The `terminal` object the event emits carries all 17 keys of the terminal object
 ```json
 {
   "id": "evt_5b0e93f2",
+  "account": {
+    "id": "acc_3c1f0a9e2b7d4c58a1e6f204",
+    "external_id": null,
+    "company": {
+      "id": "com_9d2e7b41c6a0f3e85b17d920",
+      "external_id": null
+    }
+  },
+  "created": 1763483200,
   "event": "payment_plan.payment_succeeded",
   "createdAt": "2025-11-18T16:26:40Z",
   "data": {
@@ -1299,14 +1426,54 @@ The `terminal` object the event emits carries all 17 keys of the terminal object
     "amount": 50000,
     "surcharge_amount": 0,
     "amount_charged": 50000,
+    "surcharge_status": "final",
     "external": false,
     "payment_method": "9f3a1c2e-7b45-4d18-a6c0-2f8e5b7d1a94",
+    "card": {
+      "brand": "visa",
+      "last4": "4242"
+    },
     "invoice": "d5b9e2c1-8a41-4f36-9c17-3ad0b1e5f882",
+    "hosted_invoice_url": "https://acme.pay.example.com/checkout/d5b9e2c1-8a41-4f36-9c17-3ad0b1e5f882",
     "payoff": false,
     "created": 1763483200,
     "payment_plan_status": "active",
     "remaining_balance": 130000,
     "installments_remaining": 7,
+    "allocations": [
+      {
+        "installment": "ppi_Mc8yS3Rb",
+        "sequence": 2,
+        "kind": "installment",
+        "amount": 20000,
+        "surcharge_amount": 0,
+        "amount_charged": 20000,
+        "surcharge_status": "final",
+        "invoice": "c1f0d9aa-2b44-4d19-9d02-77b2aa4e1c30",
+        "hosted_invoice_url": "https://acme.pay.example.com/checkout/c1f0d9aa-2b44-4d19-9d02-77b2aa4e1c30"
+      },
+      {
+        "installment": null,
+        "sequence": null,
+        "kind": "principal",
+        "amount": 30000,
+        "surcharge_amount": 0,
+        "amount_charged": 30000,
+        "surcharge_status": "final",
+        "invoice": "d5b9e2c1-8a41-4f36-9c17-3ad0b1e5f882",
+        "hosted_invoice_url": "https://acme.pay.example.com/checkout/d5b9e2c1-8a41-4f36-9c17-3ad0b1e5f882"
+      }
+    ],
+    "payment_plan_summary": {
+      "installment_count": 9,
+      "currency": "USD",
+      "description": "Orthodontic treatment, upper and lower braces",
+      "remaining_balance": 130000,
+      "installments_paid": 2,
+      "installments_remaining": 7,
+      "next_due_date": 1765670400,
+      "status": "active"
+    },
     "terminal": null
   }
 }
@@ -1321,14 +1488,15 @@ The `terminal` object the event emits carries all 17 keys of the terminal object
 - `payment_plan.installment_paid` is sent once per installment. The down payment sends it with `sequence: 0`, both when it is charged at creation and when it is collected on a terminal
 - `deposit` is `null` for a plan created with a payment method. For a plan created without one, `deposit.kind` is `down_payment` when the plan has a down payment and `installment_1` otherwise, `deposit.amount` is the amount the terminal collects, and `deposit.attempt` is `null` until the first terminal attempt and then holds the latest attempt; see [Collect the First Installment on a Terminal](./payment-plans.md#collect-the-first-installment-on-a-terminal)
 - `payment_plan.completed` is the single paid-in-full event. It is sent when the schedule ends with every installment paid, when a payoff payment is recorded, and when the last unpaid installment is paid through the hosted invoice page, the dashboard or `PUT /invoices/{id}` or settled by credit; `status` is `paid_off` in every case
-- `payment_plan.payment_succeeded` is sent for every payment `POST /payment-plans/{id}/payments` records — installment payments, principal payments, payoffs and external payments alike — and never for a declined or refused one. Its `data` is the Payment object at the moment the payment is recorded: `id`, `amount`, `external`, `payment_method`, `invoice` and `payoff` match the endpoint's response (except for a payment taken on a terminal, whose `201` is `processing` with `amount` `0`: the event carries the final values), while for a payment that reached the principal `remaining_balance`, `installments_remaining` and `payment_plan_status` describe the plan before its schedule is rebuilt right after — the balance can still include the principal, and a `defaulted` plan that the rebuild returns to `active` still reads `defaulted`; read the plan for the current values. A repeated request with the same `Idempotency-Key` sends nothing again. When a request ends before its payment is fully recorded, ChaChing finishes recording it later and sends the payment's events then. For one payment they are sent in this order: `payment_plan.installment_paid`, then `payment_plan.payment_succeeded`, then `payment_plan.completed`; a delivery that is retried can arrive after a later event. This event is sent only with `status` `applied` or `partially_applied`.
-- `surcharge_amount` and `amount_charged` on the Installment and Payment objects report the credit card surcharge and the total charged to the card, in cents. While ChaChing cannot read the surcharge from the gateway yet, they read `0` and the amount paid, and the event is not sent again when the real values arrive: read the plan's installments for them. When ChaChing cannot read the surcharge of a charge (after retrying for up to 7 days, or at once when the charge cannot be matched), the objects keep `surcharge_amount` at `0` and `amount_charged` equal to the amount paid, and that does not change later; the exact amount charged to the card is then the one shown for that transaction in your Dejavoo (iPOSpays) account. See [Credit Card Surcharges](./payment-plans.md#credit-card-surcharges)
+- `payment_plan.payment_succeeded` is sent for every payment `POST /payment-plans/{id}/payments` records — installment payments, principal payments, payoffs and external payments alike — and never for a declined or refused one. Its `data` is the Payment object at the moment the payment is recorded: `id`, `amount`, `external`, `payment_method`, `invoice` and `payoff` match the endpoint's response (except for a payment taken on a terminal, whose `201` is `processing` with `amount` `0`: the event carries the final values), while for a payment that reached the principal, the event is sent after the plan's remaining schedule is rebuilt, and `remaining_balance`, `installments_remaining`, `payment_plan_status` and `payment_plan_summary` describe the plan after it. A repeated request with the same `Idempotency-Key` sends nothing again. When a request ends before its payment is fully recorded, ChaChing finishes recording it later and sends the payment's events then. For one payment they are sent in this order: `payment_plan.installment_paid`, then `payment_plan.payment_succeeded`, then `payment_plan.completed`; a delivery that is retried can arrive after a later event. This event is sent only with `status` `applied` or `partially_applied`.
+- `surcharge_amount` and `amount_charged` on the Installment and Payment objects report the credit card surcharge and the total charged to the card, in cents. While ChaChing cannot read the surcharge from the gateway yet, they read `0` and the amount paid, and `payment_plan.installment_paid` and `payment_plan.payment_succeeded` wait until the surcharge is read, for up to an hour; after an hour they are sent with `surcharge_status` `unavailable`. When ChaChing cannot read the surcharge of a charge (after retrying for up to 7 days, or at once when the charge cannot be matched), the objects keep `surcharge_amount` at `0` and `amount_charged` equal to the amount paid, and that does not change later; the exact amount charged to the card is then the one shown for that transaction in your Dejavoo (iPOSpays) account. See [Credit Card Surcharges](./payment-plans.md#credit-card-surcharges)
 - The principal part of a payment has its own invoice: when the principal is recorded, ChaChing sends `invoice.payment_succeeded` for it (and `invoice.payment_failed` when its card charge is declined), with `payment_plan_charge.kind` `extra_payment` or `payoff`. `payment_plan.payment_succeeded` reports the same money, so count each payment once. A principal recorded without an invoice (account credit, automatic or manual payment switched off, invoicing unavailable) raises no `invoice.*` event.
 - `terminal` on the Payment object is `null` for a payment that was not taken on a terminal. For a payment taken on a terminal it holds the sale, and `payment_plan.payment_succeeded` is sent when ChaChing records it after the terminal approved it; see [Take a Payment on a Terminal](./payment-plans.md#take-a-payment-on-a-terminal)
 - The plan status `past_due` means the customer's account is in the late-payment warning. It is not the `past-due` failed-payment outcome: reaching that outcome sends `payment_plan.defaulted`
 - The `invoice.*` events keep firing for every installment invoice; the invoice payload's `payment_plan` and `installment` fields link it back to the plan
 - The spelling is `canceled`, with one `l`, for both the status and the event
 - One change can send several events, and deliveries can arrive in any order. Read the plan with `GET /payment-plans/{id}` for its current state; see [Payment Plans](./payment-plans.md)
+- To send your own receipts and notices from these events, see [Send Your Own Customer Notifications](./customer-notifications.md)
 
 ---
 
@@ -1499,7 +1667,7 @@ When receiving a webhook:
 
 1. Accept HTTP POST request
 2. Parse JSON payload
-3. Read `type`
+3. Read `event`
 4. Process `data`
 5. Return HTTP `200 OK`
 
@@ -1511,7 +1679,7 @@ When receiving a webhook:
 
 You will receive **all events**
 
-➡ You must filter by `type` in your system
+➡ You must filter by `event` in your system
 
 ---
 
