@@ -472,7 +472,15 @@ Events:
 ```json
 {
   "id": "evt_111",
-  "event": "customer.created",
+  "account": {
+    "id": "acc_3c1f0a9e2b7d4c58a1e6f204",
+    "external_id": null,
+    "company": {
+      "id": "com_9d2e7b41c6a0f3e85b17d920",
+      "external_id": null
+    }
+  },
+  "created": 1773400500,
   "createdAt": "2026-03-13T11:15:00Z",
   "data": {
     "id": "cus_NffrFeUfNV2Hib",
@@ -506,7 +514,8 @@ Events:
         "state": "CA"
       }
     }
-  }
+  },
+  "event": "customer.created"
 }
 ```
 
@@ -575,7 +584,15 @@ Events:
 ```json
 {
   "id": "evt_123",
-  "event": "payment_method.attached",
+  "account": {
+    "id": "acc_3c1f0a9e2b7d4c58a1e6f204",
+    "external_id": null,
+    "company": {
+      "id": "com_9d2e7b41c6a0f3e85b17d920",
+      "external_id": null
+    }
+  },
+  "created": 1773400500,
   "createdAt": "2026-03-13T11:15:00Z",
   "data": {
     "id": "pm_1Q0PsIJvEtkwdCNYMSaVuRz6",
@@ -615,7 +632,8 @@ Events:
       "routing_number": "110000000",
       "status_details": {}
     }
-  }
+  },
+  "event": "payment_method.attached"
 }
 ```
 
@@ -717,7 +735,15 @@ Events:
 ```json
 {
   "id": "evt_456",
-  "event": "invoice.payment_succeeded",
+  "account": {
+    "id": "acc_3c1f0a9e2b7d4c58a1e6f204",
+    "external_id": null,
+    "company": {
+      "id": "com_9d2e7b41c6a0f3e85b17d920",
+      "external_id": null
+    }
+  },
+  "created": 1773400500,
   "createdAt": "2026-03-13T11:15:00Z",
   "data": {
     "id": "a80baa67-1341-4184-b712-b6f9b85b5a2b",
@@ -782,7 +808,8 @@ Events:
         "taxable_amount": 1500
       }
     ]
-  }
+  },
+  "event": "invoice.payment_succeeded"
 }
 ```
 
@@ -852,7 +879,15 @@ Events:
 ```json
 {
   "id": "evt_789",
-  "event": "subscription.created",
+  "account": {
+    "id": "acc_3c1f0a9e2b7d4c58a1e6f204",
+    "external_id": null,
+    "company": {
+      "id": "com_9d2e7b41c6a0f3e85b17d920",
+      "external_id": null
+    }
+  },
+  "created": 1773400500,
   "createdAt": "2026-03-13T11:15:00Z",
   "data": {
     "id": "sub_2FdhgypnsJQn9mZlY5qGaElL",
@@ -878,7 +913,8 @@ Events:
     "status": "active",
     "trial_end": null,
     "trial_start": null
-  }
+  },
+  "event": "subscription.created"
 }
 ```
 
@@ -887,7 +923,15 @@ The following example shows a `subscription.canceled` event driven by the billin
 ```json
 {
   "id": "evt_790",
-  "event": "subscription.canceled",
+  "account": {
+    "id": "acc_3c1f0a9e2b7d4c58a1e6f204",
+    "external_id": null,
+    "company": {
+      "id": "com_9d2e7b41c6a0f3e85b17d920",
+      "external_id": null
+    }
+  },
+  "created": 1773400500,
   "createdAt": "2026-03-13T11:15:00Z",
   "data": {
     "id": "sub_2FdhgypnsJQn9mZlY5qGaElL",
@@ -915,7 +959,8 @@ The following example shows a `subscription.canceled` event driven by the billin
     "status": "cancelled",
     "trial_end": null,
     "trial_start": null
-  }
+  },
+  "event": "subscription.canceled"
 }
 ```
 
@@ -963,7 +1008,15 @@ Events:
 ```json
 {
   "id": "evt_321",
-  "event": "product.updated",
+  "account": {
+    "id": "acc_3c1f0a9e2b7d4c58a1e6f204",
+    "external_id": null,
+    "company": {
+      "id": "com_9d2e7b41c6a0f3e85b17d920",
+      "external_id": null
+    }
+  },
+  "created": 1773400500,
   "createdAt": "2026-03-13T11:15:00Z",
   "data": {
     "id": "prod_xT4LfvxLMQb4s9uFNIbXf9pm",
@@ -975,7 +1028,8 @@ Events:
     "name": "Gold Plan",
     "tax_code": "txcd_10000000",
     "updated": 1753181495
-  }
+  },
+  "event": "product.updated"
 }
 ```
 
@@ -1024,7 +1078,15 @@ Events:
 ```json
 {
   "id": "evt_654",
-  "event": "price.created",
+  "account": {
+    "id": "acc_3c1f0a9e2b7d4c58a1e6f204",
+    "external_id": null,
+    "company": {
+      "id": "com_9d2e7b41c6a0f3e85b17d920",
+      "external_id": null
+    }
+  },
+  "created": 1773400500,
   "createdAt": "2026-03-13T11:15:00Z",
   "data": {
     "id": "price_1SGKTmDZYOQH9uHk1vaSxPKa",
@@ -1040,7 +1102,8 @@ Events:
     "unit_amount": 1000,
     "unit_amount_decimal": "1000",
     "link": "string"
-  }
+  },
+  "event": "price.created"
 }
 ```
 
@@ -1086,7 +1149,15 @@ Events:
 ```json
 {
   "id": "evt_987",
-  "event": "tax.created",
+  "account": {
+    "id": "acc_3c1f0a9e2b7d4c58a1e6f204",
+    "external_id": null,
+    "company": {
+      "id": "com_9d2e7b41c6a0f3e85b17d920",
+      "external_id": null
+    }
+  },
+  "created": 1773400500,
   "createdAt": "2026-03-13T11:15:00Z",
   "data": {
     "id": "txr_inQ4hbLZPyljDXFRCEnjtEqK",
@@ -1099,7 +1170,8 @@ Events:
     "inclusive": true,
     "percentage": 7.25,
     "tax_type": "Custom"
-  }
+  },
+  "event": "tax.created"
 }
 ```
 
@@ -1309,7 +1381,6 @@ The `terminal` object the event emits carries all 17 keys of the terminal object
     }
   },
   "created": 1763110812,
-  "event": "payment_plan.installment_failed",
   "createdAt": "2025-11-14T09:00:12Z",
   "data": {
     "id": "ppi_Mc8yS3Rb",
@@ -1348,7 +1419,8 @@ The `terminal` object the event emits carries all 17 keys of the terminal object
       "next_due_date": 1763078400,
       "status": "past_due"
     }
-  }
+  },
+  "event": "payment_plan.installment_failed"
 }
 ```
 
@@ -1366,7 +1438,6 @@ The `terminal` object the event emits carries all 17 keys of the terminal object
     }
   },
   "created": 1781395651,
-  "event": "payment_plan.completed",
   "createdAt": "2026-06-14T00:07:31Z",
   "data": {
     "id": "pp_8QN4mTcRk2VwZfLp",
@@ -1395,7 +1466,8 @@ The `terminal` object the event emits carries all 17 keys of the terminal object
     "created": 1757894400,
     "ended_at": 1781395651,
     "canceled_at": null
-  }
+  },
+  "event": "payment_plan.completed"
 }
 ```
 
@@ -1413,7 +1485,6 @@ The `terminal` object the event emits carries all 17 keys of the terminal object
     }
   },
   "created": 1763483200,
-  "event": "payment_plan.payment_succeeded",
   "createdAt": "2025-11-18T16:26:40Z",
   "data": {
     "id": "ppp_4Hk9Tz2W",
@@ -1475,7 +1546,8 @@ The `terminal` object the event emits carries all 17 keys of the terminal object
       "status": "active"
     },
     "terminal": null
-  }
+  },
+  "event": "payment_plan.payment_succeeded"
 }
 ```
 
@@ -1535,13 +1607,22 @@ Always rely on `event`
 ```json
 {
   "id": "evt_789",
-  "event": "customer.updated",
+  "account": {
+    "id": "acc_3c1f0a9e2b7d4c58a1e6f204",
+    "external_id": null,
+    "company": {
+      "id": "com_9d2e7b41c6a0f3e85b17d920",
+      "external_id": null
+    }
+  },
+  "created": 1773400500,
   "createdAt": "2026-03-13T11:15:00Z",
   "data": {
     "id": "cus_123",
     "email": "user@example.com",
     "status": "active"
-  }
+  },
+  "event": "customer.updated"
 }
 ```
 
