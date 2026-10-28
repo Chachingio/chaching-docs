@@ -101,8 +101,9 @@ Webhooks can be managed via the **UI** (Settings → Developer → Webhooks) or 
 1. In ChaChing, go to Settings → Developer settings.
 2. In the Developer Settings, select the Webhooks tab to:
     - Create webhook endpoints
-    - View all endpoints
+    - View all endpoints and the key that signs each one
     - Enable / disable endpoints
+    - Rotate an endpoint's signing secret
     - Edit/Delete endpoints
 
 {% img src="../images/webhookConfiguration.jpg" alt="webhookConfiguration.jpg" withLightbox=true width="" height="" /%}
@@ -120,6 +121,15 @@ After creation:
 
 - Webhook becomes **active**
 - Events start being delivered immediately
+- The endpoint's **signing secret** (`whsec_…`) is shown once, with a **Copy** button. Store it on your server: ChaChing never shows it again. If you lose it, rotate the secret.
+
+### Rotating a Signing Secret
+
+1. Open **Developer Settings → Webhooks.**
+2. Click the key icon (**Rotate signing secret**) on the endpoint's row and confirm.
+3. Copy the new signing secret. The dialog also shows until when the previous secret keeps working (24 hours).
+
+The **Signing** column shows which key signs each endpoint: **Endpoint secret**, or **Account secret key** for an endpoint created before signing secrets existed that has never been rotated.
 
 ---
 
@@ -138,6 +148,7 @@ Manage webhook endpoints with the account **secret** API key (`sk_…`) in the `
 | `DELETE` | `/webhook-endpoints/{id}` | Delete a webhook endpoint |
 | `POST` | `/webhook-endpoints/{id}/enable` | Enable a webhook endpoint |
 | `POST` | `/webhook-endpoints/{id}/disable` | Disable a webhook endpoint |
+| `POST` | `/webhook-endpoints/{id}/rotate-secret` | Rotate the endpoint's signing secret |
 | `GET` | `/webhook-endpoints/{id}/logs` | List the deliveries sent to a webhook endpoint |
 
 ### The Webhook Endpoint Object
@@ -148,12 +159,13 @@ Manage webhook endpoints with the account **secret** API key (`sk_…`) in the `
   "object": "webhook_endpoint",
   "endpoint": "https://your-server.com/webhook",
   "status": "active",
+  "signature_key": "endpoint_secret",
   "created": 1761091200,
   "updated": 1761091200
 }
 ```
 
-`status` is `active` or `inactive`; events are sent only to `active` endpoints. `created` and `updated` are Unix seconds.
+`status` is `active` or `inactive`; events are sent only to `active` endpoints. `signature_key` says which key signs the deliveries: `endpoint_secret` (the endpoint's own signing secret) or `account_secret_key` (your account secret API key, for an endpoint created before signing secrets existed and never rotated). `created` and `updated` are Unix seconds. The signing secret itself is never part of this object: it appears only in the create and rotate responses.
 
 ### Create an Endpoint
 
@@ -169,7 +181,7 @@ POST /webhook-endpoints
 }
 ```
 
-`endpoint` must be an `https` URL in production; an `http` URL is accepted only on non-production environments. A URL whose host is `localhost`, ends in `.local`, or is an IPv4 or IPv6 address in a private, loopback or link-local range is refused with `400`. The endpoint is created `active`, and the response is `201` with the Webhook Endpoint object. Creating a 17th endpoint answers `409` with the error code `WEBHOOK_ENDPOINTS_LIMIT_REACHED`.
+`endpoint` must be an `https` URL in production; an `http` URL is accepted only on non-production environments. A URL whose host is `localhost`, ends in `.local`, or is an IPv4 or IPv6 address in a private, loopback or link-local range is refused with `400`. The endpoint is created `active`, and the response is `201` with the Webhook Endpoint object. Creating a 17th endpoint answers `409` with the error code `WEBHOOK_ENDPOINTS_LIMIT_REACHED`. The create response also carries `secret`, the endpoint's signing secret (`whsec_…`). It is returned only in this response: store it on your server.
 
 ### List and Retrieve Endpoints
 
@@ -215,9 +227,33 @@ GET /webhook-endpoints/{id}/logs
 
 Lists the deliveries sent to the endpoint's current URL, newest first, with the page parameters `page` and `take`. Filter by status with `search`, a URL-encoded JSON object: `{"status": "failure,retry"}`. `search` also accepts `pending`, but a pending delivery has no endpoint recorded yet, so the log never returns one. Each entry carries `id` (the `id` of the delivered event payload), `object` (`webhook_delivery`), `webhook_endpoint`, `event_type`, `status` (`success`, `retry` while another attempt is scheduled, or `failure`), `response_status_code` (the HTTP status your server answered, or `null` when no response arrived), `created` and `updated` (Unix seconds). A delivery appears in the log after its first attempt. Deliveries are matched by URL: after you change an endpoint's URL, its log lists the deliveries sent to the new URL.
 
+### Rotate the Signing Secret
+
+```
+POST /webhook-endpoints/{id}/rotate-secret
+```
+
+No request body. Creates a new signing secret and answers `200` with the Webhook Endpoint object plus `secret` (the new `whsec_…` secret, returned only in this response) and `previous_secret_expires_at` (Unix seconds, 24 hours after the rotation):
+
+```json
+{
+  "id": "0b6f7a52-3c1e-4d8a-9f43-2a7d1c5e8b90",
+  "object": "webhook_endpoint",
+  "endpoint": "https://your-server.com/webhook",
+  "status": "active",
+  "signature_key": "endpoint_secret",
+  "created": 1761091200,
+  "updated": 1761177600,
+  "secret": "whsec_…",
+  "previous_secret_expires_at": 1761264000
+}
+```
+
+Until `previous_secret_expires_at`, every delivery carries two `v1` signatures: one for the new secret (first) and one for the previous secret. After it, only the new secret signs. At most two secrets are active: rotating again during those 24 hours ends the previous secret immediately, so rotating twice in a row revokes a secret you believe is compromised. An endpoint signed with your account secret key (`signature_key: account_secret_key`) gets its first signing secret on its first rotation, and your account secret key is the previous secret for those 24 hours. Rotating works on `active` and `inactive` endpoints; changing the URL, enabling and disabling keep the secret.
+
 ### Signing
 
-Every delivery is signed with your account's secret API key — the same `sk_…` key you send in `cc-api-key` — as described in [Webhook Signatures](#webhook-signatures). Endpoints have no signing secret of their own; a per-endpoint signing secret is planned.
+Every delivery is signed as described in [Webhook Signatures](#webhook-signatures), with the endpoint's own signing secret. An endpoint created before signing secrets existed is signed with your account's secret API key until you rotate its secret for the first time.
 
 ---
 
@@ -1640,39 +1676,44 @@ Always rely on `event`
 
 # Webhook Signatures
 
-ChaChing signs every webhook delivery with an HMAC-SHA256 signature. Verify this signature to confirm the request originated from ChaChing and that the payload has not been tampered with.
+ChaChing signs every webhook delivery with an HMAC-SHA256 signature. Verify it to confirm that the request came from ChaChing and that the payload was not changed.
 
 ## Signature Header
 
-Each request includes a `Chaching-Signature` header in the following format:
+Each request includes a `Chaching-Signature` header:
 
 ```
 Chaching-Signature: t=<unix_timestamp>,v1=<hex_hmac_sha256>
 ```
 
-- `t` — Unix timestamp of when the request was sent
-- `v1` — HMAC-SHA256 hex digest of the signed payload
+During the 24 hours after you rotate an endpoint's signing secret, the header carries two `v1` signatures, the one for the new secret first:
+
+```
+Chaching-Signature: t=<unix_timestamp>,v1=<signature_with_new_secret>,v1=<signature_with_previous_secret>
+```
+
+- `t` — Unix timestamp of when the request was sent. Every delivery attempt, retries included, is signed again with a new timestamp.
+- `v1` — HMAC-SHA256 hex digest of the signed payload. There is one `v1` per active secret. Ignore every other scheme name.
 
 ## Signing Algorithm
 
-The signature is computed as:
-
 ```
-HMAC-SHA256(secretKey, "{timestamp}.{raw_json_body}")
+HMAC-SHA256(signing_key, "{timestamp}.{raw_json_body}")
 ```
 
 Where:
-- `secretKey` is your account's secret key, retrieved via `GET /account/keys`
+- `signing_key` is the endpoint's signing secret, the whole `whsec_…` string including the `whsec_` prefix. For an endpoint whose `signature_key` is `account_secret_key`, it is your account's secret API key (`sk_…`).
 - `timestamp` is the `t` value from the `Chaching-Signature` header
 - `raw_json_body` is the **raw, unparsed** request body
 
 > ⚠️ Always compute the signature against the **raw request body**, before any JSON parsing. Re-serializing a parsed object may alter whitespace or key ordering and cause signature verification to fail.
 
-## Obtaining Your Secret Key
+## Verifying a Delivery
 
-```
-GET /account/keys
-```
+1. Split the header on `,`, then each element on the first `=`. Keep `t` and every `v1` value; discard the rest.
+2. Compute the expected signature with your signing secret.
+3. Accept the delivery when the expected signature equals ANY of the `v1` values, compared in constant time.
+4. Reject the delivery when `t` is more than 5 minutes away from your server's clock, to stop replayed requests.
 
 ## Verification Examples
 
@@ -1681,51 +1722,73 @@ GET /account/keys
 ```javascript
 const crypto = require('crypto');
 
-function verifyWebhookSignature(rawBody, signatureHeader, secretKey) {
-  const parts = {};
-  signatureHeader.split(',').forEach(part => {
-    const idx = part.indexOf('=');
-    parts[part.slice(0, idx)] = part.slice(idx + 1);
-  });
+const TOLERANCE_SECONDS = 300;
 
-  const timestamp = parts['t'];
-  const expectedSig = parts['v1'];
+function verifyWebhookSignature(rawBody, signatureHeader, signingSecret, nowSeconds = Math.floor(Date.now() / 1000)) {
+  let timestamp = null;
+  const signatures = [];
+  for (const part of signatureHeader.split(',')) {
+    const index = part.indexOf('=');
+    if (index === -1) continue;
+    const key = part.slice(0, index).trim();
+    const value = part.slice(index + 1).trim();
+    if (key === 't') timestamp = value;
+    if (key === 'v1') signatures.push(value);
+  }
+  if (timestamp === null || !/^\d+$/.test(timestamp) || signatures.length === 0) return false;
+  if (Math.abs(nowSeconds - Number(timestamp)) > TOLERANCE_SECONDS) return false;
 
-  const payload = `${timestamp}.${rawBody}`;
-  const computedSig = crypto
-    .createHmac('sha256', secretKey)
-    .update(payload)
-    .digest('hex');
-
-  return crypto.timingSafeEqual(
-    Buffer.from(computedSig),
-    Buffer.from(expectedSig)
+  const expected = Buffer.from(
+    crypto.createHmac('sha256', signingSecret).update(`${timestamp}.${rawBody}`).digest('hex'),
+    'utf8'
   );
+  return signatures.some(signature => {
+    const received = Buffer.from(signature, 'utf8');
+    return received.length === expected.length && crypto.timingSafeEqual(received, expected);
+  });
 }
 ```
 
 ### Python
 
 ```python
-import hmac
 import hashlib
+import hmac
+import re
+import time
 
-def verify_webhook_signature(raw_body: str, signature_header: str, secret_key: str) -> bool:
-    parts = dict(part.split('=', 1) for part in signature_header.split(','))
-    timestamp = parts['t']
-    expected_sig = parts['v1']
+TOLERANCE_SECONDS = 300
 
-    payload = f"{timestamp}.{raw_body}"
-    computed_sig = hmac.new(
-        secret_key.encode('utf-8'),
-        payload.encode('utf-8'),
-        hashlib.sha256
-    ).hexdigest()
-
-    return hmac.compare_digest(computed_sig, expected_sig)
+def verify_webhook_signature(raw_body: bytes, signature_header: str, signing_secret: str, now_seconds=None) -> bool:
+    timestamp = None
+    signatures = []
+    for part in signature_header.split(','):
+        key, separator, value = part.strip().partition('=')
+        if not separator:
+            continue
+        if key == 't':
+            timestamp = value
+        elif key == 'v1':
+            signatures.append(value)
+    if timestamp is None or not re.fullmatch(r'[0-9]+', timestamp) or not signatures:
+        return False
+    now = int(time.time()) if now_seconds is None else now_seconds
+    if abs(now - int(timestamp)) > TOLERANCE_SECONDS:
+        return False
+    signed_payload = timestamp.encode('utf-8') + b'.' + raw_body
+    expected = hmac.new(signing_secret.encode('utf-8'), signed_payload, hashlib.sha256).hexdigest()
+    return any(hmac.compare_digest(expected, signature) for signature in signatures)
 ```
 
-> ℹ️ Use `crypto.timingSafeEqual` (Node.js) or `hmac.compare_digest` (Python) to prevent timing-based attacks when comparing signatures.
+> ℹ️ Check every `v1` value, not only the first or the last: during a rotation the header carries one signature per active secret, and the one that matches yours can be in either position.
+
+## Moving an Endpoint Off Your Account Secret Key
+
+An endpoint whose `signature_key` is `account_secret_key` is verified with your account secret API key. To give it its own signing secret without missing a delivery:
+
+1. Rotate the endpoint's signing secret (`POST /webhook-endpoints/{id}/rotate-secret`, or **Rotate signing secret** in the UI) and store the `whsec_…` secret.
+2. Within 24 hours, deploy the new secret to the server that verifies the deliveries. During those 24 hours each delivery carries a signature for the new secret and one for your account secret key, so your current verification keeps working.
+3. After 24 hours only the new secret signs. Your account secret key is no longer needed on that server.
 
 ---
 
