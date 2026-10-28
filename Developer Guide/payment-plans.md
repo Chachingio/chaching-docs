@@ -476,6 +476,7 @@ For example, a $1.00 payment that carried a 3 cent surcharge reads `amount: 100`
 - `amount_charged` can exceed the amount plus `surcharge_amount` when the gateway adds another S.T.E.A.M amount for your account. That difference is included in `amount_charged` and is not itemised.
 - A payment that did not succeed never shows a surcharge.
 - ChaChing reads the surcharge from the gateway after the charge. While it cannot be read yet, `surcharge_amount` is `0` and `amount_charged` equals the amount paid. ChaChing keeps trying for up to 7 days, and the objects show the real values as soon as the read succeeds. When the surcharge of a charge still cannot be read after those 7 days, or at once when the charge cannot be matched, the installment and payment objects keep `surcharge_amount` at `0` and `amount_charged` equal to the amount paid, and that does not change later. The exact amount charged to the card is then the one shown for that transaction in your Dejavoo (iPOSpays) account.
+- `surcharge_status` on the Installment and Payment objects and on each payment allocation is `final` once the surcharge is read, and `unavailable` while it cannot be read; `surcharge_amount` then reads `0` and `amount_charged` the amount paid. `payment_plan.installment_paid` and `payment_plan.payment_succeeded` are sent once it is read, or after an hour with `surcharge_status` `unavailable`.
 - ChaChing does not refund a surcharge: there is no refund operation for payment plan charges.
 
 Before the payer pays, the payment page of an open invoice and the dashboard's `Charge customer` sheet tell them that a credit card surcharge can be added and that debit cards are not surcharged; [Credit Card Surcharges](./card-surcharges.md#what-your-customer-sees-before-paying) lists every notice and its exact wording.
@@ -624,7 +625,7 @@ Errors use the standard body `{ "statusCode", "message", "error", "timestamp", "
 
 # Payment Plan Events
 
-Payment Plans send ten webhook event types on the same endpoints, envelope, signature and retry policy as every other ChaChing event. Their payloads are described in [Webhooks](./webhook.md).
+Payment Plans send ten webhook event types on the same endpoints, envelope, signature and retry policy as every other ChaChing event. Their payloads are described in [Webhooks](./webhook.md). To send your own receipts and notices from these events, see [Send Your Own Customer Notifications](./customer-notifications.md).
 
 | **Event** | **Sent when** | **`data`** |
 | --- | --- | --- |
