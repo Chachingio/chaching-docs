@@ -14,6 +14,18 @@ The objects below are the same in webhooks and in REST responses: `GET /payment-
 
 ---
 
+## Turning Off ChaChing's Emails
+
+`GET /email-settings` and `PATCH /email-settings` read and set `customer_emails_enabled` and `owner_email_copies_enabled`. Both are `true` by default.
+
+With `customer_emails_enabled: false`, ChaChing sends no payment plan receipt, no failed-payment notice and no overdue notice for the account, and no owner copy. Invoice emails, payment-link emails and customer portal sign-in links that the merchant or the customer requests are still sent.
+
+The account that turns them off takes over the card-network obligations: a receipt for every installment charge carrying `Payment N of M`, the seller's name and city and state, the card brand and last four digits, and a link that stays available at least 120 days; and a written notice after a declined stored-card charge that leaves the customer at least 7 calendar days to pay another way.
+
+Turn them off only once your own receipts and notices are live.
+
+---
+
 ## Installment and Payment Receipts
 
 Send a receipt for every installment and every payment ChaChing collects by card. Fill it from the Installment object (`payment_plan.installment_paid`) or the Payment object (`payment_plan.payment_succeeded`):

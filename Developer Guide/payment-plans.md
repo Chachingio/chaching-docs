@@ -505,6 +505,8 @@ For the subscription side of the same rules, see [Track subscription lifecycle a
 
 # Emails Your Customer Receives
 
+ChaChing sends the emails below unless the account's customer emails are turned off (`PATCH /email-settings` with `customer_emails_enabled: false`, or the dashboard Settings page). When they are off, ChaChing sends none of them and the webhooks keep being sent; the account, which for a platform is the platform, sends the receipts and decline notices itself and meets the card-network obligations listed in [Send Your Own Customer Notifications](./customer-notifications.md).
+
 ChaChing emails the plan's customer at the email address stored on the customer. These emails are best effort: a customer with no email address receives none, and an email that fails to send does not change the response, the plan or the webhooks. A receipt is not sent for a charge more than 48 hours old when the receipt step runs; for a deposit collected on a terminal, the 48 hours count from the moment the plan is activated.
 
 **Receipts.** The customer receives one receipt for each of these card charges:
@@ -525,7 +527,7 @@ A declined down payment sends the customer no email: the request answers `402` `
 
 **Description.** A plan created without `description` prints `Payment plan` followed by the plan id in its place.
 
-**Copies of receipts.** Receipts go to the customer only. ChaChing can turn on a copy of every receipt to your account owner; contact ChaChing to enable it.
+**Copies of receipts.** Receipts go to the customer. A copy of a receipt goes to your account owner only when both the ChaChing-enabled receipt copy and the account's owner copies (`owner_email_copies_enabled`) are on; contact ChaChing to enable the receipt copy. Failed-payment and overdue notices copy the owner while `owner_email_copies_enabled` is `true`.
 
 These emails do not replace the webhooks: `payment_plan.installment_paid`, `payment_plan.installment_failed` and `payment_plan.payment_succeeded` report the same payments to your integration.
 
