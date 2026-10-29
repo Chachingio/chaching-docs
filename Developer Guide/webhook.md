@@ -249,6 +249,8 @@ No request body. Creates a new signing secret and answers `200` with the Webhook
 }
 ```
 
+If you lose a secret before you store it, rotate again: the new secret replaces it, and the secret it replaced stops verifying at once.
+
 Until `previous_secret_expires_at`, every delivery carries two `v1` signatures: one for the new secret (first) and one for the previous secret. After it, only the new secret signs. At most two secrets are active: rotating again during those 24 hours ends the previous secret immediately, so rotating twice in a row revokes a secret you believe is compromised. An endpoint signed with your account secret key (`signature_key: account_secret_key`) gets its first signing secret on its first rotation, and your account secret key is the previous secret for those 24 hours. Rotating works on `active` and `inactive` endpoints; changing the URL, enabling and disabling keep the secret.
 
 ### Signing
@@ -1777,7 +1779,7 @@ def verify_webhook_signature(raw_body: bytes, signature_header: str, signing_sec
         return False
     signed_payload = timestamp.encode('utf-8') + b'.' + raw_body
     expected = hmac.new(signing_secret.encode('utf-8'), signed_payload, hashlib.sha256).hexdigest()
-    return any(hmac.compare_digest(expected, signature) for signature in signatures)
+    return any(hmac.compare_digest(expected.encode('utf-8'), signature.encode('utf-8')) for signature in signatures)
 ```
 
 > ℹ️ Check every `v1` value, not only the first or the last: during a rotation the header carries one signature per active secret, and the one that matches yours can be in either position.
