@@ -249,7 +249,7 @@ No request body. Creates a new signing secret and answers `200` with the Webhook
 }
 ```
 
-If you lose a secret before you store it, rotate again: the new secret replaces it, and the secret it replaced stops verifying at once.
+If you lose a secret before you store it, rotate again to get a new one. The lost secret becomes the previous secret and keeps verifying until `previous_secret_expires_at`; if it may have been exposed, rotate once more and it stops verifying at once.
 
 Until `previous_secret_expires_at`, every delivery carries two `v1` signatures: one for the new secret (first) and one for the previous secret. After it, only the new secret signs. At most two secrets are active: rotating again during those 24 hours ends the previous secret immediately, so rotating twice in a row revokes a secret you believe is compromised. An endpoint signed with your account secret key (`signature_key: account_secret_key`) gets its first signing secret on its first rotation, and your account secret key is the previous secret for those 24 hours. Rotating works on `active` and `inactive` endpoints; changing the URL, enabling and disabling keep the secret.
 
