@@ -11,7 +11,7 @@ Webhooks are designed for clients using the **public API**, which allows them to
 ```mermaid
 graph TD;
   A["Event occurs in ChaChing (e.g. invoice.paid)"] --> B["Generate event notification"];
-  B --> C["Find active webhook destinations"];
+  B --> C["Find the active webhook endpoints that listen to the event type"];
   C --> D["Send HTTP POST request to webhook endpoint"];
   D --> E["Client processes request"];
   E --> F{"Response is HTTP 2xx?"};
@@ -27,9 +27,9 @@ graph TD;
   I -- Yes --> J["Stop retries - Set delivery status to failure"];
 ```
 
-1. An event occurs in ChaChing (e.g., customer details updated). For details related to the event types, refer to the section [Event Types](https://www.notion.so/Webhook-API-326dc7fc0a9280d087a1fe916d21c46c?pvs=21).
+1. An event occurs in ChaChing (e.g., customer details updated). For details related to the event types, refer to the section [Event Types](#event-types).
 2. ChaChing generates an event notification.
-3. ChaChing identifies all **active webhook endpoints** configured for the account.
+3. ChaChing identifies the **active webhook endpoints** of the account whose `enabled_events` contains the event type or `*`.
 4. ChaChing sends the event with its payload as an **HTTP POST request** to each webhook endpoint.
     Note: For payload details, refer to the **Event Structure** section.
 5. Your system receives and processes the event.
@@ -62,6 +62,7 @@ Retries are **not** triggered when the endpoint returns any other non-`2xx` stat
 - If **max retries NOT reached,** retry continues
 - If **max retries reached,** the delivery status is set to `failure`
 - If a delivery is **permanently rejected**, no retry is scheduled and the delivery status is set to `failure` right away
+- A retry already scheduled is sent even if the endpoint's `enabled_events` changes in the meantime; a disabled or deleted endpoint receives no further retries
 
 **Retry Policy:**
 
@@ -86,13 +87,14 @@ Retries are **not** triggered when the endpoint returns any other non-`2xx` stat
 ## Multiple webhook endpoints
 
 - You can create **multiple webhook endpoints**
-- Events are sent to **all active endpoints within the account**
+- Events are sent to every **active** endpoint of the account that listens to the event type: its `enabled_events` contains the type or `*`
+- Each endpoint has its own list of event types, `enabled_events`. Configure each endpoint to receive only the event types your integration needs: listening to every event puts load on your server that your integration does not need.
 
 ---
 
 # Webhook Configuration
 
-Webhooks can be managed via the **UI** (Settings → Developer → Webhooks) or programmatically via the **REST API**. Both approaches support the full lifecycle: create, list, update, enable/disable, and delete endpoints.
+Webhooks can be managed via the **UI** (Settings → Developer → Webhooks) or programmatically via the **REST API**. Both approaches support the full lifecycle: create, list, choose the events each endpoint receives, update, enable/disable, and delete endpoints.
 
 > In the UI, only users with the **Developer** or **SuperAdmin** role can manage webhooks. Through the REST API, the account's secret API key manages them. For user roles details, refer to the section Manage → Users in the left panel of the ChaChing application.
 
@@ -101,6 +103,8 @@ Webhooks can be managed via the **UI** (Settings → Developer → Webhooks) or 
 1. In ChaChing, go to Settings → Developer settings.
 2. In the Developer Settings, select the Webhooks tab to:
     - Create webhook endpoints
+    - Choose the events each endpoint receives
+    - Open an endpoint's detail page by clicking its row
     - View all endpoints and the key that signs each one
     - Enable / disable endpoints
     - Rotate an endpoint's signing secret
@@ -115,13 +119,22 @@ Webhooks can be managed via the **UI** (Settings → Developer → Webhooks) or 
 
 {% img src="../images/creatingWebhook.jpg" alt="creatingWebhook.jpg" withLightbox=true width="" height="" /%}
 
-3. Enter endpoint URL and then select **Create endpoint**.
+3. Enter the endpoint URL, choose **All events** or **Select events** and tick the event types the endpoint receives, then select **Create endpoint**. An endpoint receives at least one event type.
 
 After creation:
 
 - Webhook becomes **active**
-- Events start being delivered immediately
+- Events of the selected types start being delivered immediately
 - The endpoint's **signing secret** (`whsec_…`) is shown once, with a **Copy** button. Store it on your server: ChaChing never shows it again. If you lose it, rotate the secret.
+
+### Choosing the Events of an Endpoint
+
+1. Open **Developer Settings → Webhooks** and click the endpoint's row to open its detail page.
+2. The **Events** section lists the event types the endpoint is **Listening to** and the ones it is **Not listening to**.
+3. Click **Add** next to an event type to start receiving it, or **Remove** to stop receiving it. **Add all** makes the endpoint listen to every event type, including event types added later.
+4. On an endpoint that listens to all events, **Choose specific events** replaces "all events" with the current event types, so you can remove the ones you do not need.
+
+An endpoint listens to at least one event type; to stop all deliveries, disable the endpoint. The detail page also lists the endpoint's deliveries.
 
 ### Rotating a Signing Secret
 
@@ -144,7 +157,7 @@ Manage webhook endpoints with the account **secret** API key (`sk_…`) in the `
 | `POST` | `/webhook-endpoints` | Create a webhook endpoint |
 | `GET` | `/webhook-endpoints` | List the account's webhook endpoints, newest first |
 | `GET` | `/webhook-endpoints/{id}` | Retrieve a webhook endpoint |
-| `PUT` | `/webhook-endpoints/{id}` | Change the URL of a webhook endpoint |
+| `PATCH` | `/webhook-endpoints/{id}` | Change the URL and the event types of a webhook endpoint |
 | `DELETE` | `/webhook-endpoints/{id}` | Delete a webhook endpoint |
 | `POST` | `/webhook-endpoints/{id}/enable` | Enable a webhook endpoint |
 | `POST` | `/webhook-endpoints/{id}/disable` | Disable a webhook endpoint |
@@ -158,6 +171,7 @@ Manage webhook endpoints with the account **secret** API key (`sk_…`) in the `
   "id": "0b6f7a52-3c1e-4d8a-9f43-2a7d1c5e8b90",
   "object": "webhook_endpoint",
   "endpoint": "https://your-server.com/webhook",
+  "enabled_events": ["customer.created", "invoice.payment_succeeded"],
   "status": "active",
   "signature_key": "endpoint_secret",
   "created": 1761091200,
@@ -165,7 +179,7 @@ Manage webhook endpoints with the account **secret** API key (`sk_…`) in the `
 }
 ```
 
-`status` is `active` or `inactive`; events are sent only to `active` endpoints. `signature_key` says which key signs the deliveries: `endpoint_secret` (the endpoint's own signing secret) or `account_secret_key` (your account secret API key, for an endpoint created before signing secrets existed and never rotated). `created` and `updated` are Unix seconds. The signing secret itself is never part of this object: it appears only in the create and rotate responses.
+`enabled_events` lists the event types the endpoint receives, in the order of the [Event Types](#event-types) list; `["*"]` means every event type, including event types added later. `status` is `active` or `inactive`; events are sent only to `active` endpoints. `signature_key` says which key signs the deliveries: `endpoint_secret` (the endpoint's own signing secret) or `account_secret_key` (your account secret API key, for an endpoint created before signing secrets existed and never rotated). `created` and `updated` are Unix seconds. The signing secret itself is never part of this object: it appears only in the create and rotate responses.
 
 ### Create an Endpoint
 
@@ -177,11 +191,14 @@ POST /webhook-endpoints
 
 ```json
 {
-  "endpoint": "https://your-server.com/webhook"
+  "endpoint": "https://your-server.com/webhook",
+  "enabled_events": ["customer.created", "invoice.payment_succeeded"]
 }
 ```
 
 `endpoint` must be an `https` URL in production; an `http` URL is accepted only on non-production environments. A URL whose host is `localhost`, ends in `.local`, or is an IPv4 or IPv6 address in a private, loopback or link-local range is refused with `400`. The endpoint is created `active`, and the response is `201` with the Webhook Endpoint object. Creating a 17th endpoint answers `409` with the error code `WEBHOOK_ENDPOINTS_LIMIT_REACHED`. The create response also carries `secret`, the endpoint's signing secret (`whsec_…`). It is returned only in this response: store it on your server.
+
+`enabled_events` is required: a non-empty list of event types from [Event Types](#event-types), or `["*"]` for every event type, including event types added later. `*` cannot be combined with other values. Duplicates are removed, and the response lists the types in the order of the Event Types list. The errors are listed in [Event Type Errors](#event-type-errors).
 
 ### List and Retrieve Endpoints
 
@@ -195,10 +212,20 @@ The list takes the page parameters `page` and `take` (`take` at most `50`) and a
 ### Update an Endpoint
 
 ```
-PUT /webhook-endpoints/{id}
+PATCH /webhook-endpoints/{id}
 ```
 
-The request body is the same `{ "endpoint": "..." }` object as the create. The endpoint keeps its `id` and its `status`.
+Send at least one of `endpoint` and `enabled_events`; a field you omit keeps its value. A sent `enabled_events` replaces the whole list: to add one event type, send the current list plus the new type. The endpoint keeps its `id`, its `status` and its signing secret. A body with neither field answers `400` with `WEBHOOK_ENDPOINT_UPDATE_EMPTY`.
+
+### Event Type Errors
+
+| Status | `error` | When |
+|--------|---------|------|
+| `400` | `WEBHOOK_ENABLED_EVENTS_REQUIRED` | The create body has no `enabled_events` |
+| `400` | `WEBHOOK_ENABLED_EVENTS_EMPTY` | `enabled_events` is an empty list |
+| `400` | `WEBHOOK_EVENT_TYPE_UNKNOWN` | `enabled_events` holds a value that is not an event type; the message names it |
+| `400` | `WEBHOOK_ENABLED_EVENTS_WILDCARD_MIXED` | `enabled_events` combines `*` with other values |
+| `400` | `WEBHOOK_ENDPOINT_UPDATE_EMPTY` | The update body has neither `endpoint` nor `enabled_events` |
 
 ### Enable / Disable an Endpoint
 
@@ -240,6 +267,7 @@ No request body. Creates a new signing secret and answers `200` with the Webhook
   "id": "0b6f7a52-3c1e-4d8a-9f43-2a7d1c5e8b90",
   "object": "webhook_endpoint",
   "endpoint": "https://your-server.com/webhook",
+  "enabled_events": ["customer.created", "invoice.payment_succeeded"],
   "status": "active",
   "signature_key": "endpoint_secret",
   "created": 1761091200,
@@ -251,7 +279,7 @@ No request body. Creates a new signing secret and answers `200` with the Webhook
 
 If you lose a secret before you store it, rotate again to get a new one. The lost secret becomes the previous secret and keeps verifying until `previous_secret_expires_at`; if it may have been exposed, rotate once more and it stops verifying at once.
 
-Until `previous_secret_expires_at`, every delivery carries two `v1` signatures: one for the new secret (first) and one for the previous secret. After it, only the new secret signs. At most two secrets are active: rotating again during those 24 hours ends the previous secret immediately, so rotating twice in a row revokes a secret you believe is compromised. An endpoint signed with your account secret key (`signature_key: account_secret_key`) gets its first signing secret on its first rotation, and your account secret key is the previous secret for those 24 hours. Rotating works on `active` and `inactive` endpoints; changing the URL, enabling and disabling keep the secret.
+Until `previous_secret_expires_at`, every delivery carries two `v1` signatures: one for the new secret (first) and one for the previous secret. After it, only the new secret signs. At most two secrets are active: rotating again during those 24 hours ends the previous secret immediately, so rotating twice in a row revokes a secret you believe is compromised. An endpoint signed with your account secret key (`signature_key: account_secret_key`) gets its first signing secret on its first rotation, and your account secret key is the previous secret for those 24 hours. Rotating works on `active` and `inactive` endpoints; changing the URL or the event types, enabling and disabling keep the secret.
 
 ### Signing
 
@@ -263,7 +291,7 @@ Every delivery is signed as described in [Webhook Signatures](#webhook-signature
 
 ChaChing generates webhook events for key system entities. Each event represents a specific change or action performed in the system.
 
-> Note: When you create a webhook you receive **ALL events without the ability to subscribe to a specific event type**.
+> Each endpoint receives only the event types in its `enabled_events` (see [Webhook Configuration](#webhook-configuration)). Listen only to the event types your integration needs.
 > 
 
 ---
@@ -1823,11 +1851,11 @@ When receiving a webhook:
 
 # Important Notes for Integrators
 
-**No event filtering**
+**Choose the events of each endpoint**
 
-You will receive **all events**
+An endpoint receives only the event types in its `enabled_events`
 
-➡ You must filter by `event` in your system
+➡ Listen only to the event types your integration needs, and keep switching on `event` in your handler: an endpoint with `["*"]` also receives event types added later
 
 ---
 
