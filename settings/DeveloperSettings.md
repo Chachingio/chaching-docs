@@ -10,8 +10,8 @@ This section provides access to standard API keys used to authenticate requests 
 
 | **Field** | **Description** |
 | --- | --- |
-| **Published key** | Public API key used in client-side integrations (e.g., `pk_3NKx7UOLI3MKgGwLqAJmKYDMSyXaK...`). |
-| **Secret key** | Private API key used for server-side requests. Displayed in a masked format (e.g., `sk_Ew2Ww****C9JwORcw...`). |
+| **Published key** | Publishable key (`pk_...`), used only by the ChaChing hosted checkout pages. It does not work on the API endpoints. |
+| **Secret key** | Secret key (`sk_...`), required by every API endpoint and sent in the `cc-api-key` header. Displayed masked. See [API Basics](../Developer%20Guide/api-basics.md). |
 
 ### Actions
 
