@@ -131,10 +131,14 @@ After creation:
 
 1. Open **Developer Settings → Webhooks** and click the endpoint's row to open its detail page.
 2. The **Events** section lists the event types the endpoint is **Listening to** and the ones it is **Not listening to**.
-3. Click **Add** next to an event type to start receiving it, or **Remove** to stop receiving it. **Add all** makes the endpoint listen to every event type, including event types added later.
-4. On an endpoint that listens to all events, **Choose specific events** replaces "all events" with the current event types, so you can remove the ones you do not need.
+3. Click **Add** next to an event type to start receiving it, or **Remove** to stop receiving it. **Add events** opens an empty list with a search box: tick the event types you want, then select **Save** to add them to the endpoint. **Add all** makes the endpoint listen to every event type, including event types added later.
+4. On an endpoint that listens to all events, **Choose specific events** opens the same list. Select **Save** to replace "all events" with the event types you ticked. You need at least one.
 
-An endpoint listens to at least one event type; to stop all deliveries, disable the endpoint. The detail page also lists the endpoint's deliveries.
+An endpoint listens to at least one event type; to stop all deliveries, disable the endpoint. The detail page also lists the endpoint's deliveries; click a row to inspect one.
+
+### Inspecting Deliveries
+
+The **Logs** table of the Webhooks tab lists every delivery of the account, and the **Deliveries** table of an endpoint's detail page lists the deliveries of that endpoint. Filter either table by event ID, event type, status, response code and created date; the **Logs** table also filters by endpoint. Click a row to open the delivery in a side panel: its payload and every attempt with its response code, its response body and any connection error. **Copy payload** and **Copy response body** copy the values to your clipboard.
 
 ### Rotating a Signing Secret
 
@@ -163,6 +167,8 @@ Manage webhook endpoints with the account **secret** API key (`sk_…`) in the `
 | `POST` | `/webhook-endpoints/{id}/disable` | Disable a webhook endpoint |
 | `POST` | `/webhook-endpoints/{id}/rotate-secret` | Rotate the endpoint's signing secret |
 | `GET` | `/webhook-endpoints/{id}/logs` | List the deliveries sent to a webhook endpoint |
+| `GET` | `/webhook-deliveries` | List the account's webhook deliveries, newest first |
+| `GET` | `/webhook-deliveries/{id}` | Retrieve a webhook delivery with its payload and attempts |
 
 ### The Webhook Endpoint Object
 
@@ -246,13 +252,64 @@ Deletes the endpoint permanently and answers `200` with the Webhook Endpoint obj
 
 An `id` that is not one of your endpoints answers `404` with `WEBHOOK_ENDPOINT_NOT_FOUND`.
 
-### Retrieve Delivery Logs
+### List Deliveries
 
 ```
+GET /webhook-deliveries
 GET /webhook-endpoints/{id}/logs
 ```
 
-Lists the deliveries sent to the endpoint's current URL, newest first, with the page parameters `page` and `take`. Filter by status with `search`, a URL-encoded JSON object: `{"status": "failure,retry"}`. `search` also accepts `pending`, but a pending delivery has no endpoint recorded yet, so the log never returns one. Each entry carries `id` (the `id` of the delivered event payload), `object` (`webhook_delivery`), `webhook_endpoint`, `event_type`, `status` (`success`, `retry` while another attempt is scheduled, or `failure`), `response_status_code` (the HTTP status your server answered, or `null` when no response arrived), `created` and `updated` (Unix seconds). A delivery appears in the log after its first attempt. Deliveries are matched by URL: after you change an endpoint's URL, its log lists the deliveries sent to the new URL.
+`GET /webhook-deliveries` lists every delivery of the account. `GET /webhook-endpoints/{id}/logs` lists the deliveries of one endpoint, and keeps them after you change its URL. Both answer newest first, with the page parameters `page` and `take`; `take` is at most 50, and a larger value answers `400`.
+
+One event sent to two endpoints is two deliveries, each with its own `id` and the same `event`.
+
+Filter with `search`, a URL-encoded JSON object. A filter value that is not valid answers `400`.
+
+| Key | Value | Example |
+| --- | --- | --- |
+| `event_id` | the exact event id | `{"event_id": "evt_0123456789abcdef01234567"}` |
+| `event_type` | one or more event types, comma-separated | `{"event_type": "invoice.created,invoice.finalized"}` |
+| `status` | one or more of `pending`, `retry`, `success`, `failure`, comma-separated | `{"status": "failure,retry"}` |
+| `response_status_code` | the exact HTTP status | `{"response_status_code": 500}` |
+| `created` | a date filter: `type` `equal`, `after` or `before` with `date`; `between` with `from` and `to`; `inTheLast` with `amount` and `unit` | `{"created": {"type": "after", "date": "2026-10-01"}}` |
+| `endpoint` | text contained in the URL, on `GET /webhook-deliveries` only | `{"endpoint": "example.com"}` |
+
+### The Webhook Delivery Object
+
+| Field | Description |
+| --- | --- |
+| `id` | The delivery id, `whd_…` |
+| `object` | `webhook_delivery` |
+| `event` | The event id, `evt_…`: the `id` of the delivered payload |
+| `event_type` | The event type |
+| `webhook_endpoint` | The endpoint id, or `null` when the endpoint was deleted or when an earlier delivery could not be matched to one endpoint |
+| `endpoint` | The URL the delivery was sent to, or `null` when an earlier delivery never recorded one |
+| `status` | `pending`, `retry` while another attempt is scheduled, `success` or `failure` |
+| `response_status_code` | The HTTP status of the latest attempt, or `null` when it got no response |
+| `created`, `updated` | Unix seconds |
+
+### Retrieve a Delivery
+
+```
+GET /webhook-deliveries/{id}
+```
+
+Answers the delivery object plus `payload`, the event's envelope in its current format, and `attempts`, oldest first. A delivery made before the `account` and `created` keys existed went out without them and shows them here. An unknown id, or the id of a delivery of another account, answers `404` with the code `WEBHOOK_DELIVERY_NOT_FOUND`.
+
+| Attempt field | Description |
+| --- | --- |
+| `attempt` | 1 for the first send |
+| `created` | Unix seconds |
+| `response_status_code` | The HTTP status, or `null` when no response arrived |
+| `response_body` | What your server answered, or `null` when no response arrived |
+| `response_body_truncated` | `true` when the stored text is not your server's complete answer: it was cut at 16 KiB, or reading it stopped early (size limit, time limit or a connection error). `false` only when the whole answer was read and nothing was cut. An empty `response_body` with `true` means nothing could be stored |
+| `error` | `null` when a response arrived; otherwise `timeout`, `connection_refused`, `dns_failure`, `tls_error`, `blocked`, `connection_error`, or `not_sent` when ChaChing did not send the request |
+
+Attempts are kept for 30 days. A delivery older than that, or one sent before attempts were recorded, answers `attempts: []`, with its payload and its final status. Deliveries and their payloads are kept.
+
+**Do not return sensitive data in webhook responses.** ChaChing stores up to 16 KiB of each response body for 30 days and shows it in the API and the dashboard. It removes API keys, signing secrets, bearer tokens, JWTs and card numbers it recognizes before storing, but that does not cover every kind of sensitive value. Long digit sequences that look like card numbers, such as some numeric ids, are removed too. Answer with a status code and a short message.
+
+Reading a delivery returns your customers' data as it was delivered, so these routes require the secret key, like every route in this section.
 
 ### Rotate the Signing Secret
 
@@ -418,7 +475,7 @@ Both fields are absent on `subscription.created` and `subscription.updated`.
 
 ## Deduplication
 
-Every event is delivered at least once. Deduplicate on the envelope's `id` field, as described in [Important Notes for Integrators](#important-notes-for-integrators).
+Every event is delivered at least once. Deduplicate on the envelope's `id` field, per endpoint, as described in [Important Notes for Integrators](#important-notes-for-integrators). Every endpoint that receives an event gets the same `id`.
 
 ---
 
@@ -429,7 +486,7 @@ Webhook delivery has the following internal states:
 - `pending` → waiting to be sent
 - `retry` → retry in progress
 - `success` → delivered successfully
-- `failure` → the delivery was abandoned. Two situations produce it: the endpoint returned a **permanent rejection**, in which case no retry was attempted at all; and the endpoint kept failing with retryable conditions until every retry was exhausted. The response status code recorded on the delivery log entry tells the two apart
+- `failure` → the delivery was abandoned. Two situations produce it: the endpoint returned a **permanent rejection**, in which case no retry was attempted at all; and the endpoint kept failing with retryable conditions until every retry was exhausted. The delivery's attempts tell the two apart
 
 ---
 
@@ -467,7 +524,7 @@ Every webhook sent by ChaChing follows this structure:
 
 ## Fields Description
 
-- `id` — Unique event identifier. Use it to deduplicate: a retried delivery carries the same `id`
+- `id` — Unique event identifier. The same on every endpoint that receives the event and on every retry. Use it to deduplicate
 - `account` — The merchant account the event belongs to: `id` (`acc_…`), `external_id`, and its `company` with `id` (`com_…`) and `external_id`. `external_id` is `null` for every account today; reserved for platform accounts
 - `created` — When the event was generated, in Unix seconds
 - `createdAt` — The same instant as an ISO 8601 string. Deprecated: use `created`

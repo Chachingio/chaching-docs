@@ -32,6 +32,6 @@ Webhooks allow your system to receive real-time notifications when events occur 
 From the Developer Settings page you can:
 
 - Configure webhook destination endpoints
-- View delivery logs with event details and statuses (`pending` / `retry` / `success` / `failure`)
+- View delivery logs with event details and statuses (`pending` / `retry` / `success` / `failure`), and click a row to see its payload and every attempt
 
 For full webhook setup and API reference, see the [Webhook documentation](../Developer%20Guide/webhook.md).
