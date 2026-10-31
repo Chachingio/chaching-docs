@@ -44,7 +44,7 @@ Every field, query parameter and path parameter of the [API Reference](/develope
 
 ## Pagination
 
-Every list except the two named below takes `page` and `take` (`take` at most `50`) and answers:
+Every list except the three named below takes `page` and `take` (`take` at most `50`) and answers:
 
 ```json
 { "data": [], "meta": { "page": 1, "take": 10, "items_total": 0, "pages_total": 0 } }
@@ -52,7 +52,7 @@ Every list except the two named below takes `page` and `take` (`take` at most `5
 
 `items_total` and `pages_total` are numbers.
 
-Two routes are exceptions. `GET /customers/search` answers a bare array and takes no `page` or `take`. `GET /dejavoo/terminals` answers `{ "data": [...] }` with no `meta`.
+Three routes are exceptions. `GET /customers/search` answers a bare array and takes no `page` or `take`. `GET /dejavoo/terminals` answers `{ "data": [...] }` with no `meta`. `GET /products/taxCodes` answers one object that maps each tax code to its category name, takes only `search`, and has no paging.
 
 ## Contract Changes
 
