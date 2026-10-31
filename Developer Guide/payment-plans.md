@@ -128,13 +128,40 @@ Change the first two through `PUT /revenue-recovery`; see [Configure Failed-Paym
 
 ---
 
+# Register a Dejavoo Terminal
+
+A terminal is a physical Dejavoo device of your account, addressed by its own TPN. These three endpoints accept only your account's secret API key (`sk_…`). A publishable key answers `403` `SECRET_API_KEY_REQUIRED`, and a request that also sends an `Authorization` header answers `409`.
+
+| **Request** | **What it does** |
+| --- | --- |
+| `GET /dejavoo/terminals` | Lists the terminals of the account as `{ "data": [...] }`, with no `meta`. |
+| `POST /dejavoo/terminals` | Registers a terminal from its `tpn`, `label` and 10-character `spin_auth_key`. ChaChing checks the pair with the terminal network before saving it, and a failed check saves nothing. |
+| `PATCH /dejavoo/terminals/{id}` | Changes a terminal. There is no delete: send `{ "enabled": false }` to disable it. |
+
+The `dejavoo_terminal` object carries `object`, `id`, `tpn`, `label`, `enabled`, `register_id`, `isv_id`, `spin_auth_key_set`, `credential_rotated_at`, `last_probe_at`, `last_probe_status` (`Online`, `Offline` or `null`), `build`, `serial`, `feed_enable_requested_at` and `created`. Timestamps are Unix seconds. The Auth Key is write-only: `spin_auth_key_set` is always `true` and the key is never returned.
+
+| **Status** | **Error** | **When** |
+| --- | --- | --- |
+| `400` | no code | A field fails validation. |
+| `400` | `DEJAVOO_TERMINAL_UPDATE_EMPTY` | `PATCH` with none of the updatable fields. |
+| `401` | no code | The key is unknown or belongs to a deactivated account. |
+| `403` | `SECRET_API_KEY_REQUIRED` | The key is a publishable key. |
+| `404` | `DEJAVOO_TERMINAL_NOT_FOUND` | The `id` is not one of your terminals. |
+| `409` | `DEJAVOO_NOT_CONFIGURED` | The account does not take payments through Dejavoo. |
+| `409` | `TERMINAL_TPN_EXISTS` | The TPN is already registered. |
+| `409` | `SPIN_AUTH_KEY_UNREADABLE` | The stored Auth Key cannot be read; send it again. |
+| `422` | `SPIN_CREDENTIALS_REJECTED` | The TPN and Auth Key pair was refused. A wrong key and an unknown TPN read the same. |
+| `503` | `SPIN_UNREACHABLE` | The terminal network did not answer. |
+
+---
+
 # Collect the First Installment on a Terminal
 
 A plan created without `payment_method` collects its deposit on one of your Dejavoo terminals: the down payment when the plan has one, else its first installment. The customer pays it with their card at the counter. ChaChing saves that card, activates the plan, and charges the remaining installments to the same card automatically — installments 1 onward after a down payment, installments 2 onward otherwise — exactly like a plan created with a card on file.
 
 ## Before You Start
 
-- Register the terminal with `POST /dejavoo/terminals` and keep the terminal's `id`. The Dejavoo Terminals endpoints are described in the [API Reference](./api.json).
+- Register the terminal with `POST /dejavoo/terminals` and keep the terminal's `id`. See [Register a Dejavoo Terminal](#register-a-dejavoo-terminal).
 - The terminal must be enabled (`enabled: true`) and turned on and connected. ChaChing checks its connection before each deposit.
 - Your ISO sets up each terminal TPN with SPIn Cloud enabled, FEED enabled for the TPN, a Card Entry Screen Timeout of 90 seconds, Tip and Tax disabled, and the same card fee as your e-commerce TPN.
 - The three deposit endpoints below accept only your account's secret API key (`sk_…`) in the `cc-api-key` header. A publishable key (`pk_…`) answers `403` `SECRET_API_KEY_REQUIRED`, and a request that also sends an `Authorization` header answers `409` with no `error` field.
@@ -458,7 +485,7 @@ These payment plan charges carry it:
 - every installment invoice paid from the payment page or from the dashboard;
 - every charge of `POST /payment-plans/{id}/payments` that is not `external`, the principal part included, and every payment taken on a terminal.
 
-A payment plan invoice paid with a credit card, directly or through Google Pay, through any route — the automatic charge, `POST /invoices/{id}/pay`, the payment page or the dashboard — carries your account's credit card surcharge.
+A payment plan invoice paid with a credit card, directly or through Google Pay, through any route — the automatic charge, `PUT /invoices/{id}`, the payment page or the dashboard — carries your account's credit card surcharge.
 
 Accounts that charge through NMI never carry a surcharge, and neither does a payment recorded with `external: true`, because nothing is charged.
 
