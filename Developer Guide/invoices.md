@@ -61,3 +61,16 @@ When the invoice's customer has no email address, the endpoint answers `409` wit
 | `409` | — | the request also carries an `Authorization` header |
 | `409` | `INVOICE_CUSTOMER_EMAIL_MISSING` | send: the invoice's customer has no email address |
 | `429` | — | send and PDF: more than 60 requests in one minute from one IP address |
+
+---
+
+# Create an Invoice
+
+`POST /invoices` takes a `collection_method`:
+
+- `charge_automatically` charges the invoice at creation. `default_payment_method` is required: the `id` of one of the customer's saved payment methods. A missing value answers `400`, and an unknown one answers `400`. There is no fallback to the customer's default payment method.
+- `send_invoice` creates an open invoice for the customer to pay. `due_date` is required, and `default_payment_method` is ignored.
+
+To charge an open invoice later, use `PUT /invoices/{id}`. It answers an `invoice_payment` object with the amount in cents and its `transactions`.
+
+The invoice's `collection_method` is the one you created it with.
