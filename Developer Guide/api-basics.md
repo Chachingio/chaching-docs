@@ -33,3 +33,46 @@ You find both keys in the dashboard under **Settings → Developer Settings**. S
 | `400` | The request has no `cc-api-key` header (`"message": "Missing apiKey parameter"`). |
 | `401` | The key is unknown, or it belongs to a deactivated account (`Invalid apiKey`). |
 | `403` | The key is a publishable key (`SECRET_API_KEY_REQUIRED`). |
+
+## Names
+
+Every field, query parameter and path parameter of the [API Reference](/developer-guide/api) is in snake_case. Status values are lowercase: an invoice is `draft`, `open`, `paid` or `void`. The status of a subscription is one of `active`, `trial`, `scheduled`, `paused`, `unpaid`, `cancelled` or `expired`, spelled with two `l`s. The deprecated webhook field `createdAt` is the one exception in a payload; use `created`.
+
+## Timestamps
+
+`created`, `finalized_at` and the other event times are Unix seconds and mark an instant. A transaction's `created` can carry a fraction of a second. `due_date` is a day, not an instant: it is the Unix time of 00:00 UTC on that day.
+
+## Pagination
+
+Every list except the three named below takes `page` and `take` (`take` at most `50`) and answers:
+
+```json
+{ "data": [], "meta": { "page": 1, "take": 10, "items_total": 0, "pages_total": 0 } }
+```
+
+`items_total` and `pages_total` are numbers.
+
+Three routes are exceptions. `GET /customers/search` answers a bare array and takes no `page` or `take`. `GET /dejavoo/terminals` answers `{ "data": [...] }` with no `meta`. `GET /products/taxCodes` answers one object that maps each tax code to its category name, takes only `search`, and has no paging.
+
+## Contract Changes
+
+These changes came before the first integrations went live. The API has no version: a request that sends a removed name answers `400`.
+
+| **Where** | **Before** | **Now** |
+| --- | --- | --- |
+| Every paged list | `meta.itemsTotal`, `meta.pagesTotal` | `meta.items_total`, `meta.pages_total` |
+| `POST /payment-methods/{id}/attach` | `customerId`, `cardNumber`, `cardType`, `cardExp`, `walletType` | `customer_id`, `card_number`, `card_type`, `card_exp`, `wallet_type` |
+| `POST /payment-methods/{id}/set-default` | `customerId` | `customer_id` |
+| `GET /customers/{customer_id}/payment-methods` and its single read | `card.walletType` | `card.wallet_type` |
+| `PATCH /customers/{customer_id}` | `billingAddress`, `shippingAddress` | `phone`, `address`, `shipping`. `address` is shaped as on `POST /customers`; `shipping` takes `phone` and `address`, and `shipping.name` is not accepted |
+| `PUT /invoices/{id}` response | the billing engine's payment object in camelCase, amounts in dollars | an `invoice_payment` object in snake_case, amounts in cents |
+| `GET /customers` | `sortingField` (never read) | removed |
+| Invoice `status`, in the API and in webhooks | `DRAFT`, `OPEN`, `PAID`, `VOID` | `draft`, `open`, `paid`, `void` |
+| Invoice `collection_method` | always `charge_automatically` | the method of the invoice; an older `send_invoice` invoice, created before the value was recorded, reads `charge_automatically` |
+| Invoice `created`, `status_transitions.finalized_at` | midnight of the invoice date | the instants; `finalized_at` is `null` on a draft |
+| `lines.data` of a payment plan invoice | empty description, null amount | the payment page text and the amount; `plan` and `price` are `null` |
+| `POST /invoices` with `charge_automatically` | a missing `default_payment_method` answered with a confusing `400` | a `400` that names the field |
+| `DELETE /subscriptions/{id}`, already cancelled, cancelling or expired | `500`, or a second `subscription.canceled` | `400 SUBSCRIPTION_CANCELLED`, `400 SUBSCRIPTION_EXPIRED` |
+| `POST /subscriptions` with a short `end_date` | a subscription created already expired | a subscription that ends on `end_date`; `400 SUBSCRIPTION_END_DATE_TOO_EARLY` when it is not after the first billed day |
+| `POST` and `PATCH /subscriptions` with an unknown customer | `500` | `404 Customer or price not found` |
+| A `VOID` transaction | `amount` and `amount_charged` were `null`, undocumented | still `null`: a void carries no amount |
