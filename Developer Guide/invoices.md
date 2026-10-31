@@ -68,9 +68,11 @@ When the invoice's customer has no email address, the endpoint answers `409` wit
 
 `POST /invoices` takes a `collection_method`:
 
-- `charge_automatically` charges the invoice at creation. `default_payment_method` is required: the `id` of one of the customer's saved payment methods. A missing value answers `400`, and an unknown one answers `400`. There is no fallback to the customer's default payment method.
-- `send_invoice` creates an open invoice for the customer to pay. `due_date` is required, and `default_payment_method` is ignored.
+- `charge_automatically` charges the invoice at creation. `default_payment_method` is required: the `id` of one of the customer's saved payment methods. A missing value answers `400`, and an unknown one answers `400`. There is no fallback to the customer's default payment method. Creating the invoice makes that payment method the customer's default, so later automatic charges of that customer use it.
+- `send_invoice` creates an open invoice for the customer to pay. `due_date` is required and must be a Unix timestamp in the future; a past `due_date` answers `400`. `default_payment_method` is ignored.
 
-To charge an open invoice later, use `PUT /invoices/{id}`. It answers an `invoice_payment` object with the amount in cents and its `transactions`.
+To charge an open invoice later, use `PUT /invoices/{id}`. It answers an `invoice_payment` object with the amount in cents and its `transactions`. A `502` with `error: PAYMENT_OUTCOME_UNCONFIRMED` means the charge may have succeeded. Check the invoice before you try again, or you can charge the customer twice.
 
-The invoice's `collection_method` is the one you created it with.
+The invoice's `collection_method` is the one you created it with. An invoice created with `send_invoice` before this value was recorded reads `charge_automatically`.
+
+The Error Codes table above covers only the three routes that act on an existing invoice. The refusals of `POST /invoices` are the ones named in this section.

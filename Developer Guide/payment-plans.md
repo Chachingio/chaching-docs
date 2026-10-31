@@ -136,7 +136,7 @@ A terminal is a physical Dejavoo device of your account, addressed by its own TP
 | --- | --- |
 | `GET /dejavoo/terminals` | Lists the terminals of the account as `{ "data": [...] }`, with no `meta`. |
 | `POST /dejavoo/terminals` | Registers a terminal from its `tpn`, `label` and 10-character `spin_auth_key`. ChaChing checks the pair with the terminal network before saving it, and a failed check saves nothing. |
-| `PATCH /dejavoo/terminals/{id}` | Changes a terminal. There is no delete: send `{ "enabled": false }` to disable it. |
+| `PATCH /dejavoo/terminals/{id}` | Changes a terminal. The updatable fields are `label`, `enabled`, `spin_auth_key`, `register_id`, `isv_id` and `feed_enable_requested`. There is no delete: send `{ "enabled": false }` to disable it. |
 
 The `dejavoo_terminal` object carries `object`, `id`, `tpn`, `label`, `enabled`, `register_id`, `isv_id`, `spin_auth_key_set`, `credential_rotated_at`, `last_probe_at`, `last_probe_status` (`Online`, `Offline` or `null`), `build`, `serial`, `feed_enable_requested_at` and `created`. Timestamps are Unix seconds. The Auth Key is write-only: `spin_auth_key_set` is always `true` and the key is never returned.
 
@@ -147,10 +147,10 @@ The `dejavoo_terminal` object carries `object`, `id`, `tpn`, `label`, `enabled`,
 | `401` | no code | The key is unknown or belongs to a deactivated account. |
 | `403` | `SECRET_API_KEY_REQUIRED` | The key is a publishable key. |
 | `404` | `DEJAVOO_TERMINAL_NOT_FOUND` | The `id` is not one of your terminals. |
-| `409` | `DEJAVOO_NOT_CONFIGURED` | The account does not take payments through Dejavoo. |
+| `409` | `DEJAVOO_NOT_CONFIGURED` | `POST` only: the account has no 12-digit e-commerce TPN set. |
 | `409` | `TERMINAL_TPN_EXISTS` | The TPN is already registered. |
 | `409` | `SPIN_AUTH_KEY_UNREADABLE` | The stored Auth Key cannot be read; send it again. |
-| `422` | `SPIN_CREDENTIALS_REJECTED` | The TPN and Auth Key pair was refused. A wrong key and an unknown TPN read the same. |
+| `422` | `SPIN_CREDENTIALS_REJECTED` | The TPN and Auth Key pair was refused. A wrong key and an unknown TPN carry the same error code. |
 | `503` | `SPIN_UNREACHABLE` | The terminal network did not answer. |
 
 ---

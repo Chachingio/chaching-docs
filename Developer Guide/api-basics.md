@@ -40,11 +40,11 @@ Every field, query parameter and path parameter of the [API Reference](/develope
 
 ## Timestamps
 
-`created` and every other timestamp are Unix seconds and mark an instant, not a date.
+`created`, `finalized_at` and the other event times are Unix seconds and mark an instant. A transaction's `created` can carry a fraction of a second. `due_date` is a day, not an instant: it is the Unix time of 00:00 UTC on that day.
 
 ## Pagination
 
-A list takes `page` and `take` (`take` at most `50`) and answers:
+Every list except the two named below takes `page` and `take` (`take` at most `50`) and answers:
 
 ```json
 { "data": [], "meta": { "page": 1, "take": 10, "items_total": 0, "pages_total": 0 } }
@@ -52,13 +52,15 @@ A list takes `page` and `take` (`take` at most `50`) and answers:
 
 `items_total` and `pages_total` are numbers.
 
+Two routes are exceptions. `GET /customers/search` answers a bare array and takes no `page` or `take`. `GET /dejavoo/terminals` answers `{ "data": [...] }` with no `meta`.
+
 ## Contract Changes
 
 These changes came before the first integrations went live. The API has no version: a request that sends a removed name answers `400`.
 
 | **Where** | **Before** | **Now** |
 | --- | --- | --- |
-| Every list | `meta.itemsTotal`, `meta.pagesTotal` | `meta.items_total`, `meta.pages_total` |
+| Every paged list | `meta.itemsTotal`, `meta.pagesTotal` | `meta.items_total`, `meta.pages_total` |
 | `POST /payment-methods/{id}/attach` | `customerId`, `cardNumber`, `cardType`, `cardExp`, `walletType` | `customer_id`, `card_number`, `card_type`, `card_exp`, `wallet_type` |
 | `POST /payment-methods/{id}/set-default` | `customerId` | `customer_id` |
 | `GET /customers/{customer_id}/payment-methods` and its single read | `card.walletType` | `card.wallet_type` |
@@ -66,7 +68,7 @@ These changes came before the first integrations went live. The API has no versi
 | `PUT /invoices/{id}` response | the billing engine's payment object in camelCase, amounts in dollars | an `invoice_payment` object in snake_case, amounts in cents |
 | `GET /customers` | `sortingField` (never read) | removed |
 | Invoice `status`, in the API and in webhooks | `DRAFT`, `OPEN`, `PAID`, `VOID` | `draft`, `open`, `paid`, `void` |
-| Invoice `collection_method` | always `charge_automatically` | the method of the invoice |
+| Invoice `collection_method` | always `charge_automatically` | the method of the invoice; an older `send_invoice` invoice, created before the value was recorded, reads `charge_automatically` |
 | Invoice `created`, `status_transitions.finalized_at` | midnight of the invoice date | the instants; `finalized_at` is `null` on a draft |
 | `lines.data` of a payment plan invoice | empty description, null amount | the payment page text and the amount; `plan` and `price` are `null` |
 | `POST /invoices` with `charge_automatically` | a missing `default_payment_method` answered with a confusing `400` | a `400` that names the field |
