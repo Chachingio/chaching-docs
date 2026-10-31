@@ -207,7 +207,7 @@ GET /webhook-endpoints
 GET /webhook-endpoints/{id}
 ```
 
-The list takes the page parameters `page` and `take` (`take` at most `50`) and answers `{ "data": [...], "meta": { "page": 1, "take": 10, "itemsTotal": 2, "pagesTotal": 1 } }`.
+The list takes the page parameters `page` and `take` (`take` at most `50`) and answers `{ "data": [...], "meta": { "page": 1, "take": 10, "items_total": 2, "pages_total": 1 } }`.
 
 ### Update an Endpoint
 
@@ -891,6 +891,10 @@ Events:
 - `next_payment_attempt` is a Unix timestamp in seconds, matching every other timestamp in this payload
 - `payment_plan`, `installment` and `payment_plan_charge` name the payment plan, the installment and the plan charge an invoice was raised for. All three are `null` on an invoice that belongs to no payment plan, and an invoice raised for a payment plan reports `subscription: null`. `payment_plan_charge` is `{ id, installment, sequence, payment, kind }`, with `kind` one of `down_payment`, `deposit`, `installment`, `extra_payment`, `payoff`. See [Payment Plans](./payment-plans.md). `payment_plan_external_id` is the plan's `external_id`, `null` when the invoice belongs to no plan or the plan has none.
 - `due_date` is the invoice due date in Unix seconds. `hosted_invoice_url` is the permanent link to the invoice's payment page, the same URL `GET /invoices/{id}/hosted-link` returns. `failure_code` and `failure_message` describe the decline of the invoice's most recent payment attempt, and are `null` when that attempt was not declined or the invoice has no payment attempt
+- `status` is one of `draft`, `open`, `paid` or `void`, in lowercase
+- `collection_method` is `send_invoice` for an invoice created that way, and `charge_automatically` for every other invoice, including an invoice created with `send_invoice` before this value was recorded. The first webhook of a `send_invoice` invoice already carries it
+- `created` is the instant the invoice was created. `status_transitions.finalized_at` is the instant it was first finalized, and `null` while it is a draft
+- On an invoice of a payment plan, each entry of `lines.data` has `plan`, `price` and `subscription` set to `null`, `amount` in cents and `description` set to the text the payment page shows, such as `Knee replacement — Payment 2 of 12`
 
 ---
 
