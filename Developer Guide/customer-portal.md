@@ -4,7 +4,7 @@ Your customers sign in to the customer portal with a link sent to their email. T
 
 ## Send Your Customers to the Portal
 
-Each account has its own sign-in page, at `/portal/{account_id}/sign-in` on the ChaChing app. Copy the full link from **Settings → Customer portal** in the dashboard and put it on your website or in your emails.
+Each account has its own sign-in page, at `/portal/{account_key}/sign-in` on the ChaChing app, where `{account_key}` is your account's own key, not an ID from the API. Copy the full link from **Settings → Customer portal** in the dashboard and put it on your website or in your emails.
 
 ## How Sign-In Works
 
