@@ -76,3 +76,8 @@ These changes came before the first integrations went live. The API has no versi
 | `POST /subscriptions` with a short `end_date` | a subscription created already expired | a subscription that ends on `end_date`; `400 SUBSCRIPTION_END_DATE_TOO_EARLY` when it is not after the first billed day |
 | `POST` and `PATCH /subscriptions` with an unknown customer | `500` | `404 Customer or price not found` |
 | A `VOID` transaction | `amount` and `amount_charged` were `null`, undocumented | still `null`: a void carries no amount |
+| `GET /customers/{customer_id}` with an unknown customer | `404 Customer details not found` | `404 Customer not found` |
+| `PATCH` and `DELETE /customers/{customer_id}` with an unknown customer | `400 Customer not found` | `404 Customer not found` |
+| `DELETE /customers/{customer_id}` on an already deleted customer | the delete ran again and, when every step succeeded, sent a second `customer.deleted` | `404 Customer not found`, no webhook |
+| `GET /products/{id}`, `GET /prices/{id}`, `GET /taxRates/{id}` with an unknown id | `200` with an empty body | `404 Product not found`, `404 Price not found`, `404 Tax rate not found` |
+| `PATCH /taxRates/{id}` with an unknown id | `200` with an empty body | `404 Tax rate not found` |
