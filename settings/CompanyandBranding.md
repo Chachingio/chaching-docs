@@ -10,6 +10,16 @@ This section displays the current company name associated with the workspace.
 | --- | --- |
 | **Company Name** | The legal or display name of your company shown in the dashboard and customer-facing interfaces. |
 ---
+## Account Time Zone
+
+The account time zone is shown read-only on this page. ChaChing support changes it.
+
+- Times in the dashboard, the date filters of the dashboard and reports use the account time zone.
+- Payment plan dates are calendar days in the account time zone.
+- Subscription billing dates and invoice dates stay UTC calendar days.
+- A payment plan installment is scheduled on its due date at 10:00 UTC for a customer created since ChaChing introduced the fixed billing time, and at the time of day the customer was created for an older customer. In the account time zone that time can fall on the evening before the due date: a customer created at 02:30 UTC whose installment is due on November 3, 2026 is charged on November 2, 2026 at 9:30 p.m. EST.
+- An installment is also charged at once, before its scheduled time, when another billing change on the same customer happens between 00:00 UTC and that time on its due date (for example a new subscription, including one the customer starts on a hosted checkout page, a pause, a resume, or a payment of a balance that had blocked billing), which in a US time zone can be as early as the evening before the due date.
+---
 ## Branding
 
 The **Branding** section controls the visual appearance of ChaChing pages that are visible to your customers, such as invoices and payment pages.

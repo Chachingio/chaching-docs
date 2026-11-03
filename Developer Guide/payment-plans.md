@@ -83,7 +83,7 @@ Request body:
 | `installment_amount` | one of the two | Integer cents, at least `1`. Send exactly one of `installment_count` and `installment_amount`; ChaChing derives the other. |
 | `down_payment_amount` | no | Integer cents, `0` or more and less than `total_amount`. Default `0`. |
 | `interval` | no | `weekly`, `biweekly`, `monthly` or `annual`. Default `monthly`. On test environments, such as stage, `daily` is also accepted; production refuses `daily` with `400` `PAYMENT_PLAN_INTERVAL_INVALID`. An `annual` plan cannot start on 29 February. |
-| `start_date` | no | Unix seconds: the due date of installment 1. Only the UTC calendar date is used: the time of day is dropped, the plan starts at 00:00:00 UTC of that date, and that is the `start_date` the plan returns. It must fall on a later calendar day (UTC) than the request; a date on the day of the request is refused. Default: one interval after the day of the request. |
+| `start_date` | no | Unix seconds of the due date of installment 1. Only the UTC calendar date of the value is used: send 00:00:00 UTC of the date you want. The date is a calendar date in the account time zone. It must be after the current UTC date (which is never earlier than today in the account time zone) and late enough that installment 1 is not charged when the plan is created; otherwise the request is refused with `PAYMENT_PLAN_START_DATE_INVALID` and the message names the earliest valid date. Default: one interval after today in the account time zone, and never earlier than the day after the current UTC date. |
 | `remainder_placement` | no | `first` or `last`. Default `first`. |
 | `payment_method` | no | The id of a payment method of this customer, as returned by the payment-methods endpoints. Leave it out to collect the deposit on a terminal: the down payment when `down_payment_amount` is above `0`, else installment 1. |
 
@@ -168,7 +168,7 @@ A plan created without `payment_method` collects its deposit on one of your Deja
 
 ## Start the Deposit
 
-1. Create the plan without `payment_method`. It answers `201` in status `awaiting_deposit`, and its `deposit` object carries the plan's `reference`, its `kind`, the `amount` the terminal collects, `status: "pending"` and `attempt: null`. `kind` is `down_payment` when the plan has a down payment, and `amount` is then the down payment; otherwise `kind` is `installment_1` and `amount` is the amount of installment 1. Until the deposit is collected, a down payment counts as an unpaid installment: `remaining_balance` is `total_amount`, `installments_remaining` counts it, and `next_due_date` is 00:00:00 UTC of the day the plan was created.
+1. Create the plan without `payment_method`. It answers `201` in status `awaiting_deposit`, and its `deposit` object carries the plan's `reference`, its `kind`, the `amount` the terminal collects, `status: "pending"` and `attempt: null`. `kind` is `down_payment` when the plan has a down payment, and `amount` is then the down payment; otherwise `kind` is `installment_1` and `amount` is the amount of installment 1. Until the deposit is collected, a down payment counts as an unpaid installment: `remaining_balance` is `total_amount`, `installments_remaining` counts it, and `next_due_date` is the day the plan was created in your account time zone (as 00:00:00 UTC of that date).
 2. Call `POST /payment-plans/{id}/deposit/terminal` with the terminal:
 
    ```json
@@ -322,12 +322,13 @@ Both endpoints require the account's secret API key (`sk_…`): a publishable ke
 
 # Billing Time of Day
 
-ChaChing charges installments at 10:00 UTC: 5:00 a.m. Eastern Standard Time in winter and 6:00 a.m. Eastern Daylight Time in summer. The time is fixed in UTC and does not move with daylight saving time.
+ChaChing schedules each installment's charge at 10:00 UTC on its due date: 5:00 a.m. Eastern Standard Time in winter and 6:00 a.m. Eastern Daylight Time in summer. The time is fixed in UTC and does not move with daylight saving time. The due date is a calendar date in your account time zone.
 
-- Each installment is invoiced and charged at 10:00 UTC on its due date.
+- Each installment is invoiced and charged at 10:00 UTC on its due date, unless one of the events in the next bullet happens earlier on that date in UTC.
+- An installment is invoiced and charged at once when, between 00:00 UTC and its scheduled time on its due date, you create a subscription for the same customer, pause, resume, cancel immediately or change one of the customer's subscriptions, or re-plan another payment plan of the customer; when the customer subscribes through one of your hosted checkout pages with the same e-mail address; when the customer pays a balance that had blocked its billing; or when another subscription of the customer starts, reaches the end of a fixed term or ends its trial at that time. In a US time zone such a charge can come as early as the evening before the due date: 00:00 UTC is 7:00 p.m. EST (8:00 p.m. EDT) in New York and 2:00 p.m. in Hawaii, and in New York a change after 5:00 UTC (4:00 UTC during daylight saving time) falls on the due date itself. In a time zone at UTC+00:00, 00:00 UTC is the start of the due date. This timing is not new; what changed is that due dates are now shown as dates in your account time zone.
 - An automatic retry after a declined charge runs the number of days after the declined attempt that your retry schedule (`payment_retries`) sets, at about 10:00 UTC; each retry can start a few seconds later than the attempt before it.
 - The down payment is charged when the plan is created.
-- A customer created before ChaChing introduced this fixed billing time keeps the time of day at which the customer was created: that customer's installments and retries run at that time.
+- A customer created before ChaChing introduced this fixed billing time keeps the time of day at which the customer was created: that customer's installments and retries run at that time. In your account time zone that time can fall on the evening before the due date: this happens when the time of day in UTC is earlier than your account time zone is behind UTC (before 05:00 UTC for Eastern Standard Time, 04:00 UTC for Eastern Daylight Time, 10:00 UTC for Hawaii). For example, a customer created at 02:30 UTC whose installment is due on November 3, 2026 is charged on November 2, 2026 at 9:30 p.m. EST.
 
 ---
 
@@ -592,7 +593,7 @@ Errors use the standard body `{ "statusCode", "message", "error", "timestamp", "
 | `400` | `PAYMENT_PLAN_SCHEDULE_INVALID` | Both or neither of `installment_count` and `installment_amount` were sent, `installment_count` is above `60` or larger than the amount to finance allows, `installment_amount` is larger than the amount to finance, or the amounts do not form a valid schedule. |
 | `400` | `PAYMENT_PLAN_AMOUNT_INVALID` | `down_payment_amount` is not below `total_amount`, or a payment's `amount` is below `1`. |
 | `400` | `PAYMENT_PLAN_INTERVAL_INVALID` | `interval` is not one of the values this environment accepts: `weekly`, `biweekly`, `monthly` and `annual` everywhere, and `daily` on test environments only. |
-| `400` | `PAYMENT_PLAN_START_DATE_INVALID` | `start_date` is not after the day of the request, or `interval` is `annual` and `start_date` is 29 February (UTC). |
+| `400` | `PAYMENT_PLAN_START_DATE_INVALID` | `start_date` is not after the current UTC date, or installment 1 would be charged when the plan is created, or interval is annual and start_date is 29 February. The message names the earliest valid date. |
 | `400` | `PAYMENT_PLAN_GATEWAY_NOT_SUPPORTED` | The account's payment gateway does not support Payment Plans. |
 | `400` | `PAYMENT_PLAN_AMOUNT_EXCEEDS_BALANCE` | A payment is larger than what the plan accepts. Nothing is charged. |
 | `400` | `PAYMENT_METHOD_REQUIRED` | A payment was sent with no `payment_method`, it is not external, and the customer has no default payment method. |
@@ -628,6 +629,7 @@ Errors use the standard body `{ "statusCode", "message", "error", "timestamp", "
 | `409` | `DEJAVOO_TERMINAL_BUSY` | The terminal is running another sale, a deposit or a payment. |
 | `409` | `DEJAVOO_TERMINAL_OFFLINE` | The terminal is not connected. Turn it on and try again. |
 | `409` | `SPIN_AUTH_KEY_UNREADABLE` | The terminal's stored Auth Key cannot be read. Re-enter it with `PATCH /dejavoo/terminals/{id}`. |
+| `409` | `PAYMENT_PLAN_START_DATE_TOO_SOON` | The first installment charged after the deposit is due within 1 hour, so the terminal deposit cannot start. Cancel the plan and create it again with a later start date. |
 | `409` | `PAYMENT_PLAN_INSTALLMENT_BILLING_IN_PROGRESS` | The payment reaches the principal and the next installment is being billed or is about to bill: for a `daily` plan, its billing time is less than 1 hour away; for every other cadence, it is due within 24 hours. It can also answer for a `daily` plan whose billing time cannot be determined. Nothing is charged. |
 | `409` | `PAYMENT_PLAN_PAYMENT_PENDING_CONFIRMATION` | An earlier payment on this plan is still being confirmed, a terminal payment that reads `processing` included. Nothing is charged; retry later. On `POST /payment-plans/{id}/cancel`, a terminal payment of the plan is unresolved. |
 | `409` | `PAYMENT_PLAN_REPLAN_PENDING` | An earlier payment's schedule rebuild is still being completed. Nothing is charged; retry later. |
@@ -645,6 +647,7 @@ Errors use the standard body `{ "statusCode", "message", "error", "timestamp", "
 | `502` | `PAYMENT_PLAN_DOWN_PAYMENT_UNCONFIRMED` | The down payment's outcome could not be confirmed. No plan was created and the charge is not reversed. `down_payment_invoice_id` is the id of the down-payment invoice to check. Once its charge has settled, send the same request again; this answer is not stored, so the same `Idempotency-Key` is accepted. A retry that itself answers a stored `502`, for example `PAYMENT_PLAN_BILLING_ENGINE_UNAVAILABLE`, needs a new key. A charge paid with the same `payment_method` is used for the new plan and is not taken again. From the next UTC day, the request answers `409` `PAYMENT_PLAN_CUSTOMER_DELINQUENT` instead until that invoice is paid or voided. Check the customer's invoices before you change the amount. |
 | `502` | `PAYMENT_PLAN_PAYMENT_UNCONFIRMED` | The first charge's outcome could not be confirmed. It is not reversed; read the plan before retrying. |
 | `502` | `PAYMENT_PLAN_BILLING_ENGINE_UNAVAILABLE` | Billing data could not be read. Nothing was created or charged; safe to retry with a new `Idempotency-Key`. |
+| `502` | `PAYMENT_PLAN_BILLING_ENGINE_UNAVAILABLE` | The billing account of the customer could not be read; retry. |
 | `502` | `PAYMENT_PLAN_EXTERNAL_ID_CHECK_FAILED` | The duplicate check of `external_id` right before the down payment could not be read. Nothing was created or charged; the same `Idempotency-Key` is evaluated again on the next request. |
 | `502` | `PAYMENT_PLAN_CANCEL_INCOMPLETE` | The cancellation did not complete. The plan keeps its status and installments, but part of its schedule can already be stopped. Repeat the request: a repeat completes the rest. |
 | `502` | `IDEMPOTENCY_REQUEST_INCOMPLETE` | The first request with this `Idempotency-Key` never completed. |
