@@ -221,7 +221,7 @@ The `deposit` object while the customer is at the terminal:
 | `resolving` | The terminal's answer did not arrive, or did not say whether the card was charged, and the outcome is not known yet. The card can have been charged. | Call `POST /payment-plans/{id}/deposit`. Do not ask the customer to pay again: a new attempt is refused until this one is resolved. |
 | `approved_no_credential` | The card was charged, but ChaChing has not saved it for the next installments yet. The plan stays `awaiting_deposit`. | Call `POST /payment-plans/{id}/deposit` again five minutes later. Do not charge the customer again. |
 | `partial_approval` | The card was charged an amount different from the deposit (`deposit.amount`), or only part of it. The plan is not activated. | Void the sale on the terminal, then start a new attempt. |
-| `force_closed` | ChaChing staff closed an attempt whose outcome could not be confirmed. The plan stays `awaiting_deposit`; you can start a new attempt or cancel the plan. The card can have been charged: check the sale in your Dejavoo (iPOSpays) account. | Start a new attempt only after that check. |
+| `force_closed` | The attempt was closed as not collected, by ChaChing staff or by your integration with `POST /dejavoo/terminal-attempts/{id}/force-close`, because its outcome could not be confirmed. The plan stays `awaiting_deposit`; you can start a new attempt or cancel the plan. The card can have been charged: check the sale in your Dejavoo (iPOSpays) account. | Start a new attempt only after that check. |
 
 Fields of the attempt object:
 
@@ -261,6 +261,7 @@ Fields of the attempt object:
 - A plan whose latest attempt is not resolved yet (`in_flight`, `resolving` or `approved_no_credential`) cannot be canceled: `POST /payment-plans/{id}/cancel` answers `409` `PAYMENT_PLAN_DEPOSIT_IN_FLIGHT` with the message `A terminal deposit attempt is unresolved. Resolve it with POST /payment-plans/{id}/deposit before canceling the plan.` until the attempt reaches a final state. Resolve it first with `POST /payment-plans/{id}/deposit`.
 - When the plan is activated, ChaChing sends `payment_plan.activated` and `payment_plan.installment_paid` for the installment the deposit paid — sequence `0` for a down payment, else sequence `1` — (and `payment_plan.completed` for a plan with one installment and no down payment), and emails the customer the receipt for the down payment or for payment 1.
 - Every Payment Plan object, in the responses and in the webhooks, carries `deposit.attempt`.
+- An attempt that stays `resolving` because the terminal never reports its outcome can be listed and force-closed: see [Find and Force-Close a Stuck Terminal Attempt](#find-and-force-close-a-stuck-terminal-attempt).
 
 ---
 
@@ -424,7 +425,7 @@ The `terminal` object while the customer is at the terminal:
 | `failed` | The terminal or the SPIn proxy refused the request without producing an authorization; nothing was charged. The payment reads `not_attempted` and `decline_message` gives the reason. | Take a new payment; when `decline_message` reads `busy; retry after <n> s`, wait that long first. |
 | `resolving` | The terminal's answer did not arrive, or did not say whether the card was charged. The card can have been charged. The payment reads `processing`. | Call `POST /payment-plans/{id}/payments/{payment_id}/resolve`. Do not ask the customer to pay again. |
 | `approved_no_credential` | The card was charged, but ChaChing has not confirmed the amount or recorded the payment yet. The payment reads `processing`. | Call `POST /payment-plans/{id}/payments/{payment_id}/resolve` again five minutes later. Do not charge the customer again. |
-| `force_closed` | ChaChing staff closed a payment whose outcome could not be confirmed. The payment reads `not_attempted`. The card can have been charged: check the sale in your Dejavoo (iPOSpays) account. | Take a new payment only after that check. |
+| `force_closed` | The payment was closed as not collected, by ChaChing staff or by your integration with `POST /dejavoo/terminal-attempts/{id}/force-close`, because its outcome could not be confirmed. The payment reads `not_attempted`. The card can have been charged: check the sale in your Dejavoo (iPOSpays) account. | Take a new payment only after that check. |
 
 Fields of the `terminal` object (`null` on a payment that was not taken on a terminal):
 
@@ -471,6 +472,118 @@ Fields of the `terminal` object (`null` on a payment that was not taken on a ter
 - A plan accepts up to 99 terminal attempts, its deposit attempts included; the next one answers `409` `PAYMENT_PLAN_TERMINAL_ATTEMPTS_EXHAUSTED`.
 - A request repeated with the same `Idempotency-Key` answers the stored `201` again and starts no second sale; read the payment with `GET /payment-plans/{id}/payments/{payment_id}` for its current state.
 - The amount is applied to the plan as it stands when ChaChing records the sale. When an installment was paid another way, or its invoice was voided, before the payment was recorded, the amount goes to the next open installment or to the principal. An approved amount the plan can no longer absorb is not applied; ChaChing's team is alerted to refund it at the terminal. When the plan absorbs only part of an approved sale the payment reads `partially_applied`, and when it absorbs none of it, `not_attempted`.
+- A terminal payment that stays `resolving` because the terminal never reports its outcome can be listed and force-closed: see [Find and Force-Close a Stuck Terminal Attempt](#find-and-force-close-a-stuck-terminal-attempt).
+
+---
+
+# Find and Force-Close a Stuck Terminal Attempt
+
+Every sale ChaChing sends to one of your terminals, a deposit or a payment, is a terminal attempt with an id `ppda_…`. An attempt normally reaches a final state on its own or through the resolve endpoints. When the terminal never reports an outcome, the attempt stays `resolving`: its plan cannot be canceled, and the plan takes no new deposit or payment until the attempt is resolved. These two endpoints list the attempts of your account and close such an attempt as not collected.
+
+| **Request** | **What it does** |
+| --- | --- |
+| `GET /dejavoo/terminal-attempts` | Lists the terminal attempts of the account, in every state, newest first. |
+| `POST /dejavoo/terminal-attempts/{id}/force-close` | Closes one attempt whose outcome could not be confirmed, as not collected. |
+
+Both endpoints accept only your account's secret API key (`sk_…`): your account's publishable key (`pk_…`) answers `403` `SECRET_API_KEY_REQUIRED`, a key that belongs to no account answers `401`, and a request that also sends an `Authorization` header answers `409` with no `error` field. They answer whether Payment Plans are enabled on your account or not.
+
+## Before You Force-Close
+
+A force-close records that nothing was collected, and it voids and refunds nothing. When the card was in fact charged and the terminal cannot report it, the money stays collected and ChaChing has no record of it: taking the payment again charges the customer twice. Before you force-close an attempt:
+
+1. Call the resolve endpoint first: `POST /payment-plans/{id}/deposit` for a deposit, `POST /payment-plans/{id}/payments/{payment_id}/resolve` for a payment.
+2. Force-close only when the resolve endpoint keeps answering `resolving` and your Dejavoo (iPOSpays) account shows no sale for the attempt's `reference_id`.
+
+Once an attempt's `deadline` has passed, only a status read records a sale that went through: the resolve endpoints make one, and FEED notifications do not record it. ChaChing protects a force-close in two ways:
+
+- It refuses a force-close until 15 minutes after the attempt's `deadline`, which gives a terminal that was briefly offline time to come back.
+- After that, the force-close first reads the sale's status from the terminal, exactly as the resolve endpoints do. When the read finds an outcome (approved, approved but the card not saved yet (`approved_no_credential`), partially approved, declined, cancelled or not charged), ChaChing records it as the resolve endpoints record it, closes nothing and answers `409` `PAYMENT_PLAN_TERMINAL_ATTEMPT_RESOLVED`; read the attempt again to see its state. An attempt that reads `approved_no_credential` needs you to act: call its resolve endpoint again, as the state tables above say.
+- ChaChing closes the attempt only when the read leaves it unresolved: the terminal cannot be reached, does not answer in time or gives no final answer, or it reports no such sale and the iPOSpays check of that sale cannot confirm it.
+
+The read can take more than a minute. When your request times out before it answers, the force-close still completes: read the attempt with `GET /dejavoo/terminal-attempts`.
+
+## List the Attempts
+
+`GET /dejavoo/terminal-attempts` answers a page `{ "data": [...], "meta": { "page", "take", "items_total", "pages_total" } }`, newest first by `started`, with the page parameters `page` and `take` (`take` at most `50`). Filter with `search`, a URL-encoded JSON object with any of these keys:
+
+| **Key** | **Value** |
+| --- | --- |
+| `terminal` | The `id` of one of your terminals. |
+| `state` | One state or a comma-separated list, for example `"resolving,approved_no_credential"`. `resolving` also returns an attempt still `in_flight` whose `deadline` has passed. |
+| `kind` | `deposit`, `payment`, or both separated by a comma. |
+| `created` | The UTC days on which the attempt started, for example `{"type": "between", "from": "2026-11-01", "to": "2026-11-04"}`. The types are `equal`, `between`, `after`, `before` and `inTheLast`, as on the other lists. |
+
+A `search` value that is not a JSON object, or a key with a value outside these, answers `400`.
+
+The `dejavoo_terminal_attempt` object of a deposit whose outcome is not known:
+
+```json
+{
+  "id": "ppda_4f9c2e1b7a6d3c8e5f0a1b2c",
+  "object": "dejavoo_terminal_attempt",
+  "kind": "deposit",
+  "payment_plan": "pp_7d2c9a4e1b6f3c8a5e0d2b4f",
+  "payment": null,
+  "terminal": "3f6b2a4e-9c1d-4e8f-a2b7-5d0c9e1f4a63",
+  "reference_id": "K7Q2M9XA01",
+  "state": "resolving",
+  "amount": 20000,
+  "started": 1760400000,
+  "deadline": 1760400240,
+  "resolved": null,
+  "live": false,
+  "closable": true,
+  "closable_at": 1760401140,
+  "force_closed_at": null,
+  "force_closed_by": null,
+  "force_close_reason": null
+}
+```
+
+| **Field** | **Meaning** |
+| --- | --- |
+| `id` | The attempt id, `ppda_…`: the `id` of `deposit.attempt` on the plan, and of `terminal` on a payment. |
+| `kind` | `deposit` for a plan's deposit, `payment` for a payment taken on a terminal. |
+| `payment_plan` | The plan's `id`, `pp_…`. |
+| `payment` | The payment's `id`, `ppp_…`, for a payment; `null` for a deposit. |
+| `terminal` | The `id` of the terminal the sale ran on. |
+| `reference_id` | The reference and invoice number the terminal and your Dejavoo (iPOSpays) reports show for this sale. |
+| `state` | One of the states of [Deposit Attempt States](#deposit-attempt-states) for a deposit, and of the `terminal.state` table of [Take a Payment on a Terminal](#take-a-payment-on-a-terminal) for a payment. An attempt still `in_flight` after its `deadline` reads `resolving`. |
+| `amount` | The amount sent to the terminal, in integer cents. |
+| `started` | When the attempt started, Unix seconds. |
+| `deadline` | When the sale can no longer be open at the terminal, Unix seconds. |
+| `resolved` | When its outcome was read, Unix seconds; `null` while it is not known. |
+| `live` | `true` while the sale can still be open at the terminal: `in_flight` before `deadline`. |
+| `closable` | `true` when a force-close is accepted now: the attempt is not final, the terminal reported no approval for it, and 15 minutes have passed since `deadline`. The force-close still reads the sale's status first, and it can answer `409` `PAYMENT_PLAN_TERMINAL_ATTEMPT_LIVE` while another request on the same plan is running. |
+| `closable_at` | The earliest time a force-close is accepted, Unix seconds: `deadline` plus 15 minutes. `null` when the attempt is final or the terminal reported an approval for it; such an attempt is never force-closed. |
+| `force_closed_at` | When the attempt was force-closed, Unix seconds; `null` otherwise. |
+| `force_closed_by` | `chaching_staff` when ChaChing staff closed it, `api` when your integration closed it through this endpoint; `null` otherwise. |
+| `force_close_reason` | The reason given with the force-close; `null` otherwise. |
+
+The object never carries the terminal's Auth Key, its TPN, card details or gateway ids.
+
+## Force-Close an Attempt
+
+Call `POST /dejavoo/terminal-attempts/{id}/force-close` with the attempt `id` and your reason:
+
+```json
+{
+  "reason": "Terminal lost power; iPOSpays shows no sale for K7Q2M9XA01."
+}
+```
+
+`reason` is 1 to 500 characters, not blank, with no control characters such as a line break. ChaChing stores it without its leading and trailing spaces and returns it as `force_close_reason`. When the status read leaves the attempt unresolved, the answer is `200` with the attempt in `force_closed`, `force_closed_by` set to `api` and `force_closed_at` set. A deposit's plan stays `awaiting_deposit`: you can start a new attempt or cancel the plan. A payment reads `not_attempted`. ChaChing sends no webhook for a force-close. The force-close answers whether Payment Plans are enabled on your account or not.
+
+| **Status** | **Error** | **When** |
+| --- | --- | --- |
+| `400` | no code | The `id` is not a valid id, `reason` fails validation, or the body carries another field. |
+| `404` | `PAYMENT_PLAN_TERMINAL_ATTEMPT_NOT_FOUND` | The `id` is not an attempt of your account. |
+| `409` | `PAYMENT_PLAN_TERMINAL_ATTEMPT_RESOLVED` | The status read found an outcome. ChaChing recorded it exactly as the resolve endpoints do and closed nothing; `message` names the attempt's state. Read the attempt again. |
+| `409` | `PAYMENT_PLAN_TERMINAL_ATTEMPT_LIVE` | The sale can still be open at the terminal (`in_flight` before `deadline`), the terminal reported an approval for the attempt, or another request on its plan is running. Nothing was changed. Call the resolve endpoint instead. |
+| `409` | `PAYMENT_PLAN_TERMINAL_ATTEMPT_TOO_RECENT` | Less than 15 minutes have passed since `deadline`. The body field `closable_at` is the earliest time a force-close is accepted, Unix seconds. Nothing was changed. |
+| `409` | `PAYMENT_PLAN_TERMINAL_ATTEMPT_FINAL` | The attempt is already final, a force-closed attempt included. Nothing was changed. |
+| `409` | `SPIN_AUTH_KEY_UNREADABLE` | The terminal's stored Auth Key cannot be read, so its status cannot be read. Re-enter it with `PATCH /dejavoo/terminals/{id}`; nothing was changed. |
+| `409` | `PAYMENT_PLAN_NOT_AWAITING_DEPOSIT` | A deposit attempt whose plan is no longer `awaiting_deposit`: its status cannot be read through the deposit resolve endpoint and nothing was changed. Contact ChaChing to close it. |
 
 ---
 
@@ -601,12 +714,13 @@ Errors use the standard body `{ "statusCode", "message", "error", "timestamp", "
 | `402` | `PAYMENT_PLAN_DOWN_PAYMENT_DECLINED` | The down payment was declined. No plan was created. |
 | `402` | `PAYMENT_DECLINED` | The first charge of a payment was declined. Nothing was applied. |
 | `403` | `PAYMENT_PLANS_NOT_ENABLED` | Payment Plans are not enabled for this account. |
-| `403` | `SECRET_API_KEY_REQUIRED` | A deposit endpoint, a terminal payment endpoint, the schedule preview or the payments list was called with a publishable (`pk_…`) API key. |
+| `403` | `SECRET_API_KEY_REQUIRED` | A deposit endpoint, a terminal payment endpoint, a terminal attempt endpoint, the schedule preview or the payments list was called with a publishable (`pk_…`) API key. |
 | `404` | `PAYMENT_PLAN_NOT_FOUND` | The plan id does not resolve for this account. |
 | `404` | `CUSTOMER_NOT_FOUND` | The customer id does not resolve for this account. |
 | `404` | `PAYMENT_METHOD_NOT_FOUND` | The payment method does not resolve, or it does not belong to the customer. |
 | `404` | `DEJAVOO_TERMINAL_NOT_FOUND` | The `terminal_id` does not resolve to a terminal of this account. |
 | `404` | `PAYMENT_PLAN_PAYMENT_NOT_FOUND` | The payment id does not resolve to a payment of this plan. |
+| `404` | `PAYMENT_PLAN_TERMINAL_ATTEMPT_NOT_FOUND` | The terminal attempt id does not resolve for this account. |
 | `409` | `PAYMENT_PLAN_CREDENTIAL_NOT_ESTABLISHED` | The saved card was not established for automatic payments. Create the plan with a down payment, or ask the customer to enter the card again. |
 | `409` | `PAYMENT_PLAN_PAYMENT_METHOD_NOT_SUPPORTED` | On a create, the payment method is not a card saved with the account's current payment gateway. On `POST /payment-plans/{id}/payments`, on `PUT /invoices/{id}` and on a payment from the hosted invoice page or the dashboard of an invoice that carries an unpaid installment, the card that would be charged — `payment_method`, or the customer's default payment method when it is omitted — is not a card saved with the payment gateway the plan was created on; a plan created before you changed your payment gateway keeps accepting its own cards. Nothing was created or charged. Send a payment method returned by the payment-methods endpoints, or record money you collected yourself with `external: true` on `POST /payment-plans/{id}/payments`. |
 | `409` | `PAYMENT_PLAN_UNPAID_OUTCOME_NOT_SUPPORTED` | Your failed-payment outcome is `unpaid`. |
@@ -637,6 +751,10 @@ Errors use the standard body `{ "statusCode", "message", "error", "timestamp", "
 | `409` | `PAYMENT_PLAN_TERMINAL_PAYMENT_IN_FLIGHT` | The customer is still at the terminal for this payment. |
 | `409` | `PAYMENT_PLAN_TERMINAL_PAYMENT_NOT_IN_FLIGHT` | There is no sale of this payment waiting at the terminal to cancel. |
 | `409` | `PAYMENT_PLAN_TERMINAL_ATTEMPTS_EXHAUSTED` | The plan reached 99 terminal attempts, deposit attempts included. |
+| `409` | `PAYMENT_PLAN_TERMINAL_ATTEMPT_LIVE` | A force-close of a terminal attempt whose sale can still be open at the terminal, for which the terminal reported an approval, or whose plan has another request running. Nothing was changed. |
+| `409` | `PAYMENT_PLAN_TERMINAL_ATTEMPT_TOO_RECENT` | A force-close less than 15 minutes after the attempt's `deadline`. `closable_at` is the earliest time a force-close is accepted, Unix seconds. Nothing was changed. |
+| `409` | `PAYMENT_PLAN_TERMINAL_ATTEMPT_FINAL` | A force-close of a terminal attempt that is already final. Nothing was changed. |
+| `409` | `PAYMENT_PLAN_TERMINAL_ATTEMPT_RESOLVED` | The status read of a force-close found an outcome; it was recorded and nothing was closed. `message` names the attempt's state. |
 | `409` | `IDEMPOTENCY_KEY_IN_PROGRESS` | A request with the same `Idempotency-Key` is still running. |
 | `422` | `IDEMPOTENCY_KEY_REUSED` | The `Idempotency-Key` was already used with a different request. |
 | `422` | `SPIN_CREDENTIALS_REJECTED` | SPIn did not accept the terminal's TPN and Auth Key. |
