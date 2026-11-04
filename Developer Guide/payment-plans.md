@@ -147,7 +147,7 @@ The `dejavoo_terminal` object carries `object`, `id`, `tpn`, `label`, `enabled`,
 | `401` | no code | The key is unknown or belongs to a deactivated account. |
 | `403` | `SECRET_API_KEY_REQUIRED` | The key is a publishable key. |
 | `404` | `DEJAVOO_TERMINAL_NOT_FOUND` | The `id` is not one of your terminals. |
-| `409` | `DEJAVOO_NOT_CONFIGURED` | `POST` only: the account has no 12-digit e-commerce TPN set. |
+| `409` | `DEJAVOO_NOT_CONFIGURED` | `POST` only: the account has no 12-digit e-commerce TPN set. Set it with `PUT /dejavoo/credentials`, see [Processor Credentials](./processor-credentials.md). |
 | `409` | `TERMINAL_TPN_EXISTS` | The TPN is already registered. |
 | `409` | `SPIN_AUTH_KEY_UNREADABLE` | The stored Auth Key cannot be read; send it again. |
 | `422` | `SPIN_CREDENTIALS_REJECTED` | The TPN and Auth Key pair was refused. A wrong key and an unknown TPN carry the same error code. |
