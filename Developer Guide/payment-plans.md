@@ -485,7 +485,7 @@ Every sale ChaChing sends to one of your terminals, a deposit or a payment, is a
 | `GET /dejavoo/terminal-attempts` | Lists the terminal attempts of the account, in every state, newest first. |
 | `POST /dejavoo/terminal-attempts/{id}/force-close` | Closes one attempt whose outcome could not be confirmed, as not collected. |
 
-Both endpoints accept only your account's secret API key (`sk_…`): your account's publishable key (`pk_…`) answers `403` `SECRET_API_KEY_REQUIRED`, a key that belongs to no account answers `401`, and a request that also sends an `Authorization` header answers `409` with no `error` field. They answer whether Payment Plans are enabled on your account or not.
+Both endpoints accept only your account's secret API key (`sk_…`): a publishable key (`pk_…`) answers `403` `SECRET_API_KEY_REQUIRED`, and a key that matches no account answers `401` (a `pk_`-shaped key that matches no account answers `403` `SECRET_API_KEY_REQUIRED` on the list route and `401` on the force-close route), and a request that also sends an `Authorization` header answers `409` with no `error` field. They answer whether Payment Plans are enabled on your account or not.
 
 ## Before You Force-Close
 
@@ -581,7 +581,7 @@ Call `POST /dejavoo/terminal-attempts/{id}/force-close` with the attempt `id` an
 | `400` | no code | The `id` is not a valid id, `reason` fails validation, or the body carries another field. |
 | `404` | `PAYMENT_PLAN_TERMINAL_ATTEMPT_NOT_FOUND` | The `id` is not an attempt of your account. |
 | `409` | `PAYMENT_PLAN_TERMINAL_ATTEMPT_RESOLVED` | The status read found an outcome. ChaChing recorded it exactly as the resolve endpoints do and closed nothing; `message` names the attempt's state. Read the attempt again. |
-| `409` | `PAYMENT_PLAN_TERMINAL_ATTEMPT_LIVE` | Nothing was changed. The message names the cause: the sale is still open at the terminal (`in_flight` before `deadline`; force-close from `closable_at`); the terminal reported an approval for the attempt (call the resolve endpoint of its plan to record it); another request is working on the plan (retry shortly); or ChaChing could not read the sale status (call the resolve endpoint, then retry). |
+| `409` | `PAYMENT_PLAN_TERMINAL_ATTEMPT_LIVE` | Nothing was changed. The message names the cause: the sale is still open at the terminal (`in_flight` before `deadline`; the body carries `closable_at`, the earliest time a force-close is accepted, Unix seconds); the terminal reported an approval for the attempt (call the resolve endpoint of its plan to record it); another request is working on the plan (retry shortly); or ChaChing could not read the sale status (call the resolve endpoint, then retry). |
 | `409` | `PAYMENT_PLAN_TERMINAL_ATTEMPT_TOO_RECENT` | Less than 15 minutes have passed since `deadline`. The body field `closable_at` is the earliest time a force-close is accepted, Unix seconds. Nothing was changed. |
 | `409` | `PAYMENT_PLAN_TERMINAL_ATTEMPT_FINAL` | The attempt is already final, a force-closed attempt included. Nothing was changed. |
 | `409` | `SPIN_AUTH_KEY_UNREADABLE` | The terminal's stored Auth Key cannot be read, so its status cannot be read. Re-enter it with `PATCH /dejavoo/terminals/{id}`; nothing was changed. |
