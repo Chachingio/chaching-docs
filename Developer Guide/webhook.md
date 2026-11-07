@@ -146,8 +146,6 @@ The **Logs** table of the Webhooks tab lists every delivery of the account, and 
 2. Click the key icon (**Rotate signing secret**) on the endpoint's row and confirm.
 3. Copy the new signing secret. The dialog also shows until when the previous secret keeps working (24 hours).
 
-The **Signing** column shows which key signs each endpoint: **Endpoint secret**, or **Account secret key** for an endpoint created before signing secrets existed that has never been rotated.
-
 ---
 
 ## Via the REST API
@@ -185,7 +183,7 @@ Manage webhook endpoints with the account **secret** API key (`sk_…`) in the `
 }
 ```
 
-`enabled_events` lists the event types the endpoint receives, in the order of the [Event Types](#event-types) list; `["*"]` means every event type, including event types added later. `status` is `active` or `inactive`; events are sent only to `active` endpoints. `signature_key` says which key signs the deliveries: `endpoint_secret` (the endpoint's own signing secret) or `account_secret_key` (your account secret API key, for an endpoint created before signing secrets existed and never rotated). `created` and `updated` are Unix seconds. The signing secret itself is never part of this object: it appears only in the create and rotate responses.
+`enabled_events` lists the event types the endpoint receives, in the order of the [Event Types](#event-types) list; `["*"]` means every event type, including event types added later. `status` is `active` or `inactive`; events are sent only to `active` endpoints. `signature_key` says which key signs the deliveries; it is always `endpoint_secret`, the endpoint's own signing secret. `created` and `updated` are Unix seconds. The signing secret itself is never part of this object: it appears only in the create and rotate responses.
 
 ### Create an Endpoint
 
@@ -336,11 +334,11 @@ No request body. Creates a new signing secret and answers `200` with the Webhook
 
 If you lose a secret before you store it, rotate again to get a new one. The lost secret becomes the previous secret and keeps verifying until `previous_secret_expires_at`; if it may have been exposed, rotate once more and it stops verifying at once.
 
-Until `previous_secret_expires_at`, every delivery carries two `v1` signatures: one for the new secret (first) and one for the previous secret. After it, only the new secret signs. At most two secrets are active: rotating again during those 24 hours ends the previous secret immediately, so rotating twice in a row revokes a secret you believe is compromised. An endpoint signed with your account secret key (`signature_key: account_secret_key`) gets its first signing secret on its first rotation, and your account secret key is the previous secret for those 24 hours. Rotating works on `active` and `inactive` endpoints; changing the URL or the event types, enabling and disabling keep the secret.
+Until `previous_secret_expires_at`, every delivery carries two `v1` signatures: one for the new secret (first) and one for the previous secret. After it, only the new secret signs. At most two secrets are active: rotating again during those 24 hours ends the previous secret immediately, so rotating twice in a row revokes a secret you believe is compromised. Rotating works on `active` and `inactive` endpoints; changing the URL or the event types, enabling and disabling keep the secret.
 
 ### Signing
 
-Every delivery is signed as described in [Webhook Signatures](#webhook-signatures), with the endpoint's own signing secret. An endpoint created before signing secrets existed is signed with your account's secret API key until you rotate its secret for the first time.
+Every delivery is signed as described in [Webhook Signatures](#webhook-signatures), with the endpoint's own signing secret. Endpoints that existed before signing secrets were issued one automatically; rotate the secret once to obtain it (see [Endpoints Created Before Signing Secrets](#endpoints-created-before-signing-secrets)).
 
 ---
 
@@ -1793,7 +1791,7 @@ HMAC-SHA256(signing_key, "{timestamp}.{raw_json_body}")
 ```
 
 Where:
-- `signing_key` is the endpoint's signing secret, the whole `whsec_…` string including the `whsec_` prefix. For an endpoint whose `signature_key` is `account_secret_key`, it is your account's secret API key (`sk_…`).
+- `signing_key` is the endpoint's signing secret, the whole `whsec_…` string including the `whsec_` prefix.
 - `timestamp` is the `t` value from the `Chaching-Signature` header
 - `raw_json_body` is the **raw, unparsed** request body
 
@@ -1873,13 +1871,13 @@ def verify_webhook_signature(raw_body: bytes, signature_header: str, signing_sec
 
 > ℹ️ Check every `v1` value, not only the first or the last: during a rotation the header carries one signature per active secret, and the one that matches yours can be in either position.
 
-## Moving an Endpoint Off Your Account Secret Key
+## Endpoints Created Before Signing Secrets
 
-An endpoint whose `signature_key` is `account_secret_key` is verified with your account secret API key. To give it its own signing secret without missing a delivery:
+Endpoints that existed before signing secrets were introduced were issued a signing secret automatically, and every delivery to them is signed with it. ChaChing never showed that secret, and your account secret API key no longer verifies any delivery. To obtain the secret:
 
 1. Rotate the endpoint's signing secret (`POST /webhook-endpoints/{id}/rotate-secret`, or **Rotate signing secret** in the UI) and store the `whsec_…` secret.
-2. Within 24 hours, deploy the new secret to the server that verifies the deliveries. During those 24 hours each delivery carries a signature for the new secret and one for your account secret key, so your current verification keeps working.
-3. After 24 hours only the new secret signs. Your account secret key is no longer needed on that server.
+2. Deploy the new secret to the server that verifies the deliveries. For 24 hours each delivery also carries a signature for the secret issued automatically; verify with the new secret, which matches one of the `v1` values.
+3. A delivery that failed verification before you deployed the new secret is retried on the usual schedule, and every retry is signed again with the current secrets.
 
 ---
 
