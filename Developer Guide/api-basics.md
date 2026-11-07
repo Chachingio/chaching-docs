@@ -40,7 +40,17 @@ Every field, query parameter and path parameter of the [API Reference](/develope
 
 ## Timestamps
 
-`created`, `finalized_at` and the other event times are Unix seconds and mark an instant. A transaction's `created` can carry a fraction of a second. `due_date` is a day, not an instant: it is the Unix time of 00:00 UTC on that day.
+`created`, `finalized_at` and the other event times are Unix seconds and mark an instant. A transaction's `created` can carry a fraction of a second. `due_date` is a day, not an instant: it is the Unix time of 00:00 UTC on that day, and the day is a calendar date in the account time zone (see [Account time zone and dates](#account-time-zone-and-dates)).
+
+## Account time zone and dates
+
+Every account has a time zone, set by ChaChing. The default is America/New_York; the zones in use lie between UTC−10:00 and UTC+00:00. Instants stay Unix seconds. A day field (`due_date`, the `start_date` of a payment plan, `next_due_date`) keeps its encoding, 00:00 UTC of the day, and the day is a calendar date in the account time zone.
+
+- Payment plan dates are calendar days in the account time zone. The first installment date of a payment plan must be after the current UTC date. The default start date is one interval after today in the account time zone, never earlier than the day after the current UTC date. A down payment is due today in the account time zone.
+- Subscription billing dates, invoice dates and the `start_date` and `end_date` of subscriptions are UTC calendar days. An invoice is dated with the UTC day on which it was generated.
+- Day filters of the public API, such as `{"created": {"type": "equal", "date": "2026-11-02"}}`, compare UTC calendar days. The date filters of the ChaChing dashboard use the account time zone.
+- A payment plan installment is scheduled on its due date at 10:00 UTC for a customer created since ChaChing introduced the fixed billing time, and at the time of day the customer was created for an older customer. In the account time zone that time can fall on the evening before the due date: a customer created at 02:30 UTC whose installment is due on November 3, 2026 is charged on November 2, 2026 at 9:30 p.m. EST.
+- An installment is also charged at once, before its scheduled time, when another billing change on the same customer happens between 00:00 UTC and that time on its due date (for example a new subscription, including one the customer starts on a hosted checkout page, a pause, a resume, or a payment of a balance that had blocked billing), which in a US time zone can be as early as the evening before the due date. The "Billing Time of Day" section of the [payment plans guide](/developer-guide/payment-plans) lists every case.
 
 ## Pagination
 

@@ -269,7 +269,7 @@ Filter with `search`, a URL-encoded JSON object. A filter value that is not vali
 | `event_type` | one or more event types, comma-separated | `{"event_type": "invoice.created,invoice.finalized"}` |
 | `status` | one or more of `pending`, `retry`, `success`, `failure`, comma-separated | `{"status": "failure,retry"}` |
 | `response_status_code` | the exact HTTP status | `{"response_status_code": 500}` |
-| `created` | a date filter: `type` `equal`, `after` or `before` with `date`; `between` with `from` and `to`; `inTheLast` with `amount` and `unit` | `{"created": {"type": "after", "date": "2026-10-01"}}` |
+| `created` | a date filter: `type` `equal`, `after` or `before` with `date`; `between` with `from` and `to`; `inTheLast` with `amount` and `unit`. Days are UTC calendar days. | `{"created": {"type": "after", "date": "2026-10-01"}}` |
 | `endpoint` | text contained in the URL, on `GET /webhook-deliveries` only | `{"endpoint": "example.com"}` |
 
 ### The Webhook Delivery Object
