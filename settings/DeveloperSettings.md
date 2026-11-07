@@ -4,26 +4,42 @@ The **Developer Settings** page allows developers to manage API access credentia
 ---
 ## API Keys
 
-This section provides access to standard API keys used to authenticate requests to the ChaChing API.
+This section lists the API keys of the account and lets developers create, rotate and revoke them. Only users with the **Developer** or **SuperAdmin** role see it.
 
-### Keys
+### Key Types
 
-| **Field** | **Description** |
+| **Type** | **Description** |
 | --- | --- |
-| **Published key** | Publishable key (`pk_...`), used only by the ChaChing hosted checkout pages. It does not work on the API endpoints. |
-| **Secret key** | Secret key (`sk_...`), required by every API endpoint and sent in the `cc-api-key` header. Displayed masked. See [API Basics](../Developer%20Guide/api-basics.md). |
+| **Publishable** | Publishable key (`pk_...`), used only by the ChaChing hosted checkout pages. It does not work on the API endpoints. It is not secret, so the table shows it in full with a copy button. |
+| **Secret** | Secret key (`sk_...`), required by every API endpoint and sent in the `cc-api-key` header. The table shows only its first characters and its last four. See [API Basics](../Developer%20Guide/api-basics.md). |
+
+### Keys Table
+
+| **Column** | **Description** |
+| --- | --- |
+| **Name** | The name given when the key was created. The keys that existed before key management are named `legacy`; the publishable key a new account starts with is named `default`. |
+| **Type** | Publishable or Secret. |
+| **Key** | The full publishable key, or the first characters and the last four of a secret key. |
+| **Status** | **Active**, **Expiring** (rotated; it works until its expiry), **Expired** or **Revoked**. |
+| **Created**, **Last used**, **Expires** | When the key was created, when it last authenticated a request (updated at most once a minute) and when it stops working. |
 
 ### Actions
 
 | **Action** | **Description** |
 | --- | --- |
-| **Copy to clipboard** | Copies the selected API key (published or secret) to the clipboard. |
+| **Create key** | Creates a key of the chosen type with a name. The new key is shown once: copy it before you close the dialog. |
+| **Rotate** | Creates a replacement key with the same name and sets when the current key stops working: now, in 1 hour, in 24 hours (the default) or in 7 days. Both keys work until then. The new key is shown once. |
+| **Revoke** | Stops the key from the next request. This cannot be undone. Revoking the last active publishable key stops the hosted checkout pages until another publishable key is active. |
+| **Copy to clipboard** | Copies a publishable key from the table, or a new key from the dialog that shows it once. |
+
+An account holds at most 10 active publishable keys and 10 active secret keys.
 
 ### Security Notes
 
-- The **Secret key** must never be exposed in client-side code.
-- If a secret key is compromised, it should be rotated immediately.
-- Access to API keys should be restricted to authorized users only.
+- A secret key must never be exposed in client-side code.
+- ChaChing shows a secret key only once, when it is created or rotated. If you lose it, rotate the key.
+- If a secret key is compromised, revoke it, or rotate it with the current key expiring **Now**.
+- A new account starts with one publishable key and no secret key: create a secret key with **Create key** before your first API call, and copy it when it is shown.
 ---
 ## Webhooks
 

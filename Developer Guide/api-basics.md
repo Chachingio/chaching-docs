@@ -24,14 +24,14 @@ cc-api-key: sk_...
 - Do not send an `Authorization` header with the API key. Some endpoints answer `409` when a request carries both.
 - Keep the secret key on your server. Never put it in a browser, a mobile app or any page your customers open.
 
-You find both keys in the dashboard under **Settings → Developer Settings**. See [Developer Settings](../settings/DeveloperSettings.md).
+You manage the keys in the dashboard under **Settings → Developer Settings**, where you create, rotate and revoke them. A secret key is shown only once, when it is created or rotated. See [Developer Settings](../settings/DeveloperSettings.md).
 
 ## Authentication Errors
 
 | **Status** | **When** |
 | --- | --- |
 | `400` | The request has no `cc-api-key` header (`"message": "Missing apiKey parameter"`). |
-| `401` | The key is unknown, or it belongs to a deactivated account (`Invalid apiKey`). |
+| `401` | The key is unknown, revoked or expired, or it belongs to a deactivated account (`Invalid apiKey`). |
 | `403` | The key is a publishable key (`SECRET_API_KEY_REQUIRED`). |
 
 ## Names
