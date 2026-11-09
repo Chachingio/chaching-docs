@@ -82,7 +82,9 @@ This section applies to accounts that charge through iPOSpays (Dejavoo). It quot
 
 Sources:
 
-- [Visa Core Rules and Visa Product and Service Rules](https://usa.visa.com/content/dam/VCOM/download/about-visa/visa-rules-public.pdf) (ID# 0027545 and Table 5-4)
+- [Visa Core Rules and Visa Product and Service Rules](https://usa.visa.com/content/dam/VCOM/download/about-visa/visa-rules-public.pdf) (section 5.5.1.9, ID# 0027545, and Table 5-3)
 - [Visa U.S. Merchant Surcharge Q&A](https://usa.visa.com/content/dam/VCOM/global/support-legal/documents/merchant-surcharging-qa-for-web.pdf)
-- [Visa surcharging rules and sample signage](https://usa.visa.com/support/small-business/regulations-fees.html)
+- [Visa surcharging rules and sample signage](https://www.visa.com/en-us/support/business/regulation-fees)
+- [Visa sample surcharge disclosure signage](https://usa.visa.com/content/dam/VCOM/download/merchants/sample-surcharge-disclosure-signage.pdf)
+- [Visa Merchant Surcharging Considerations and Requirements](https://usa.visa.com/content/dam/VCOM/global/support-legal/documents/merchant-surcharging-considerations-and-requirements.pdf)
 - [Mastercard merchant surcharge rules](https://www.mastercard.com/us/en/business/support/merchant-surcharge-rules.html)

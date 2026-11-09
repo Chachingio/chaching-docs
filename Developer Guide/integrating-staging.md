@@ -39,7 +39,7 @@ On staging, Dejavoo accounts charge through the iPOSpays UAT host. The amount de
 | Visa | `4012 0000 9876 5439` | `12/26` | `999` | Credit (a credit card surcharge applies when your account sets one) |
 | Visa | `4111 1111 1111 1111` | `12/26` | `999` | Debit (no surcharge) |
 
-These values were measured on the staging UAT merchant (2026-10-05 and 2026-10-23); iPOSpays publishes its UAT test data at https://uatdocs.ipospays.tech. On a terminal, present the card on the UAT terminal itself.
+These values were measured on the staging UAT merchant (2026-10-05 and 2026-10-23). iPOSpays does not publish UAT test cards or amount-triggered answers on https://uatdocs.ipospays.tech; its documentation directs test-card requests to devsupport@dejavoo.io (https://uatdocs.ipospays.tech/hosted-payment-page/apidocs, read 2026-11-09). On a terminal, present the card on the UAT terminal itself.
 
 Accounts that charge through NMI use NMI's test mode cards, and accounts that charge through Stripe use Stripe's test cards (https://docs.stripe.com/testing).
 
