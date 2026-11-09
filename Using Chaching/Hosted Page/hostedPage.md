@@ -12,17 +12,15 @@ This is typically used when:
 
 ## Hosted Page URL Format
 
-To redirect a customer to a hosted checkout page, use the following URL structure:
-
-```
-https://{chaching-url}/checkout/{id}
-```
+The hosted page address is `https://<your-slug>.stage.chaching.io/checkout/<id>` on staging and `https://<your-slug>.chaching.io/checkout/<id>` in production; the same path on the dashboard host redirects there when your account has a slug. For an invoice, read the exact link from `GET /invoices/{id}/hosted-link`.
 
 Where:
 
 - `{id}` must be replaced with either:
     - **price_id** (for subscription checkout)
     - **invoice_id** (for unpaid invoice checkout)
+
+V23_OBSERVATION
 
 ---
 
@@ -39,8 +37,10 @@ Use this when:
 Example:
 
 ```
-https://chaching-url/checkout/price_12345
+https://rosen-dental.stage.chaching.io/checkout/price_1RzK8sN3vQ5mT7wY9xA2bC4d
 ```
+
+A price checkout address is the account host plus `/checkout/` and the price id; no API returns it.
 
 In this case:
 
@@ -57,10 +57,12 @@ Use this when:
 - The invoice is unpaid
 - You want the customer to pay it
 
+V23_OBSERVATION
+
 Example:
 
 ```
-https://chaching-url/checkout/invoice_67890
+https://rosen-dental.stage.chaching.io/checkout/a80baa67-1341-4184-b712-b6f9b85b5a2b
 ```
 
 In this case:
@@ -84,7 +86,7 @@ https://{chaching-url}/checkout/{price_id}
 Example (JavaScript):
 
 ```jsx
-window.location.href = "https://chaching-url/checkout/price_12345";
+window.location.href = "https://rosen-dental.stage.chaching.io/checkout/price_1RzK8sN3vQ5mT7wY9xA2bC4d";
 ```
 
 No additional API call is required for basic hosted page usage.
@@ -95,17 +97,15 @@ No additional API call is required for basic hosted page usage.
 
 The hosted checkout page displays the **workspace name** of the workspace selected in your account. The company name is not shown on hosted pages.
 
+V23_OBSERVATION
+
 ---
 
 ## Applying Tax Rates
 
 ChaChing supports applying a tax rate during checkout. Tax rates are not calculated automatically — you determine the appropriate rate externally and pass it when creating the checkout.
 
-To apply a tax rate, include an optional `tax_rate_id` parameter alongside the `price_id` when creating the checkout:
-
-- If `tax_rate_id` is provided, the tax rate is applied to the resulting subscription and invoice.
-- If `tax_rate_id` is not provided, checkout proceeds without tax.
-- Only one tax rate can be applied per checkout.
+Append `?taxRate=` and the `txr_...` id of one tax rate: `https://<your-slug>.stage.chaching.io/checkout/<price id>?taxRate=txr_...`.
 
 You can retrieve available tax rates for your account via the API.
 
@@ -115,13 +115,7 @@ You can retrieve available tax rates for your account via the API.
 
 ID Must Be Replaced
 
-The placeholder shown during onboarding:
-
-```
-https://test.chaching.io/checkout/{priceId | invoiceId}
-```
-
-must be replaced with a real:
+The `<id>` of the hosted page address must be replaced with a real:
 
 - `price_id`
 - `invoice_id`

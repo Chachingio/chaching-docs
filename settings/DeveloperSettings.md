@@ -13,6 +13,8 @@ This section lists the API keys of the account and lets developers create, rotat
 | **Publishable** | Publishable key (`pk_...`), used only by the ChaChing hosted checkout pages. It does not work on the API endpoints. It is not secret, so the table shows it in full with a copy button. |
 | **Secret** | Secret key (`sk_...`), required by every API endpoint and sent in the `cc-api-key` header. The table shows only its first characters and its last four. See [API Basics](../Developer%20Guide/api-basics.md). |
 
+The publishable key (`pk_`) is used only by the ChaChing hosted checkout pages; every API operation answers it `403` with `SECRET_API_KEY_REQUIRED`. `GET /balance` also requires the secret key. A key of a deactivated account answers `401 Invalid apiKey`.
+
 ### Keys Table
 
 | **Column** | **Description** |
@@ -32,7 +34,7 @@ This section lists the API keys of the account and lets developers create, rotat
 | **Revoke** | Stops the key from the next request. This cannot be undone. Revoking the last active publishable key stops the hosted checkout pages until another publishable key is active. |
 | **Copy to clipboard** | Copies a publishable key from the table, or a new key from the dialog that shows it once. |
 
-An account holds at most 10 active publishable keys and 10 active secret keys.
+An account holds at most 10 active publishable keys and 10 active secret keys. The limit of 10 keys per type counts active and expiring keys. Rotating a key also needs a free slot (`409 API_KEY_LIMIT_REACHED`). A rotation keeps an earlier expiry that is already set. A revoked or expired key cannot be rotated (`API_KEY_NOT_ROTATABLE`).
 
 ### Security Notes
 
@@ -51,3 +53,5 @@ From the Developer Settings page you can:
 - View delivery logs with event details and statuses (`pending` / `retry` / `success` / `failure`), and click a row to see its payload and every attempt
 
 For full webhook setup and API reference, see the [Webhook documentation](../Developer%20Guide/webhook.md).
+
+A platform's locations have no dashboard and no account keys; a platform uses its platform key. See [Platforms](../Developer%20Guide/platforms.md).

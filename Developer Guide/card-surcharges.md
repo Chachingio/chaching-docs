@@ -64,7 +64,7 @@ These notices do not state your rate: ChaChing cannot read the fee configured in
 
 ## In the dashboard
 
-The transactions list, the transaction details, the column picker of the transactions export and the invoice details show the surcharge and the total charged for a charge that carried one, under the label **Credit card surcharge**; in the exported file the columns are `surcharge` and `amountCharged`, named by their column ids. The **Pricing** table of the invoice details and the downloaded invoice show **Credit card surcharge** and **Total charged** under **Total** when the invoice's payments carried a surcharge. The dashboard's Total revenue and a customer's total spend include the surcharge of the card charges ChaChing sends to iPOSpays; the surcharge of a payment taken on your terminal is not included in them yet.
+The transactions list, the transaction details, the column picker of the transactions export and the invoice details show the surcharge and the total charged for a charge that carried one, under the label **Credit card surcharge**; in the exported file the columns are V26_COLUMNS. The **Pricing** table of the invoice details and the downloaded invoice show **Credit card surcharge** and **Total charged** under **Total** when the invoice's payments carried a surcharge. The dashboard's Total revenue and a customer's total spend include the surcharge of the card charges ChaChing sends to iPOSpays; the surcharge of a payment taken on your terminal is not included in them yet.
 
 ---
 
