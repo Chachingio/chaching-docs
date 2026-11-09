@@ -2,11 +2,11 @@
 
 A payment plan collects a fixed total amount from one customer in a fixed number of scheduled installments. ChaChing stores the plan, charges each installment automatically on its due date against the plan's payment method, retries a declined charge on your account's retry schedule, and reports every change over webhooks. There is no interest. The installments always add up to the total agreed when the plan was created; on an account that charges through iPOSpays (Dejavoo), each credit card charge of a plan also carries the credit card surcharge configured for your account in the iPOSpays S.T.E.A.M portal, recorded separately from the plan amounts; debit card charges carry none (see [Credit Card Surcharges](#credit-card-surcharges)).
 
-Payment Plans are available through the API. They are enabled per merchant account by ChaChing and are off by default. While they are off, every `/payment-plans` endpoint answers `403` with the error code `PAYMENT_PLANS_NOT_ENABLED` and the message `Payment Plans are not enabled for this account. Contact Chaching to enable them.`
+Payment Plans are available through the API. They are enabled per merchant account by ChaChing and are off by default. While they are off, every `/payment-plans` endpoint answers `403` with the error code `PAYMENT_PLANS_NOT_ENABLED` and the message `Payment Plans are not enabled for this account. Contact Chaching to enable them.` Accounts created through the platform API have payment plans enabled.
 
 Merchants also work with payment plans in the ChaChing dashboard. On an account that charges through iPOSpays (Dejavoo), the dashboard collects the deposit of a plan — its down payment, or its first installment when it has none — on one of the account's registered terminals and takes payments on a terminal, through the same deposit and payment flows this page describes. Nothing changes for an integration: every endpoint, object and webhook on this page works as documented.
 
-Every endpoint on this page authenticates with the account API key in the `cc-api-key` header, like every other public endpoint. Amounts are integers in cents, dates and timestamps are Unix seconds, and field names are `snake_case`. For every request and response schema, see the [API Reference](./api.json). For the webhook payloads, see [Webhooks](./webhook.md). Some endpoints require the secret key (`sk_`); each such section says so.
+Every endpoint on this page authenticates with the account API key in the `cc-api-key` header, like every other public endpoint. Amounts are integers in cents, dates and timestamps are Unix seconds, and field names are `snake_case`. For every request and response schema, see the [API Reference](./api.json). For the webhook payloads, see [Webhooks](./webhook.md). Every endpoint on this page requires the account secret API key (`sk_`), or a platform key with `Chaching-Account` (see [Platforms](./platforms.md)), in the `cc-api-key` header. A publishable key (`pk_`) answers `403` `SECRET_API_KEY_REQUIRED` on every endpoint.
 
 ---
 
@@ -36,7 +36,7 @@ For example, $2,100.00 at $200.00 a month with no down payment and the remainder
 | `canceled` | You canceled the plan. Installments not yet billed are removed; amounts already invoiced stay collectible. |
 | `awaiting_deposit` | The plan was created without a payment method and waits for its deposit — the down payment when the plan has one, else its first installment — which the customer pays on one of your Dejavoo terminals. See **Collect the First Installment on a Terminal**. |
 
-`paid_off` and `canceled` are final. The status value is `canceled`, with one `l`.
+`paid_off` and `canceled` are final. The status value is `canceled`, with one `l`. A plan in `awaiting_deposit` accepts no payment, external payments included, until the deposit is collected on a terminal.
 
 | **From** | **To** | **When** | **Event** |
 | --- | --- | --- | --- |
@@ -67,11 +67,13 @@ Request body:
   "down_payment_amount": 30000,
   "installment_amount": 20000,
   "interval": "monthly",
-  "start_date": 1760400000,
+  "start_date": 1811808000,
   "remainder_placement": "first",
   "payment_method": "9f3a1c2e-7b45-4d18-a6c0-2f8e5b7d1a94"
 }
 ```
+
+Replace start_date with a day after today.
 
 | **Field** | **Required** | **Rules** |
 | --- | --- | --- |
@@ -83,7 +85,7 @@ Request body:
 | `installment_amount` | one of the two | Integer cents, at least `1`. Send exactly one of `installment_count` and `installment_amount`; ChaChing derives the other. |
 | `down_payment_amount` | no | Integer cents, `0` or more and less than `total_amount`. Default `0`. |
 | `interval` | no | `weekly`, `biweekly`, `monthly` or `annual`. Default `monthly`. On test environments, such as stage, `daily` is also accepted; production refuses `daily` with `400` `PAYMENT_PLAN_INTERVAL_INVALID`. An `annual` plan cannot start on 29 February. |
-| `start_date` | no | Unix seconds: the due date of installment 1. Only the UTC calendar date is used: the time of day is dropped, the plan starts at 00:00:00 UTC of that date, and that is the `start_date` the plan returns. It must fall on a later calendar day (UTC) than the request; a date on the day of the request is refused. Default: one interval after the day of the request. |
+| `start_date` | no | Unix seconds: the due date of installment 1. Only the calendar date is used and the plan returns 00:00:00 UTC of that date. It must be later than today's date both in UTC and in the account time zone, and, for a start within the next two UTC days, late enough that installment 1 does not bill within an hour of the request; otherwise the request answers `400` `PAYMENT_PLAN_START_DATE_INVALID` and the message names the earliest valid date. Default: one interval after today in the account time zone, never earlier than the day after the current UTC date. |
 | `remainder_placement` | no | `first` or `last`. Default `first`. |
 | `payment_method` | no | The id of a payment method of this customer, as returned by the payment-methods endpoints. Leave it out to collect the deposit on a terminal: the down payment when `down_payment_amount` is above `0`, else installment 1. |
 
@@ -91,7 +93,7 @@ Without `payment_method`, the plan opens in `awaiting_deposit`, and its deposit 
 
 What happens when a plan is created with `payment_method`:
 
-- Before charging anything, ChaChing checks the schedule it registered against the expected installment dates: every date for a plan of up to 12 installments, and, for a longer plan, the first installment date (plus the second when the first installment carries the odd amount). A date that cannot be projected because the customer has another subscription that bills often, such as a daily one, is not checked, and the plan is still created. A date more than 36 months after the day the check runs (UTC) is not checked either, and the plan is still created. A mismatch answers `500` `PAYMENT_PLAN_SCHEDULE_MISMATCH`, and no plan is created.
+- Before charging anything, ChaChing checks the schedule it registered against the expected installment dates: every date for a plan of up to 12 installments, and, for a longer plan, the first installment dates (the exact set depends on the plan). A date that cannot be projected because the customer has another subscription that bills often, such as a daily one, is not checked, and the plan is still created. A date more than 36 months after the day the check runs (UTC) is not checked either, and the plan is still created. A mismatch answers `500` `PAYMENT_PLAN_SCHEDULE_MISMATCH`, and no plan is created.
 - When `down_payment_amount` is greater than `0`, ChaChing charges it immediately against `payment_method` and records it as installment sequence `0`, already paid. When the charge is declined, the request answers `402` `PAYMENT_PLAN_DOWN_PAYMENT_DECLINED` and no plan is created. When its outcome cannot be confirmed, the request answers `502` `PAYMENT_PLAN_DOWN_PAYMENT_UNCONFIRMED`, no plan is created, and the charge is not reversed because it can still settle. The response's `down_payment_invoice_id` is the id of that down-payment invoice; once its charge has settled, send the same request again, with the same `Idempotency-Key` or a new one, and ChaChing handles the invoice as the next item describes.
 - Before it charges a down payment, ChaChing looks for an earlier down-payment invoice of the same customer and the same amount that no plan uses, which is what a create that did not finish leaves behind. When that invoice was paid with the same `payment_method` and was not refunded, the new plan uses that payment: nothing is charged again, and installment `0` carries that earlier invoice in `invoice` and the time of that payment in `paid_at`. When its charge failed, ChaChing voids it and charges the down payment again. When that invoice is still open without a confirmed outcome, when it was settled with a different payment method or without a card payment, when more than one such invoice was paid, or when a failed invoice cannot be voided, the request answers `409` `PAYMENT_PLAN_DOWN_PAYMENT_PENDING`, no plan is created and nothing is charged. From the next UTC day, an earlier down-payment invoice that is still unpaid answers `409` `PAYMENT_PLAN_CUSTOMER_DELINQUENT` instead, until it is paid or voided. An earlier down-payment invoice of a different amount is not matched, so check the customer's invoices before you change `down_payment_amount` after a `502`.
 - `payment_method` becomes the customer's default payment method, and the installments are charged against it.
@@ -101,6 +103,8 @@ What happens when a plan is created with `payment_method`:
 ## The Card on File
 
 A plan with no down payment runs entirely on a card the customer saved earlier. ChaChing does not run a $0.00 card verification. It accepts the saved card only when the card was saved through an approved authorization that established it for automatic payments; otherwise the request answers `409` `PAYMENT_PLAN_CREDENTIAL_NOT_ESTABLISHED` and nothing is charged. Create the plan with a down payment — its charge establishes the card — or ask the customer to enter the card again. On the NMI gateway, a card added to the customer vault without a transaction is refused this way.
+
+On a Dejavoo account, a card saved while the customer pays a hosted invoice cannot be charged again: create the plan with that card and the down payment is declined. Save the card through the subscribe checkout or collect the deposit on a terminal.
 
 Payment Plans run on accounts whose payment gateway is Dejavoo or NMI. On any other gateway the request answers `400` `PAYMENT_PLAN_GATEWAY_NOT_SUPPORTED`.
 
@@ -148,7 +152,7 @@ Moved to [Payment Plans on a Terminal](./payment-plans-terminal.md#deposit-attem
 
 - `GET /payment-plans` lists your plans, newest first, with the page parameters `page` and `take` (`take` at most `50`). Filter with `search`, a URL-encoded JSON object: `{"customer": "cus_739c07713fd4b68565a969cd", "status": "past_due,defaulted"}`. `status` takes one status or a comma-separated list. A `search` value that is not valid JSON answers `400`. Add `external_id` to return only the plan whose `external_id` equals that value. Leading and trailing spaces, tabs and line breaks of the value are removed first, then it must equal the stored value exactly (case-sensitive). A value that matches nothing returns an empty page; a value that is empty, blank, longer than 255 characters, contains a control character, or is sent twice answers `400`.
 - `GET /payment-plans/{id}` returns one plan.
-- `GET /payment-plans/{id}/installments` returns the plan's installments in ascending `sequence` order, the down payment first when there is one.
+- `GET /payment-plans/{id}/installments` returns the plan's installments in ascending `sequence` order, the down payment first when there is one. `GET /payment-plans/{id}/installments` is paged like the other lists: `page` and `take` (default `10`, at most `50`); it answers `{ "data": [...], "meta": { "page", "take", "items_total", "pages_total" } }`. A 60-installment plan needs two pages at `take=50`. `GET /invoices` has no plan filter: read each installment's `invoice` id.
 
 The Payment Plan object carries `description`: the text sent when the plan was created, or `null` when none was sent. It cannot be changed afterwards.
 
@@ -161,6 +165,8 @@ An installment's `status` is `scheduled`, `paid`, `failed` or `canceled`. It rea
 The Invoice object, on the invoice endpoints and in every `invoice.*` webhook, carries `payment_plan`, `installment` and `payment_plan_charge`. All three are `null` on an invoice that belongs to no payment plan, and an invoice raised for a payment plan reports `subscription: null`. `payment_plan_charge` describes the plan charge the invoice records: `{ "id": "pp_1ef17ace4b4d96ff32461285", "installment": "ppi_9c1a3d0e2f4b8756a1c0d3ef", "sequence": 3, "payment": "ppp_5d2c8e1f0a3b4c6d7e8f9a0b", "kind": "installment" }`. `id` is the plan; `installment` and `sequence` are the installment the charge pays, both `null` for an extra payment and a payoff; `payment` is the Payment object that paid the invoice, `null` for the down payment charged when the plan is created, for a deposit collected on a terminal and for an installment paid by its automatic charge; `kind` is `down_payment`, `deposit` (the first installment collected on a terminal), `installment`, `extra_payment` or `payoff`. `payment_plan_charge` is also `null` on a plan invoice not matched to an installment yet. An invoice that records the principal part of a payment reports `installment: null`.
 
 ## Preview a Schedule
+
+This endpoint requires the account secret API key (`sk_`), or a platform key with `Chaching-Account`.
 
 `POST /payment-plans/preview` takes the body of `POST /payment-plans` and answers `200` with the schedule that body would produce, without creating anything:
 
@@ -186,9 +192,15 @@ The Invoice object, on the invoice endpoints and in every `invoice.*` webhook, c
 }
 ```
 
+The values shown are illustrative.
+
 `mode` is `card_on_file` when the body carries `payment_method` and `terminal_deposit` when it does not. `installments` lists installments 1 to N; the down payment appears only in `down_payment_amount`. `description` is accepted and ignored.
 
-The preview checks the customer, your payment gateway, the interval, `start_date` and the amounts, with the codes `POST /payment-plans` uses for the same checks: `404` `CUSTOMER_NOT_FOUND`, and `400` `PAYMENT_PLAN_GATEWAY_NOT_SUPPORTED`, `PAYMENT_PLAN_INTERVAL_INVALID`, `PAYMENT_PLAN_START_DATE_INVALID`, `PAYMENT_PLAN_SCHEDULE_INVALID` and `PAYMENT_PLAN_AMOUNT_INVALID`. It does not check the payment method, the customer's account standing and unpaid invoices, an earlier down payment still pending, nor your retry settings, so `POST /payment-plans` can still refuse a body whose preview succeeded: with `404` `PAYMENT_METHOD_NOT_FOUND`; with `409` `PAYMENT_PLAN_PAYMENT_METHOD_NOT_SUPPORTED`, `PAYMENT_PLAN_CREDENTIAL_NOT_ESTABLISHED`, `PAYMENT_PLAN_AUTO_PAY_OFF`, `PAYMENT_PLAN_ACCOUNT_INVOICED_AHEAD`, `PAYMENT_PLAN_CUSTOMER_DELINQUENT`, `PAYMENT_PLAN_DUNNING_SCHEDULE_TOO_SHORT`, `PAYMENT_PLAN_UNPAID_OUTCOME_NOT_SUPPORTED` and `PAYMENT_PLAN_DOWN_PAYMENT_PENDING`; and with every outcome of the down-payment charge, the billing engine and the `Idempotency-Key` that [When a Plan Cannot Be Created](#when-a-plan-cannot-be-created) and [Duplicate Requests](#duplicate-requests) describe.
+The preview checks the customer, your payment gateway, the interval, `start_date` and the amounts, with the codes `POST /payment-plans` uses for the same checks: `404` `CUSTOMER_NOT_FOUND`, and `400` `PAYMENT_PLAN_GATEWAY_NOT_SUPPORTED`, `PAYMENT_PLAN_INTERVAL_INVALID`, `PAYMENT_PLAN_START_DATE_INVALID`, `PAYMENT_PLAN_SCHEDULE_INVALID` and `PAYMENT_PLAN_AMOUNT_INVALID`. It does not check the payment method, the customer's account standing and unpaid invoices, an earlier down payment still pending, nor your retry settings, so `POST /payment-plans` can still refuse a body whose preview succeeded: with `404` `PAYMENT_METHOD_NOT_FOUND`; with `409` `PAYMENT_PLAN_PAYMENT_METHOD_NOT_SUPPORTED`, `PAYMENT_PLAN_CREDENTIAL_NOT_ESTABLISHED`, `PAYMENT_PLAN_AUTO_PAY_OFF`, `PAYMENT_PLAN_ACCOUNT_INVOICED_AHEAD`, `PAYMENT_PLAN_CUSTOMER_DELINQUENT`, `PAYMENT_PLAN_DUNNING_SCHEDULE_TOO_SHORT`, `PAYMENT_PLAN_UNPAID_OUTCOME_NOT_SUPPORTED` and `PAYMENT_PLAN_DOWN_PAYMENT_PENDING`; and with every outcome of the down-payment charge, the billing engine and the `Idempotency-Key` that [When a Plan Cannot Be Created](#when-a-plan-cannot-be-created) and [Duplicate Requests](#duplicate-requests) describe. The preview checks only the shape of `payment_method`; it does not check that the payment method belongs to the customer.
+
+| **Status** | **`error`** | **When** |
+| --- | --- | --- |
+| `502` | `PAYMENT_PLAN_BILLING_ENGINE_UNAVAILABLE` | The billing state could not be read; nothing was started. Retry. |
 
 ## List a Plan's Payments
 
@@ -196,7 +208,7 @@ The preview checks the customer, your payment gateway, the interval, `start_date
 
 `payment_plan_status`, `remaining_balance` and `installments_remaining` describe the plan at the time of the request, not at the time of each payment. A down payment collected on a terminal is not a payment: read it as installment `0` of `GET /payment-plans/{id}/installments` and in the plan's `deposit`.
 
-Both endpoints require the account's secret API key (`sk_…`): a publishable key answers `403` with `SECRET_API_KEY_REQUIRED`, and a request that also carries an `Authorization` header answers `409`.
+This endpoint requires the account secret API key (`sk_`), or a platform key with `Chaching-Account`.
 
 ---
 
@@ -342,7 +354,7 @@ A payment recorded with `external: true` is not a card charge. The customer rece
 
 A declined down payment sends the customer no email: the request answers `402` `PAYMENT_PLAN_DOWN_PAYMENT_DECLINED`, and no plan exists.
 
-**Description.** A plan created without `description` prints `Payment plan` followed by the plan id in its place.
+**Description.** A plan created without `description` prints `Payment plan` followed by the plan's `reference` for a plan created without `payment_method`, and by the plan id otherwise.
 
 **Copies of receipts.** Receipts go to the customer. A copy of a receipt goes to your account owner only when both the ChaChing-enabled receipt copy and the account's owner copies (`owner_email_copies_enabled`) are on; contact ChaChing to enable the receipt copy. Failed-payment and overdue notices copy the owner while `owner_email_copies_enabled` is `true`.
 
@@ -365,7 +377,7 @@ Customers and payment plans accept an optional `external_id` when you create the
 - **Scope.** A customer's `external_id` is unique among the active customers of your account, and a plan's among all payment plans of your account, whatever their status. A customer and a plan can carry the same value, and another account can use the same value.
 - **Set once.** The value is set when the object is created and never changes. `PATCH /customers/{id}` with `external_id` in the body answers `400` `CUSTOMER_EXTERNAL_ID_IMMUTABLE`; payment plans have no update endpoint. Customers and plans created before external ids existed have `external_id: null`.
 - **Duplicates.** `POST /customers` with a value an active customer of your account already carries answers `409` `CUSTOMER_EXTERNAL_ID_EXISTS`; `POST /payment-plans` with a value a plan of your account already carries answers `409` `PAYMENT_PLAN_EXTERNAL_ID_EXISTS`. The message names the existing `cus_…` or `pp_…` id and does not repeat the external id. A deleted customer frees its value. `POST /customers` and `POST /payment-plans` with an `external_id` that is not 1 to 255 characters or contains a control character answer `400` with no `error` field.
-- **Retries.** Send an `Idempotency-Key` header on every `POST /payment-plans` that carries an `external_id`. A retry with the same key replays the first answer instead of creating, or refusing, a second plan. Two concurrent creates with the same `external_id` and different keys can leave a charged down payment without a plan; refund it from its invoice.
+- **Retries.** Send an `Idempotency-Key` header on every `POST /payment-plans` that carries an `external_id`. A retry with the same key replays the first answer instead of creating, or refusing, a second plan. Two concurrent creates with the same `external_id` and different keys can leave a charged down payment without a plan. Contact Chaching support with the invoice id of the down payment: there is no refund operation for payment plan charges.
 - **Lookup.** `GET /customers?external_id=…` and `GET /payment-plans?external_id=…` return the normal page, filtered by an exact, case-sensitive match. Leading and trailing spaces, tabs and line breaks of the value are removed first, then it must equal the stored value exactly (case-sensitive). A value that matches nothing returns an empty page; a value that is empty, blank, longer than 255 characters, contains a control character, or is sent twice answers `400`.
 - **Echo.** The Customer and Payment Plan objects carry `external_id`. The Payment Plan object also carries `customer_external_id`; the Installment and Payment objects carry `customer`, `customer_external_id` and `payment_plan_external_id`; the Invoice object carries `customer_external_id` and `payment_plan_external_id`. Webhooks carry the same objects.
 
@@ -379,10 +391,10 @@ Errors use the standard body `{ "statusCode", "message", "error", "timestamp", "
 
 | **Status** | **`error`** | **When** |
 | --- | --- | --- |
-| `400` | `PAYMENT_PLAN_SCHEDULE_INVALID` | Both or neither of `installment_count` and `installment_amount` were sent, `installment_count` is above `60` or larger than the amount to finance allows, `installment_amount` is larger than the amount to finance, or the amounts do not form a valid schedule. |
+| `400` | `PAYMENT_PLAN_SCHEDULE_INVALID` | Both or neither of `installment_count` and `installment_amount` were sent, `installment_count` is above `60` or larger than the amount to finance allows, `installment_amount` is larger than the amount to finance, or the amounts do not form a valid schedule, or `installment_amount` would need more than `60` installments. |
 | `400` | `PAYMENT_PLAN_AMOUNT_INVALID` | `down_payment_amount` is not below `total_amount`, or a payment's `amount` is below `1`. |
 | `400` | `PAYMENT_PLAN_INTERVAL_INVALID` | `interval` is not one of the values this environment accepts: `weekly`, `biweekly`, `monthly` and `annual` everywhere, and `daily` on test environments only. |
-| `400` | `PAYMENT_PLAN_START_DATE_INVALID` | `start_date` is not after the day of the request, or `interval` is `annual` and `start_date` is 29 February (UTC). |
+| `400` | `PAYMENT_PLAN_START_DATE_INVALID` | `start_date` is not after the day of the request, or `interval` is `annual` and `start_date` is 29 February (UTC), or the start is within an hour of the customer's billing time, or is not after today in the account time zone. |
 | `400` | `PAYMENT_PLAN_GATEWAY_NOT_SUPPORTED` | The account's payment gateway does not support Payment Plans. |
 | `400` | `PAYMENT_PLAN_AMOUNT_EXCEEDS_BALANCE` | A payment is larger than what the plan accepts. Nothing is charged. |
 | `400` | `PAYMENT_METHOD_REQUIRED` | A payment was sent with no `payment_method`, it is not external, and the customer has no default payment method. |
@@ -391,7 +403,7 @@ Errors use the standard body `{ "statusCode", "message", "error", "timestamp", "
 | `402` | `PAYMENT_PLAN_DOWN_PAYMENT_DECLINED` | The down payment was declined. No plan was created. |
 | `402` | `PAYMENT_DECLINED` | The first charge of a payment was declined. Nothing was applied. |
 | `403` | `PAYMENT_PLANS_NOT_ENABLED` | Payment Plans are not enabled for this account. |
-| `403` | `SECRET_API_KEY_REQUIRED` | A deposit endpoint, a terminal payment endpoint, a terminal attempt endpoint, the schedule preview or the payments list was called with a publishable (`pk_…`) API key. |
+| `403` | `SECRET_API_KEY_REQUIRED` | Any endpoint was called with a publishable (`pk_...`) API key. |
 | `404` | `PAYMENT_PLAN_NOT_FOUND` | The plan id does not resolve for this account. |
 | `404` | `CUSTOMER_NOT_FOUND` | The customer id does not resolve for this account. |
 | `404` | `PAYMENT_METHOD_NOT_FOUND` | The payment method does not resolve, or it does not belong to the customer. |
@@ -405,6 +417,7 @@ Errors use the standard body `{ "statusCode", "message", "error", "timestamp", "
 | `409` | `PAYMENT_PLAN_CUSTOMER_DELINQUENT` | The customer's account is in the late-payment warning or a failed-payment outcome, or carries an invoice unpaid for one day or more. |
 | `409` | `PAYMENT_PLAN_AUTO_PAY_OFF` | A plan created with `payment_method` has a down payment and automatic payments are turned off for the customer in the billing engine. Nothing was created or charged. Create the plan without a down payment. |
 | `409` | `PAYMENT_PLAN_ACCOUNT_INVOICED_AHEAD` | The customer was already invoiced through a date on or after `start_date`. The message names that date. Nothing was created; choose a `start_date` after it. |
+| `409` | `PAYMENT_PLAN_DOWN_PAYMENT_NOT_ATTEMPTED` | The down payment was not attempted because the payment processor was restarting. Nothing was charged and no plan was created; retry later. |
 | `409` | `PAYMENT_PLAN_DOWN_PAYMENT_PENDING` | An earlier down-payment invoice of the same amount for this customer is still open, or was settled in a way this request cannot use (a different payment method, no card payment, or more than one such invoice). Nothing was created or charged by this request. Check the customer's invoices and transactions: wait for an open charge to finish, send the `payment_method` that paid, or refund or void the invoices that should not count, then send the request again. |
 | `409` | `PAYMENT_PLAN_EXTERNAL_ID_EXISTS` | A payment plan of your account already carries this `external_id`. The message names that plan's `pp_…` id. Nothing was created or charged by this request. |
 | `409` | `PAYMENT_PLAN_NOT_PAYABLE` | The plan is `awaiting_deposit` or `paid_off`. |

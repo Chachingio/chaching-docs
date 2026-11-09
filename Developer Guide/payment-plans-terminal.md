@@ -14,7 +14,7 @@ A terminal is a physical Dejavoo device of your account, addressed by its own TP
 | `POST /dejavoo/terminals` | Registers a terminal from its `tpn`, `label` and 10-character `spin_auth_key`. ChaChing checks the pair with the terminal network before saving it, and a failed check saves nothing. |
 | `PATCH /dejavoo/terminals/{id}` | Changes a terminal. The updatable fields are `label`, `enabled`, `spin_auth_key`, `register_id`, `isv_id` and `feed_enable_requested`. There is no delete: send `{ "enabled": false }` to disable it. |
 
-The `dejavoo_terminal` object carries `object`, `id`, `tpn`, `label`, `enabled`, `register_id`, `isv_id`, `spin_auth_key_set`, `credential_rotated_at`, `last_probe_at`, `last_probe_status` (`Online`, `Offline` or `null`), `build`, `serial`, `feed_enable_requested_at` and `created`. Timestamps are Unix seconds. The Auth Key is write-only: `spin_auth_key_set` is always `true` and the key is never returned.
+The `dejavoo_terminal` object carries `object`, `id`, `tpn`, `label`, `enabled`, `register_id`, `isv_id`, `spin_auth_key_set`, `credential_rotated_at`, `last_probe_at`, `last_probe_status` (`Online`, `Offline` or `null`), `build`, `serial`, `feed_enable_requested_at` and `created`. Timestamps are Unix seconds. The Auth Key is write-only: `spin_auth_key_set` is always `true` and the key is never returned. The terminal object carries the full TPN; attempt objects never do.
 
 | **Status** | **Error** | **When** |
 | --- | --- | --- |
@@ -28,6 +28,8 @@ The `dejavoo_terminal` object carries `object`, `id`, `tpn`, `label`, `enabled`,
 | `409` | `SPIN_AUTH_KEY_UNREADABLE` | The stored Auth Key cannot be read; send it again. |
 | `422` | `SPIN_CREDENTIALS_REJECTED` | The TPN and Auth Key pair was refused. A wrong key and an unknown TPN carry the same error code. |
 | `503` | `SPIN_UNREACHABLE` | The terminal network did not answer. |
+
+A terminal `id` that is not a UUID answers `400` `Validation failed (uuid is expected)`. `PATCH` with an empty body answers `DEJAVOO_TERMINAL_UPDATE_EMPTY` before the id is looked up. There is no single-attempt read: `GET /dejavoo/terminal-attempts` with `search` is the only read of attempts.
 
 ---
 
@@ -44,7 +46,7 @@ A plan created without `payment_method` collects its deposit on one of your Deja
 
 ## Start the Deposit
 
-1. Create the plan without `payment_method`. It answers `201` in status `awaiting_deposit`, and its `deposit` object carries the plan's `reference`, its `kind`, the `amount` the terminal collects, `status: "pending"` and `attempt: null`. `kind` is `down_payment` when the plan has a down payment, and `amount` is then the down payment; otherwise `kind` is `installment_1` and `amount` is the amount of installment 1. Until the deposit is collected, a down payment counts as an unpaid installment: `remaining_balance` is `total_amount`, `installments_remaining` counts it, and `next_due_date` is 00:00:00 UTC of the day the plan was created.
+1. Create the plan without `payment_method`. It answers `201` in status `awaiting_deposit`, and its `deposit` object carries the plan's `reference`, its `kind`, the `amount` the terminal collects, `status: "pending"` and `attempt: null`. `kind` is `down_payment` when the plan has a down payment, and `amount` is then the down payment; otherwise `kind` is `installment_1` and `amount` is the amount of installment 1. Until the deposit is collected, a down payment counts as an unpaid installment: `remaining_balance` is `total_amount`, `installments_remaining` counts it, and `next_due_date` is the due date of the deposit: for a plan with a down payment, 00:00:00 UTC of the creation day in the account time zone; for a plan without one, its `start_date`.
 2. Call `POST /payment-plans/{id}/deposit/terminal` with the terminal:
 
    ```json
@@ -55,6 +57,13 @@ A plan created without `payment_method` collects its deposit on one of your Deja
 
    It answers `202` with the Payment Plan object, and `deposit.attempt.state` is `in_flight`. The terminal shows the amount, including the credit card surcharge your account adds when the card is a credit card; the customer confirms it and presents the card.
 3. Poll `GET /payment-plans/{id}` every 2 to 3 seconds until `deposit.attempt.state` is no longer `in_flight`. The request allows the customer up to 180 seconds at the terminal; the terminal itself times out the card prompt earlier (about 30 seconds idle plus 90 seconds of card entry on the P1, measured 2026-10-14). When the terminal's answer is lost, ChaChing keeps confirming the sale for up to 60 more seconds, so an attempt leaves `in_flight` at most 240 seconds after it started.
+
+`POST /payment-plans/{id}/deposit/terminal` also answers:
+
+| **Status** | **`error`** | **When** |
+| --- | --- | --- |
+| `409` | `PAYMENT_PLAN_START_DATE_TOO_SOON` | Installment 1 would bill within an hour; create a plan with a later `start_date`. |
+| `502` | `PAYMENT_PLAN_BILLING_ENGINE_UNAVAILABLE` | The billing state could not be read; nothing was started. Retry. |
 
 The `deposit` object while the customer is at the terminal:
 
@@ -136,7 +145,8 @@ Fields of the attempt object:
 - A plan accepts up to 99 attempts; the next one answers `409` `PAYMENT_PLAN_DEPOSIT_ATTEMPTS_EXHAUSTED`.
 - A plan whose latest attempt is not resolved yet (`in_flight`, `resolving` or `approved_no_credential`) cannot be canceled: `POST /payment-plans/{id}/cancel` answers `409` `PAYMENT_PLAN_DEPOSIT_IN_FLIGHT` with the message `A terminal deposit attempt is unresolved. Resolve it with POST /payment-plans/{id}/deposit before canceling the plan.` until the attempt reaches a final state. Resolve it first with `POST /payment-plans/{id}/deposit`.
 - When the plan is activated, ChaChing sends `payment_plan.activated` and `payment_plan.installment_paid` for the installment the deposit paid — sequence `0` for a down payment, else sequence `1` — (and `payment_plan.completed` for a plan with one installment and no down payment), and emails the customer the receipt for the down payment or for payment 1.
-- Every Payment Plan object, in the responses and in the webhooks, carries `deposit.attempt`.
+- Every Payment Plan object carries `deposit`: an object with `attempt` for a plan created without `payment_method`, and `null` for a plan created with one.
+- A plan in `awaiting_deposit` accepts no payment, external payments included, until the deposit is collected on a terminal.
 - An attempt that stays `resolving` because the terminal never reports its outcome can be listed and force-closed: see [Find and Force-Close a Stuck Terminal Attempt](#find-and-force-close-a-stuck-terminal-attempt).
 
 ---
@@ -233,7 +243,7 @@ Fields of the `terminal` object (`null` on a payment that was not taken on a ter
 
 ## Rules for Terminal Payments
 
-- `POST /payment-plans/{id}/payments` with a terminal, the resolve endpoint and the cancel endpoint accept only your account's secret API key (`sk_…`): a publishable key (`pk_…`) answers `403` `SECRET_API_KEY_REQUIRED`, and a request that also sends an `Authorization` header answers `409` with no `error` field. `GET /payment-plans/{id}/payments/{payment_id}` accepts any API key of your account.
+- `POST /payment-plans/{id}/payments` with a terminal, the resolve endpoint and the cancel endpoint accept only your account's secret API key (`sk_…`): a publishable key (`pk_…`) answers `403` `SECRET_API_KEY_REQUIRED`, and a request that also sends an `Authorization` header answers `409` with no `error` field. `GET /payment-plans/{id}/payments/{payment_id}` accepts the secret key like every other endpoint.
 - Only a plan on the Dejavoo gateway takes terminal payments; any other plan answers `409` `PAYMENT_PLAN_TERMINAL_NOT_SUPPORTED`. `external: true` with a terminal answers `400` `PAYMENT_PLAN_TERMINAL_EXTERNAL_NOT_ALLOWED`.
 - The terminal must be registered, enabled, turned on and connected, exactly as for a deposit: the same codes apply (`DEJAVOO_TERMINAL_NOT_FOUND`, `DEJAVOO_TERMINAL_DISABLED`, `DEJAVOO_TERMINAL_OFFLINE`, `SPIN_AUTH_KEY_UNREADABLE`, `DEJAVOO_TERMINAL_ISV_ID_INVALID`, `SPIN_CREDENTIALS_REJECTED`, `SPIN_UNREACHABLE`).
 - While a terminal payment of the plan reads `processing`, every new payment on the plan answers `409` `PAYMENT_PLAN_PAYMENT_PENDING_CONFIRMATION`, and `POST /payment-plans/{id}/cancel` answers `409` `PAYMENT_PLAN_PAYMENT_PENDING_CONFIRMATION` with the message `A terminal payment on this plan is unresolved. Resolve it with POST /payment-plans/{id}/payments/{payment_id}/resolve before canceling the plan.` A sale on a terminal that is already running another one answers `409` `DEJAVOO_TERMINAL_BUSY`.
