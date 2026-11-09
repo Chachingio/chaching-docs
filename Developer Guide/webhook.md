@@ -838,21 +838,6 @@ Events:
 ```json
 {
   "id": "pm_XXXXXXXX",
-  "object": "payment_method",
-  "allow_redisplay": "string",
-  "billing_details": {
-    "address": {
-      "city": "string | null",
-      "country": "string | null",
-      "line1": "string | null",
-      "line2": "string | null",
-      "postal_code": "string | null",
-      "state": "string | null"
-    },
-    "email": "string | null",
-    "name": "string | null",
-    "phone": "string | null"
-  },
   "card": {
     "brand": "string | null",
     "last4": "string | null",
@@ -860,11 +845,7 @@ Events:
     "exp_year": "number | null",
     "wallet_type": "apple_pay | google_pay | null"
   },
-  "created": 1672531200,
-  "customer": "cus_XXXXXXXX | null",
-  "livemode": false,
-  "metadata": {},
-  "type": "string"
+  "customer": "cus_XXXXXXXX | null"
 }
 ```
 
@@ -877,9 +858,7 @@ CAPTURE PaymentMethodPublicDto
 
 ### Notes
 
-- The `type` field defines the structure of the payment method (e.g., `card`)
-- The corresponding object (e.g., `card`) is included based on the `type`
-- Some fields may be `null` depending on the payment method and available data
+- `data` is the Payment Method object: `id`, `card` and `customer`. Every key of `card` can be `null`, and so can `customer`.
 
 ---
 
