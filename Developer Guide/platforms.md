@@ -64,7 +64,7 @@ CAPTURE PlatformAccountPublicDto
 Returns the Account object with status `201`. The company is created on its first use and reused afterwards by `company.external_id`. When an active account of that company already has the same `external_id`, the request returns it with status `200`, unchanged: its `name`, `time_zone` and the company `name` are not updated, and a deactivated account stays deactivated. Two concurrent creates of the same account return one account. No route changes an account's `name`, `time_zone` or ids after creation.
 
 - `time_zone` defaults to `America/New_York`. It accepts an IANA zone whose UTC offset stays between -10:00 and +00:00 all year (the US zones, `Pacific/Honolulu`, `UTC`); any other answers `400 ACCOUNT_TIME_ZONE_INVALID`. Payment plan dates are calendar days in this zone; billing runs at 10:00 UTC.
-- With an `Idempotency-Key`, the rules of [Idempotency](./integrating-staging.md#idempotency) apply. A `500` stored under an `Idempotency-Key` replays for 24 hours, so the retry uses a NEW key with the same `external_id`.
+- With an `Idempotency-Key`, the rules of [Idempotency](./integrating-staging.md#idempotency) apply. A `500` stored under an `Idempotency-Key` replays for 24 hours, so repeat the request with the same `external_id` values and a NEW `Idempotency-Key`: the create is idempotent on those ids and answers `200` with the existing account or `201`.
 
 A new account starts with payment plans enabled, customer emails and owner copies off (your platform sends every notice from webhooks), and the revenue-recovery retries 1, 3, 5 and 7 days with the outcome `cancel`. Under `cancel`, a plan whose customer reaches the outcome stops being charged; change it with `PUT /revenue-recovery` (see [Subscription Lifecycle](./subscription-lifecycle.md)).
 
@@ -75,7 +75,7 @@ A new account starts with payment plans enabled, customer emails and owner copie
 | `400` | `IDEMPOTENCY_KEY_INVALID` | The key is not 1 to 255 printable ASCII characters without spaces. |
 | `409` | `IDEMPOTENCY_KEY_IN_PROGRESS` | The first request with this key is still running. |
 | `422` | `IDEMPOTENCY_KEY_REUSED` | The key was used with a different body. |
-| `500` | no code | The account could not be created; retry with the same external_id and a new Idempotency-Key. |
+| `500` | no code | The outcome is unknown: the account may or may not exist. Repeat the request with the same external_id values (company and account) and a new Idempotency-Key: it returns the existing account or creates it. A billing-engine record created during a failed attempt can remain behind. |
 | `502` | `IDEMPOTENCY_REQUEST_INCOMPLETE` | The first request with this key never completed. Read the account list before you retry with a new key. |
 
 ## List and retrieve accounts
