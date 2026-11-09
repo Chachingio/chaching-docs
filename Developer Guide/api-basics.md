@@ -127,7 +127,7 @@ Every list except the three named below takes `page` (an integer from `1` to `10
 
 A `page` past the last page answers `200` with an empty `data`; a `page` above `1000000` answers `400`. `items_total` and `pages_total` are numbers. `order` takes `ASC` or `DESC`, in upper case.
 
-Three routes are exceptions. `GET /customers/search` answers a bare array of at most 50 customers, newest first, and takes no `page` or `take`. `GET /dejavoo/terminals` answers `{ "data": [...] }` with no `meta`. `GET /products/taxCodes` answers one object that maps each tax code to its category name, takes only `search`, and has no paging.
+Three routes are exceptions. `GET /customers/search` answers a bare array of at most 50 customers, newest first, and takes only `search`: any other query parameter, `page` and `take` included, answers `400`. `GET /dejavoo/terminals` answers `{ "data": [...] }` with no `meta`. `GET /products/taxCodes` answers one object that maps each tax code to its category name, takes only `search`, and has no paging.
 
 ## Search Filters
 
