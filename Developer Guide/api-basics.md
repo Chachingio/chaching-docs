@@ -186,4 +186,4 @@ These changes came before the first integrations went live. The API has no versi
 | Tax rate `percentage` | a string such as `"5.00"` | a number such as `5` |
 | Invoice `subscription`, `tax`, `total_taxes`, `period_start`, `period_end`, `next_payment_attempt`, `lines.data[].price.type` | absent when empty | present, `null` when empty |
 | Subscription `initiated_by`, `reason` in the API | absent | present, `null` outside a lifecycle event |
-| `POST /platform/accounts` when ChaChing cannot register the account's billing notifications | `201`, notifications lost | `500`, nothing kept; retry |
+| `POST /platform/accounts` when ChaChing cannot register the account's billing notifications | `201`, notifications lost | `500` means the outcome is unknown and the account may exist; repeating the request with the same `external_id` values and a new `Idempotency-Key` returns the existing account or creates it; a billing-engine record can remain behind |
