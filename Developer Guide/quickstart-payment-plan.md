@@ -75,7 +75,7 @@ export CHACHING_ACCOUNT_ID="acc_..."
 | --- | --- | --- | --- |
 | `400` | `ACCOUNT_TIME_ZONE_INVALID` | `time_zone` is not an accepted IANA zone. | Use a US zone such as `America/New_York`. |
 | `422` | `IDEMPOTENCY_KEY_REUSED` | The key was used with a different body. | Use a new key. |
-| `500` | no code | The account could not be created; nothing was kept. | Retry with a new `Idempotency-Key`, or none: the same `external_id` is safe to send again. |
+| `500` | no code | The account could not be created; retry with the same external_id and a new Idempotency-Key. | A `500` stored under an `Idempotency-Key` replays for 24 hours: retry with a new key and the same `external_id`. |
 
 ## 3. Save the location's Dejavoo credentials
 
