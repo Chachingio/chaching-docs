@@ -42,45 +42,13 @@ graph TD;
 
 ---
 
-# Retry Behavior
-
-ChaChing automatically retries failed webhook deliveries.
-
-Retries are triggered when:
-
-- Network failure
-- Timeout
-- HTTP `5xx` response
-- HTTP `408` (Request Timeout)
-- HTTP `429` (Too Many Requests)
-
-Retries are **not** triggered when the endpoint returns any other non-`2xx` status — every `3xx` redirect and every `4xx` other than `408` and `429`, for example `400`, `401`, `403`, `404` and `410`. Those statuses tell ChaChing the endpoint will never accept this payload, so the delivery status is set to `failure` after the first attempt and the returned status code is recorded in the delivery log.
-
-**Retry Flow:**
-
-- If a delivery fails with a retryable condition, the webhook is retried
-- If **max retries NOT reached,** retry continues
-- If **max retries reached,** the delivery status is set to `failure`
-- If a delivery is **permanently rejected**, no retry is scheduled and the delivery status is set to `failure` right away
-- A retry already scheduled is sent even if the endpoint's `enabled_events` changes in the meantime; a disabled or deleted endpoint receives no further retries
-
-**Retry Policy:**
-
-- Attempts: **5 retries** after the first delivery, for a maximum of 6 delivery attempts
-- Retry window: **approximately 43 minutes** — the delays between attempts are approximately 15 seconds, 45 seconds, 2 minutes, 10 minutes and 30 minutes, each randomized by up to 20% in both directions
-
-> ⚠️ Webhooks may be delivered multiple times. Ensure your system handles duplicates (use event `id`).
-> 
-
----
-
 # Key Concepts
 
 ## Webhooks are account-level
 
 - Webhooks are configured **per account**
 - Each account has its own webhook endpoints
-- Events generated in one account are **not shared** with other accounts
+- Events of one account are never sent to another account's endpoints. An endpoint registered with a platform key at `/platform/webhook-endpoints` receives the events of every account of that platform, with the same event `id` as any endpoint of that account. See [Platforms](./platforms.md#platform-webhooks).
 
 ---
 
@@ -94,7 +62,7 @@ Retries are **not** triggered when the endpoint returns any other non-`2xx` stat
 
 # Webhook Configuration
 
-Webhooks can be managed via the **UI** (Settings → Developer → Webhooks) or programmatically via the **REST API**. Both approaches support the full lifecycle: create, list, choose the events each endpoint receives, update, enable/disable, and delete endpoints.
+Webhooks can be managed via the **UI** (Settings, Developer settings, Webhooks) or programmatically via the **REST API**. Both approaches support the full lifecycle: create, list, choose the events each endpoint receives, update, enable/disable, and delete endpoints.
 
 > In the UI, only users with the **Developer** or **SuperAdmin** role can manage webhooks. Through the REST API, the account's secret API key manages them. For user roles details, refer to the section Manage → Users in the left panel of the ChaChing application.
 
@@ -114,7 +82,7 @@ Webhooks can be managed via the **UI** (Settings → Developer → Webhooks) or 
 
 ### Creating a Webhook
 
-1. Open **Developer Settings → Webhooks.**
+1. Open **Settings, Developer settings, Webhooks.**
 2. Click **Create webhook.**
 
 {% img src="../images/creatingWebhook.jpg" alt="creatingWebhook.jpg" withLightbox=true width="" height="" /%}
@@ -150,7 +118,9 @@ The **Logs** table of the Webhooks tab lists every delivery of the account, and 
 
 ## Via the REST API
 
-Manage webhook endpoints with the account **secret** API key (`sk_…`) in the `cc-api-key` header. A publishable key (`pk_…`) is refused with `403` and the error code `SECRET_API_KEY_REQUIRED`, and a request that also carries an `Authorization` header is refused with `409`. An account holds at most 16 endpoints.
+Manage webhook endpoints with the account **secret** API key (`sk_…`) in the `cc-api-key` header. A publishable key (`pk_…`) is refused with `403` and the error code `SECRET_API_KEY_REQUIRED`. Send no `Authorization` header (see [API Basics](./api-basics.md#authentication)). An account holds at most 16 endpoints.
+
+Two endpoints can have the same URL: each receives its own delivery of every event.
 
 ### Endpoints
 
@@ -202,7 +172,11 @@ POST /webhook-endpoints
 
 `endpoint` must be an `https` URL in production; an `http` URL is accepted only on non-production environments. A URL whose host is `localhost`, ends in `.local`, or is an IPv4 or IPv6 address in a private, loopback or link-local range is refused with `400`. The endpoint is created `active`, and the response is `201` with the Webhook Endpoint object. Creating a 17th endpoint answers `409` with the error code `WEBHOOK_ENDPOINTS_LIMIT_REACHED`. The create response also carries `secret`, the endpoint's signing secret (`whsec_…`). It is returned only in this response: store it on your server.
 
-`enabled_events` is required: a non-empty list of event types from [Event Types](#event-types), or `["*"]` for every event type, including event types added later. `*` cannot be combined with other values. Duplicates are removed, and the response lists the types in the order of the Event Types list. The errors are listed in [Event Type Errors](#event-type-errors).
+Every non-public address is refused: private, loopback, link-local, carrier-grade NAT (100.64.0.0/10), multicast, broadcast and documentation ranges. A hostname that resolves to such an address at delivery time is accepted when you save it, and every delivery to it fails with `error: "blocked"`.
+
+`enabled_events` is required: a non-empty list of event types from [Event Types](#event-types), or `["*"]` for every event type, including event types added later. `*` cannot be combined with other values. Duplicates are removed, and the response lists the types in the order of the Event Types list. `enabled_events` takes at most 64 values. The errors are listed in [Event Type Errors](#event-type-errors).
+
+A create with neither field reports the `endpoint` errors first; once `endpoint` is valid, a missing `enabled_events` answers `400` `WEBHOOK_ENABLED_EVENTS_REQUIRED`.
 
 ### List and Retrieve Endpoints
 
@@ -211,7 +185,7 @@ GET /webhook-endpoints
 GET /webhook-endpoints/{id}
 ```
 
-The list takes the page parameters `page` and `take` (`take` at most `50`) and answers `{ "data": [...], "meta": { "page": 1, "take": 10, "items_total": 2, "pages_total": 1 } }`.
+The list takes the page parameters `page` and `take` (`take` at most `50`) and answers `{ "data": [...], "meta": { "page": 1, "take": 10, "items_total": 2, "pages_total": 1 } }`. `GET /webhook-endpoints` accepts `search`, a URL-encoded JSON object with `endpoint` (exact match).
 
 ### Update an Endpoint
 
@@ -265,12 +239,14 @@ Filter with `search`, a URL-encoded JSON object. A filter value that is not vali
 
 | Key | Value | Example |
 | --- | --- | --- |
-| `event_id` | the exact event id | `{"event_id": "evt_0123456789abcdef01234567"}` |
+| `event_id` | the exact event id: `evt_` and 24 hexadecimal characters | `{"event_id": "evt_0123456789abcdef01234567"}` |
 | `event_type` | one or more event types, comma-separated | `{"event_type": "invoice.created,invoice.finalized"}` |
 | `status` | one or more of `pending`, `retry`, `success`, `failure`, comma-separated | `{"status": "failure,retry"}` |
 | `response_status_code` | the exact HTTP status | `{"response_status_code": 500}` |
-| `created` | a date filter: `type` `equal`, `after` or `before` with `date`; `between` with `from` and `to`; `inTheLast` with `amount` and `unit` | `{"created": {"type": "after", "date": "2026-10-01"}}` |
+| `created` | a date filter: `type` `equal`, `after` or `before` with `date`; `between` with `from` and `to`; `inTheLast` with `amount` and `unit` (`days`, `weeks`, `months` or `years`) | `{"created": {"type": "after", "date": "2026-10-01"}}` |
 | `endpoint` | text contained in the URL, on `GET /webhook-deliveries` only | `{"endpoint": "example.com"}` |
+
+A search key outside this table answers `400`.
 
 ### The Webhook Delivery Object
 
@@ -336,9 +312,225 @@ If you lose a secret before you store it, rotate again to get a new one. The los
 
 Until `previous_secret_expires_at`, every delivery carries two `v1` signatures: one for the new secret (first) and one for the previous secret. After it, only the new secret signs. At most two secrets are active: rotating again during those 24 hours ends the previous secret immediately, so rotating twice in a row revokes a secret you believe is compromised. Rotating works on `active` and `inactive` endpoints; changing the URL or the event types, enabling and disabling keep the secret.
 
+### Path and Not Found Errors
+
+| Status | `error` | When |
+|--------|---------|------|
+| `400` | no code | A path id is not `prefix_` plus letters and digits and not a UUID. |
+| `404` | `WEBHOOK_ENDPOINT_NOT_FOUND` | The id is not one of your endpoints. |
+| `404` | `WEBHOOK_DELIVERY_NOT_FOUND` | The id is not one of your deliveries. |
+
 ### Signing
 
 Every delivery is signed as described in [Webhook Signatures](#webhook-signatures), with the endpoint's own signing secret. Endpoints that existed before signing secrets were issued one automatically; rotate the secret once to obtain it (see [Endpoints Created Before Signing Secrets](#endpoints-created-before-signing-secrets)).
+
+---
+
+# Webhook Signatures
+
+ChaChing signs every webhook delivery with an HMAC-SHA256 signature. Verify it to confirm that the request came from ChaChing and that the payload was not changed.
+
+## Signature Header
+
+Each request includes a `Chaching-Signature` header:
+
+```
+Chaching-Signature: t=<unix_timestamp>,v1=<hex_hmac_sha256>
+```
+
+During the 24 hours after you rotate an endpoint's signing secret, the header carries two `v1` signatures, the one for the new secret first:
+
+```
+Chaching-Signature: t=<unix_timestamp>,v1=<signature_with_new_secret>,v1=<signature_with_previous_secret>
+```
+
+- `t` — Unix timestamp of when the request was sent. Every delivery attempt, retries included, is signed again with a new timestamp.
+- `v1` — HMAC-SHA256 hex digest of the signed payload. There is one `v1` per active secret. Ignore every other scheme name.
+
+## Signing Algorithm
+
+```
+HMAC-SHA256(signing_key, "{timestamp}.{raw_json_body}")
+```
+
+Where:
+- `signing_key` is the endpoint's signing secret, the whole `whsec_…` string including the `whsec_` prefix.
+- `timestamp` is the `t` value from the `Chaching-Signature` header
+- `raw_json_body` is the **raw, unparsed** request body
+
+> ⚠️ Always compute the signature against the **raw request body**, before any JSON parsing. Re-serializing a parsed object may alter whitespace or key ordering and cause signature verification to fail.
+
+## Verifying a Delivery
+
+1. Read `t` and every `v1` from `Chaching-Signature`.
+2. Build `<t>.<raw body>`.
+3. Compute HMAC-SHA256 with the whole `whsec_` value as key.
+4. Compare in constant time with each `v1` and check `t` is within 5 minutes.
+
+{% admonition type="warning" name="Use the raw body" %}
+A JSON-parsing middleware that re-serializes the body breaks verification. Verify the bytes you received.
+{% /admonition %}
+
+## Verification Examples
+
+### Node.js
+
+```javascript
+const crypto = require('crypto');
+
+const TOLERANCE_SECONDS = 300;
+
+function verifyWebhookSignature(rawBody, signatureHeader, signingSecret, nowSeconds = Math.floor(Date.now() / 1000)) {
+  let timestamp = null;
+  const signatures = [];
+  for (const part of signatureHeader.split(',')) {
+    const index = part.indexOf('=');
+    if (index === -1) continue;
+    const key = part.slice(0, index).trim();
+    const value = part.slice(index + 1).trim();
+    if (key === 't') timestamp = value;
+    if (key === 'v1') signatures.push(value);
+  }
+  if (timestamp === null || !/^\d+$/.test(timestamp) || signatures.length === 0) return false;
+  if (Math.abs(nowSeconds - Number(timestamp)) > TOLERANCE_SECONDS) return false;
+
+  const expected = Buffer.from(
+    crypto.createHmac('sha256', signingSecret).update(`${timestamp}.${rawBody}`).digest('hex'),
+    'utf8'
+  );
+  return signatures.some(signature => {
+    const received = Buffer.from(signature, 'utf8');
+    return received.length === expected.length && crypto.timingSafeEqual(received, expected);
+  });
+}
+```
+
+### Python
+
+```python
+import hashlib
+import hmac
+import re
+import time
+
+TOLERANCE_SECONDS = 300
+
+def verify_webhook_signature(raw_body: bytes, signature_header: str, signing_secret: str, now_seconds=None) -> bool:
+    timestamp = None
+    signatures = []
+    for part in signature_header.split(','):
+        key, separator, value = part.strip().partition('=')
+        if not separator:
+            continue
+        if key == 't':
+            timestamp = value
+        elif key == 'v1':
+            signatures.append(value)
+    if timestamp is None or not re.fullmatch(r'[0-9]+', timestamp) or not signatures:
+        return False
+    now = int(time.time()) if now_seconds is None else now_seconds
+    if abs(now - int(timestamp)) > TOLERANCE_SECONDS:
+        return False
+    signed_payload = timestamp.encode('utf-8') + b'.' + raw_body
+    expected = hmac.new(signing_secret.encode('utf-8'), signed_payload, hashlib.sha256).hexdigest()
+    return any(hmac.compare_digest(expected.encode('utf-8'), signature.encode('utf-8')) for signature in signatures)
+```
+
+> ℹ️ Check every `v1` value, not only the first or the last: during a rotation the header carries one signature per active secret, and the one that matches yours can be in either position.
+
+## Endpoints Created Before Signing Secrets
+
+Endpoints that existed before signing secrets were introduced were issued a signing secret automatically, and every delivery to them is signed with it. ChaChing never showed that secret, and your account secret API key no longer verifies any delivery. To obtain the secret:
+
+1. Rotate the endpoint's signing secret (`POST /webhook-endpoints/{id}/rotate-secret`, or **Rotate signing secret** in the UI) and store the `whsec_…` secret.
+2. Deploy the new secret to the server that verifies the deliveries. For 24 hours each delivery also carries a signature for the secret issued automatically; verify with the new secret, which matches one of the `v1` values.
+3. A delivery that failed verification before you deployed the new secret is retried on the usual schedule, and every retry is signed again with the current secrets.
+
+---
+
+# Handling Webhooks (Client Side)
+
+When receiving a webhook:
+
+1. Accept HTTP POST request
+2. Parse JSON payload
+3. Read `event`
+4. Process `data`
+5. Return HTTP `200 OK`
+
+---
+
+# Receive on Staging
+
+ChaChing delivers only to public URLs. On staging, expose a local server through a tunnel that gives it a public HTTPS URL, for example `cloudflared tunnel --url http://localhost:4242`, and register that URL. To catch up after downtime, list deliveries with `GET /webhook-deliveries` (attempts are kept 30 days); a platform reads its endpoints' deliveries with `GET /platform/webhook-endpoints/{id}/logs` and each payload with the account-level read. Events can arrive out of order: read the object's current state from the API before you act on an older event.
+
+---
+
+# Retry Behavior
+
+ChaChing automatically retries failed webhook deliveries.
+
+Retries are triggered when:
+
+- Network failure
+- Timeout
+- HTTP `5xx` response
+- HTTP `408` (Request Timeout)
+- HTTP `429` (Too Many Requests)
+
+ChaChing waits up to 15 seconds for your response; a slower response counts as a timeout and is retried. Redirects are not followed.
+
+Retries are **not** triggered when the endpoint returns any other non-`2xx` status — every `3xx` redirect and every `4xx` other than `408` and `429`, for example `400`, `401`, `403`, `404` and `410`. Those statuses tell ChaChing the endpoint will never accept this payload, so the delivery status is set to `failure` after the first attempt and the returned status code is recorded in the delivery log.
+
+**Retry Flow:**
+
+- If a delivery fails with a retryable condition, the webhook is retried
+- If **max retries NOT reached,** retry continues
+- If **max retries reached,** the delivery status is set to `failure`
+- If a delivery is **permanently rejected**, no retry is scheduled and the delivery status is set to `failure` right away
+- A retry already scheduled is sent even if the endpoint's `enabled_events` changes in the meantime; a disabled or deleted endpoint receives no further retries
+
+**Retry Policy:**
+
+- Attempts: **5 retries** after the first delivery, for a maximum of 6 delivery attempts
+- Retry window: **approximately 43 minutes** — the delays between attempts are approximately 15 seconds, 45 seconds, 2 minutes, 10 minutes and 30 minutes, each randomized by up to 20% in both directions
+
+> ⚠️ Webhooks may be delivered multiple times. Ensure your system handles duplicates (use event `id`).
+> 
+
+---
+
+# Webhook Delivery
+
+- Method: `POST`
+- Content-Type: `application/json`
+- Sent to: configured endpoint URL in ChaChing application.
+
+---
+
+# Webhook Logs
+
+ChaChing stores webhook delivery history.
+
+Logs include:
+
+- Event type
+- Payload
+- Status (`pending` / `retry` / `success` / `failure`)
+
+> Logs reflect actual data sent from the database
+> 
+
+---
+
+# Event Status
+
+Webhook delivery has the following internal states:
+
+- `pending` → waiting to be sent
+- `retry` → retry in progress
+- `success` → delivered successfully
+- `failure` → the delivery was abandoned. Two situations produce it: the endpoint returned a **permanent rejection**, in which case no retry was attempted at all; and the endpoint kept failing with retryable conditions until every retry was exhausted. The delivery's attempts tell the two apart
 
 ---
 
@@ -467,24 +659,13 @@ A retry of an automatic charge that fails produces its own `invoice.payment_fail
 - `reason` — `"dunning"` when the transition is driven by the billing engine, or `"requested"` when it is driven by an API call or a Dashboard action
 - `initiated_by` — `"system"` for a dunning-driven transition, or `"merchant"` for an API- or Dashboard-driven one
 
-Both fields are absent on `subscription.created` and `subscription.updated`.
+Both fields are `null` on `subscription.created` and `subscription.updated`. `subscription.canceled`, `subscription.paused` and `subscription.resumed` are not sent for a subscription that belongs to a payment plan; follow the plan's `payment_plan.*` events instead.
 
 ---
 
 ## Deduplication
 
 Every event is delivered at least once. Deduplicate on the envelope's `id` field, per endpoint, as described in [Important Notes for Integrators](#important-notes-for-integrators). Every endpoint that receives an event gets the same `id`.
-
----
-
-# Event Status
-
-Webhook delivery has the following internal states:
-
-- `pending` → waiting to be sent
-- `retry` → retry in progress
-- `success` → delivered successfully
-- `failure` → the delivery was abandoned. Two situations produce it: the endpoint returned a **permanent rejection**, in which case no retry was attempted at all; and the endpoint kept failing with retryable conditions until every retry was exhausted. The delivery's attempts tell the two apart
 
 ---
 
@@ -500,7 +681,7 @@ Every webhook sent by ChaChing follows this structure:
 
 ```json
 {
-  "id": "evt_123456",
+  "id": "evt_0123456789abcdef01234567",
   "account": {
     "id": "acc_3c1f0a9e2b7d4c58a1e6f204",
     "external_id": null,
@@ -510,7 +691,7 @@ Every webhook sent by ChaChing follows this structure:
     }
   },
   "created": 1773400500,
-  "createdAt": "2026-03-13T11:15:00Z",
+  "createdAt": "2026-03-13T11:15:00.000Z",
   "data": {
     // Entity-specific payload
   },
@@ -523,7 +704,7 @@ Every webhook sent by ChaChing follows this structure:
 ## Fields Description
 
 - `id` — Unique event identifier. The same on every endpoint that receives the event and on every retry. Use it to deduplicate
-- `account` — The merchant account the event belongs to: `id` (`acc_…`), `external_id`, and its `company` with `id` (`com_…`) and `external_id`. `external_id` is `null` for every account today; reserved for platform accounts
+- `account` — The merchant account the event belongs to: `id` (`acc_…`), `external_id`, and its `company` with `id` (`com_…`) and `external_id`. `external_id` is the value your platform sent as `external_id` when it created the account (`company.external_id` for the company); it is `null` for accounts created in the dashboard.
 - `created` — When the event was generated, in Unix seconds
 - `createdAt` — The same instant as an ISO 8601 string. Deprecated: use `created`
 - `data` — **Entity payload** (varies depending on event type)
@@ -557,26 +738,24 @@ Events:
   "phone": "string | null",
   "created": 1672531200,
   "currency": "string",
-  "address": [
-    {
-      "city": "string",
-      "country": "string",
-      "line1": "string",
-      "line2": "string",
-      "postal_code": "string",
-      "state": "string"
-    }
-  ],
+  "address": {
+    "line1": "string | null",
+    "line2": "string | null",
+    "city": "string | null",
+    "state": "string | null",
+    "postal_code": "string | null",
+    "country": "string | null"
+  },
   "shipping": {
     "name": "string",
     "phone": "string | null",
     "address": {
-      "city": "string",
-      "country": "string",
-      "line1": "string",
-      "line2": "string",
-      "postal_code": "string",
-      "state": "string"
+      "line1": "string | null",
+      "line2": "string | null",
+      "city": "string | null",
+      "state": "string | null",
+      "postal_code": "string | null",
+      "country": "string | null"
     }
   }
 }
@@ -602,7 +781,7 @@ Events:
     }
   },
   "created": 1773400500,
-  "createdAt": "2026-03-13T11:15:00Z",
+  "createdAt": "2026-03-13T11:15:00.000Z",
   "data": {
     "id": "cus_NffrFeUfNV2Hib",
     "object": "customer",
@@ -612,27 +791,25 @@ Events:
     "description": "My First Test Customer",
     "phone": null,
     "created": 1680893993,
-    "currency": "USD",
-    "address": [
-      {
-        "city": "San Francisco",
-        "country": "US",
-        "line1": "123 Market St",
-        "line2": "Apt 4B",
-        "postal_code": "94103",
-        "state": "CA"
-      }
-    ],
+    "currency": "usd",
+    "address": {
+      "line1": "123 Market St",
+      "line2": "Apt 4B",
+      "city": "San Francisco",
+      "state": "CA",
+      "postal_code": "94103",
+      "country": "US"
+    },
     "shipping": {
       "name": "John Doe",
       "phone": "+1 (555) 123-4567",
       "address": {
-        "city": "San Francisco",
-        "country": "US",
         "line1": "123 Market St",
         "line2": "Apt 4B",
+        "city": "San Francisco",
+        "state": "CA",
         "postal_code": "94103",
-        "state": "CA"
+        "country": "US"
       }
     }
   },
@@ -644,9 +821,7 @@ Events:
 
 ### Notes
 
-- The `address` field is an **array of address objects**
-- The `shipping.address` is a **single object** (not an array)
-- The `phone` and `description` fields may be `null`
+- `address` and `shipping.address` are single objects whose parts are `null` when empty; `phone` and `description` are `null` when empty.
 - Timestamps are in Unix format (seconds)
 
 ---
@@ -678,90 +853,32 @@ Events:
     "name": "string | null",
     "phone": "string | null"
   },
+  "card": {
+    "brand": "string | null",
+    "last4": "string | null",
+    "exp_month": "number | null",
+    "exp_year": "number | null",
+    "wallet_type": "apple_pay | google_pay | null"
+  },
   "created": 1672531200,
   "customer": "cus_XXXXXXXX | null",
   "livemode": false,
   "metadata": {},
-  "type": "string",
-  "us_bank_account": {
-    "account_holder_type": "individual | company",
-    "account_type": "checking | savings",
-    "bank_name": "string",
-    "financial_connections_account": "string | null",
-    "fingerprint": "string",
-    "last4": "string",
-    "networks": {
-      "preferred": "string",
-      "supported": ["string"]
-    },
-    "routing_number": "string",
-    "status_details": {}
-  }
+  "type": "string"
 }
 ```
 
 ### Example
 
+<!-- captured: GET /webhook-deliveries/{id} on stage, redacted -->
 ```json
-{
-  "id": "evt_123",
-  "account": {
-    "id": "acc_3c1f0a9e2b7d4c58a1e6f204",
-    "external_id": null,
-    "company": {
-      "id": "com_9d2e7b41c6a0f3e85b17d920",
-      "external_id": null
-    }
-  },
-  "created": 1773400500,
-  "createdAt": "2026-03-13T11:15:00Z",
-  "data": {
-    "id": "pm_1Q0PsIJvEtkwdCNYMSaVuRz6",
-    "object": "payment_method",
-    "allow_redisplay": "unspecified",
-    "billing_details": {
-      "address": {
-        "city": null,
-        "country": null,
-        "line1": null,
-        "line2": null,
-        "postal_code": null,
-        "state": null
-      },
-      "email": null,
-      "name": "John Doe",
-      "phone": null
-    },
-    "created": 1726673582,
-    "customer": null,
-    "livemode": false,
-    "metadata": {},
-    "type": "us_bank_account",
-    "us_bank_account": {
-      "account_holder_type": "individual",
-      "account_type": "checking",
-      "bank_name": "STRIPE TEST BANK",
-      "financial_connections_account": null,
-      "fingerprint": "LstWJFsCK7P349Bg",
-      "last4": "6789",
-      "networks": {
-        "preferred": "ach",
-        "supported": [
-          "ach"
-        ]
-      },
-      "routing_number": "110000000",
-      "status_details": {}
-    }
-  },
-  "event": "payment_method.attached"
-}
+CAPTURE PaymentMethodPublicDto
 ```
 
 ### Notes
 
-- The `type` field defines the structure of the payment method (e.g., `card`, `us_bank_account`)
-- The corresponding object (e.g., `us_bank_account`) is included based on the `type`
+- The `type` field defines the structure of the payment method (e.g., `card`)
+- The corresponding object (e.g., `card`) is included based on the `type`
 - Some fields may be `null` depending on the payment method and available data
 
 ---
@@ -829,10 +946,11 @@ Events:
     "paid_at": 1672531200,
     "voided_at": 1672531200
   },
-  "subscription": "sub_XXXXXXXX",
+  "subscription": "sub_XXXXXXXX | null",
   "payment_plan": "pp_XXXXXXXX | null",
   "payment_plan_external_id": "string | null",
   "installment": "ppi_XXXXXXXX | null",
+  "payment_plan_charge": "object | null",
   "subtotal": 0,
   "subtotal_excluding_tax": 0,
   "tax": 0,
@@ -865,7 +983,7 @@ Events:
     }
   },
   "created": 1773400500,
-  "createdAt": "2026-03-13T11:15:00Z",
+  "createdAt": "2026-03-13T11:15:00.000Z",
   "data": {
     "id": "a80baa67-1341-4184-b712-b6f9b85b5a2b",
     "object": "invoice",
@@ -913,9 +1031,13 @@ Events:
     "status_transitions": {
       "finalized_at": 1680645568,
       "paid_at": 1680645568,
-      "voided_at": 1680645568
+      "voided_at": null
     },
     "subscription": "sub_Wm45f5PGQvv67azFeH1z7PO3",
+    "payment_plan": null,
+    "payment_plan_external_id": null,
+    "installment": null,
+    "payment_plan_charge": null,
     "subtotal": 1500,
     "subtotal_excluding_tax": 1500,
     "tax": 150,
@@ -941,6 +1063,7 @@ Events:
 - Monetary values are represented in the smallest currency unit (e.g., cents)
 - The `lines` field contains invoice line items (structure may vary)
 - Some fields may be `null` depending on invoice state and configuration
+- `subscription`, `tax` and `total_taxes` are `null` when they do not apply.
 - `attempt_count` is present on every invoice event. `next_payment_attempt` is present only on `invoice.payment_succeeded` and `invoice.payment_failed` for an automatic charge; see [Track subscription lifecycle and failed payments](./subscription-lifecycle.md) for when it is present and what `null` means
 - `invoice.payment_succeeded` for a payment made through ChaChing (the dashboard, the payment page or an API request that pays the invoice) describes the invoice after that payment: its `amount_paid`, `surcharge_amount`, `amount_charged`, `status` and `attempt_count` include it
 - `next_payment_attempt` is a Unix timestamp in seconds, matching every other timestamp in this payload
@@ -979,8 +1102,8 @@ Events:
   "created": 1672531200,
   "currency": "string",
   "customer": "cus_XXXXXXXX",
-  "reason": "dunning | requested",
-  "initiated_by": "system | merchant",
+  "reason": "dunning | requested | null",
+  "initiated_by": "system | merchant | null",
   "ended_at": 1672531200,
   "items": {
     "object": "list",
@@ -1013,7 +1136,7 @@ Events:
     }
   },
   "created": 1773400500,
-  "createdAt": "2026-03-13T11:15:00Z",
+  "createdAt": "2026-03-13T11:15:00.000Z",
   "data": {
     "id": "sub_2FdhgypnsJQn9mZlY5qGaElL",
     "object": "subscription",
@@ -1025,6 +1148,8 @@ Events:
     "created": 1679609767,
     "currency": "USD",
     "customer": "cus_739c07713fd4b68565a969cd",
+    "reason": null,
+    "initiated_by": null,
     "ended_at": null,
     "items": {
       "object": "list",
@@ -1057,7 +1182,7 @@ The following example shows a `subscription.canceled` event driven by the billin
     }
   },
   "created": 1773400500,
-  "createdAt": "2026-03-13T11:15:00Z",
+  "createdAt": "2026-03-13T11:15:00.000Z",
   "data": {
     "id": "sub_2FdhgypnsJQn9mZlY5qGaElL",
     "object": "subscription",
@@ -1089,6 +1214,13 @@ The following example shows a `subscription.canceled` event driven by the billin
 }
 ```
 
+An entry of `items.data`:
+
+<!-- captured: GET /subscriptions/{id} on stage, redacted -->
+```json
+CAPTURE SubscriptionItem @ /items/data/0
+```
+
 ---
 
 ### Notes
@@ -1098,7 +1230,10 @@ The following example shows a `subscription.canceled` event driven by the billin
 - `items.data` contains subscription items (structure depends on pricing configuration)
 - `latest_invoice` links the most recent invoice associated with the subscription
 - Timestamps are in Unix format (seconds)
-- `reason` and `initiated_by` are present on `subscription.canceled`, `subscription.paused` and `subscription.resumed`, and absent on `subscription.created` and `subscription.updated`
+- `initiated_by` and `reason` carry values on `subscription.canceled`, `subscription.paused` and `subscription.resumed`, and are `null` otherwise.
+- `collection_method` is `charge_automatically`.
+- `latest_invoice` is `''` when the subscription has no invoice.
+- `subscription.canceled`, `subscription.paused` and `subscription.resumed` are not sent for a subscription that belongs to a payment plan; follow the plan's `payment_plan.*` events instead.
 - The two fields always travel together: `"dunning"` is always paired with `"system"`, and `"requested"` is always paired with `"merchant"`
 - `items.data[].price.type` is `one_time`, `recurring` or `null`: it is `null` for an item whose price cannot be resolved. Handle `null` wherever you branch on the price type
 
@@ -1142,7 +1277,7 @@ Events:
     }
   },
   "created": 1773400500,
-  "createdAt": "2026-03-13T11:15:00Z",
+  "createdAt": "2026-03-13T11:15:00.000Z",
   "data": {
     "id": "prod_xT4LfvxLMQb4s9uFNIbXf9pm",
     "object": "product",
@@ -1193,8 +1328,7 @@ Events:
   "tax_behavior": "inclusive | exclusive",
   "type": "one_time | recurring",
   "unit_amount": 0,
-  "unit_amount_decimal": "string",
-  "link": "string"
+  "unit_amount_decimal": "string"
 }
 ```
 
@@ -1212,7 +1346,7 @@ Events:
     }
   },
   "created": 1773400500,
-  "createdAt": "2026-03-13T11:15:00Z",
+  "createdAt": "2026-03-13T11:15:00.000Z",
   "data": {
     "id": "price_1SGKTmDZYOQH9uHk1vaSxPKa",
     "object": "price",
@@ -1220,13 +1354,15 @@ Events:
     "created": 1760018761,
     "currency": "USD",
     "description": "Premium Plan - Monthly",
-    "product": null,
-    "recurring": null,
+    "product": "prod_xT4LfvxLMQb4s9uFNIbXf9pm",
+    "recurring": {
+      "interval": "month",
+      "interval_count": 1
+    },
     "tax_behavior": "exclusive",
-    "type": "one_time",
+    "type": "recurring",
     "unit_amount": 1000,
-    "unit_amount_decimal": "1000",
-    "link": "string"
+    "unit_amount_decimal": "1000"
   },
   "event": "price.created"
 }
@@ -1283,7 +1419,7 @@ Events:
     }
   },
   "created": 1773400500,
-  "createdAt": "2026-03-13T11:15:00Z",
+  "createdAt": "2026-03-13T11:15:00.000Z",
   "data": {
     "id": "txr_inQ4hbLZPyljDXFRCEnjtEqK",
     "object": "tax_rate",
@@ -1293,7 +1429,7 @@ Events:
     "description": "State sales tax",
     "display_name": "Sales Tax",
     "inclusive": true,
-    "percentage": 7.25,
+    "percentage": 5,
     "tax_type": "Custom"
   },
   "event": "tax.created"
@@ -1304,7 +1440,7 @@ Events:
 
 ### Notes
 
-- The `percentage` field represents the tax rate (e.g., `7.25` = 7.25%)
+- `percentage` is a number, such as `7.25` for 7.25 %
 - The `inclusive` field indicates whether the tax is included in the price
 - `tax_type` defines the type of tax configuration (e.g., custom)
 - The `description` field may be `null` depending on configuration
@@ -1338,120 +1474,114 @@ carries the Payment object.
 
 ### Schema — Payment Plan
 
-```json
-{
-  "id": "pp_XXXXXXXX",
-  "object": "payment_plan",
-  "external_id": "string | null",
-  "customer": "cus_XXXXXXXX",
-  "customer_external_id": "string | null",
-  "description": "string | null",
-  "status": "awaiting_deposit | active | past_due | defaulted | paid_off | canceled",
-  "currency": "string",
-  "total_amount": 0,
-  "down_payment_amount": 0,
-  "installment_amount": 0,
-  "installment_count": 0,
-  "interval": "daily | weekly | biweekly | monthly | annual",
-  "start_date": 1672531200,
-  "remainder_placement": "first | last",
-  "remaining_balance": 0,
-  "installments_paid": 0,
-  "installments_remaining": 0,
-  "next_due_date": "1672531200 | null",
-  "payment_method": "string | null",
-  "gateway": "string | null",
-  "reference": "string | null",
-  "deposit": {
-    "reference": "string",
-    "kind": "down_payment | installment_1",
-    "amount": 0,
-    "status": "pending | collected",
-    "transaction_reference": "string | null",
-    "collected_at": "1672531200 | null",
-    "attempt": {
-      "id": "ppda_XXXXXXXX",
-      "object": "payment_plan_deposit_attempt",
-      "terminal": "string",
-      "reference_id": "string",
-      "state": "in_flight | resolving | approved | approved_no_credential | declined | cancelled | not_charged | failed | partial_approval | force_closed",
-      "started": 1672531200,
-      "resolved": "1672531200 | null",
-      "decline_code": "string | null",
-      "decline_message": "string | null",
-      "surcharge_amount": 0,
-      "amount_charged": 0
-    }
-  },
-  "created": 1672531200,
-  "ended_at": "1672531200 | null",
-  "canceled_at": "1672531200 | null"
-}
-```
+| Field | Type | Nullable |
+| --- | --- | --- |
+| `id` | string | no |
+| `object` | string | no |
+| `external_id` | string | yes |
+| `customer` | string | no |
+| `customer_external_id` | string | yes |
+| `description` | string | yes |
+| `status` | string, one of `awaiting_deposit`, `active`, `past_due`, `defaulted`, `paid_off`, `canceled` | no |
+| `currency` | string | no |
+| `total_amount` | integer | no |
+| `down_payment_amount` | integer | no |
+| `installment_amount` | integer | no |
+| `installment_count` | integer | no |
+| `interval` | string, one of `daily`, `weekly`, `biweekly`, `monthly`, `annual` | no |
+| `start_date` | integer | no |
+| `remainder_placement` | string, one of `first`, `last` | no |
+| `remaining_balance` | integer | no |
+| `installments_paid` | integer | no |
+| `installments_remaining` | integer | no |
+| `next_due_date` | integer | yes |
+| `payment_method` | string | yes |
+| `gateway` | string | yes |
+| `reference` | string | yes |
+| `deposit` | object | yes |
+| `deposit.reference` | string | no |
+| `deposit.kind` | string, one of `down_payment`, `installment_1` | no |
+| `deposit.amount` | integer | no |
+| `deposit.status` | string, one of `pending`, `collected` | no |
+| `deposit.transaction_reference` | string | yes |
+| `deposit.collected_at` | integer | yes |
+| `deposit.attempt` | object | yes |
+| `deposit.attempt.id` | string | no |
+| `deposit.attempt.object` | string | no |
+| `deposit.attempt.terminal` | string | no |
+| `deposit.attempt.reference_id` | string | no |
+| `deposit.attempt.state` | string, one of `in_flight`, `resolving`, `approved`, `approved_no_credential`, `declined`, `cancelled`, `not_charged`, `failed`, `partial_approval`, `force_closed` | no |
+| `deposit.attempt.started` | integer | no |
+| `deposit.attempt.resolved` | integer | yes |
+| `deposit.attempt.decline_code` | string | yes |
+| `deposit.attempt.decline_message` | string | yes |
+| `deposit.attempt.surcharge_amount` | integer | no |
+| `deposit.attempt.amount_charged` | integer | no |
+| `created` | integer | no |
+| `ended_at` | integer | yes |
+| `canceled_at` | integer | yes |
 
 ### Schema — Installment
 
-```json
-{
-  "id": "ppi_XXXXXXXX",
-  "object": "payment_plan_installment",
-  "payment_plan": "pp_XXXXXXXX",
-  "payment_plan_external_id": "string | null",
-  "customer": "cus_XXXXXXXX",
-  "customer_external_id": "string | null",
-  "sequence": 0,
-  "due_date": 1672531200,
-  "amount": 0,
-  "amount_paid": 0,
-  "surcharge_amount": 0,
-  "amount_charged": 0,
-  "surcharge_status": "final | unavailable",
-  "status": "scheduled | paid | failed | canceled",
-  "attempt_count": 0,
-  "next_payment_attempt": "1672531200 | null",
-  "paid_at": "1672531200 | null",
-  "first_failed_at": "1672531200 | null",
-  "failure_code": "string | null",
-  "failure_message": "string | null",
-  "card": "object | null",
-  "invoice": "string | null",
-  "hosted_invoice_url": "string | null",
-  "payment_plan_summary": "object"
-}
-```
+| Field | Type | Nullable |
+| --- | --- | --- |
+| `id` | string | no |
+| `object` | string | no |
+| `payment_plan` | string | no |
+| `payment_plan_external_id` | string | yes |
+| `customer` | string | no |
+| `customer_external_id` | string | yes |
+| `sequence` | integer | no |
+| `due_date` | integer | no |
+| `amount` | integer | no |
+| `amount_paid` | integer | no |
+| `surcharge_amount` | integer | no |
+| `amount_charged` | integer | no |
+| `surcharge_status` | string, one of `final`, `unavailable` | no |
+| `status` | string, one of `scheduled`, `paid`, `failed`, `canceled` | no |
+| `attempt_count` | integer | no |
+| `next_payment_attempt` | integer | yes |
+| `paid_at` | integer | yes |
+| `first_failed_at` | integer | yes |
+| `failure_code` | string | yes |
+| `failure_message` | string | yes |
+| `card` | object | yes |
+| `invoice` | string | yes |
+| `hosted_invoice_url` | string | yes |
+| `payment_plan_summary` | object | no |
 
 ### Schema — Payment
 
-```json
-{
-  "id": "ppp_XXXXXXXX",
-  "object": "payment_plan_payment",
-  "payment_plan": "pp_XXXXXXXX",
-  "payment_plan_external_id": "string | null",
-  "customer": "cus_XXXXXXXX",
-  "customer_external_id": "string | null",
-  "status": "processing | applied | partially_applied",
-  "amount": 0,
-  "surcharge_amount": 0,
-  "amount_charged": 0,
-  "surcharge_status": "final | unavailable",
-  "external": false,
-  "payment_method": "string | null",
-  "card": "object | null",
-  "invoice": "string | null",
-  "hosted_invoice_url": "string | null",
-  "payoff": false,
-  "created": 1672531200,
-  "payment_plan_status": "awaiting_deposit | active | past_due | defaulted | paid_off | canceled",
-  "remaining_balance": 0,
-  "installments_remaining": 0,
-  "allocations": "array",
-  "payment_plan_summary": "object",
-  "terminal": "object | null"
-}
-```
+| Field | Type | Nullable |
+| --- | --- | --- |
+| `id` | string | no |
+| `object` | string | no |
+| `payment_plan` | string | no |
+| `payment_plan_external_id` | string | yes |
+| `customer` | string | no |
+| `customer_external_id` | string | yes |
+| `status` | string | no |
+| `amount` | integer | no |
+| `surcharge_amount` | integer | no |
+| `amount_charged` | integer | no |
+| `surcharge_status` | string, one of `final`, `unavailable` | no |
+| `external` | boolean | no |
+| `payment_method` | string | yes |
+| `card` | object | yes |
+| `invoice` | string | yes |
+| `hosted_invoice_url` | string | yes |
+| `payoff` | boolean | no |
+| `created` | integer | no |
+| `payment_plan_status` | string, one of `awaiting_deposit`, `active`, `past_due`, `defaulted`, `paid_off`, `canceled` | no |
+| `remaining_balance` | integer | no |
+| `installments_remaining` | integer | no |
+| `allocations` | array | no |
+| `payment_plan_summary` | object | no |
+| `terminal` | object | yes |
 
-The `terminal` object the event emits carries all 17 keys of the terminal object described in [Take a Payment on a Terminal](./payment-plans.md#take-a-payment-on-a-terminal), and its `state` is `approved` or `partial_approval` at emission.
+`status` is one of the six values listed under [Record Payments](./payment-plans.md#record-payments-extra-payments-and-a-payoff).
+
+The `terminal` object the event emits carries all 17 keys of the terminal object described in [Take a Payment on a Terminal](./payment-plans-terminal.md#take-a-payment-on-a-terminal), and its `state` is `approved` or `partial_approval` at emission.
 
 `card` is `{ "brand": "string | null", "last4": "string | null" }`, or `null` when the card cannot be read. `card.brand` is the gateway's card network label as stored; it is not guaranteed to be lowercase, so compare it case-insensitively.
 
@@ -1461,36 +1591,32 @@ The `terminal` object the event emits carries all 17 keys of the terminal object
 
 `allocations` lists the installment and principal amounts a payment paid, in the order they were applied. It is `[]` for a payment whose `status` is not `applied` or `partially_applied`.
 
-```json
-{
-  "installment": "ppi_XXXXXXXX | null",
-  "sequence": "0 | null",
-  "kind": "installment | principal",
-  "amount": 0,
-  "surcharge_amount": 0,
-  "amount_charged": 0,
-  "surcharge_status": "final | unavailable",
-  "invoice": "string | null",
-  "hosted_invoice_url": "string | null"
-}
-```
+| Field | Type | Nullable |
+| --- | --- | --- |
+| `installment` | string | yes |
+| `sequence` | integer | yes |
+| `kind` | string, one of `installment`, `principal` | no |
+| `amount` | integer | no |
+| `surcharge_amount` | integer | no |
+| `amount_charged` | integer | no |
+| `surcharge_status` | string, one of `final`, `unavailable` | no |
+| `invoice` | string | yes |
+| `hosted_invoice_url` | string | yes |
 
 ### Schema — Plan Summary
 
 `payment_plan_summary` carries the same values as the same-named keys of the Payment Plan object.
 
-```json
-{
-  "installment_count": 0,
-  "currency": "string",
-  "description": "string | null",
-  "remaining_balance": 0,
-  "installments_paid": 0,
-  "installments_remaining": 0,
-  "next_due_date": "1672531200 | null",
-  "status": "awaiting_deposit | active | past_due | defaulted | paid_off | canceled"
-}
-```
+| Field | Type | Nullable |
+| --- | --- | --- |
+| `installment_count` | integer | no |
+| `currency` | string | no |
+| `description` | string | yes |
+| `remaining_balance` | integer | no |
+| `installments_paid` | integer | no |
+| `installments_remaining` | integer | no |
+| `next_due_date` | integer | yes |
+| `status` | string, one of `awaiting_deposit`, `active`, `past_due`, `defaulted`, `paid_off`, `canceled` | no |
 
 ### Example
 
@@ -1498,7 +1624,7 @@ The `terminal` object the event emits carries all 17 keys of the terminal object
 
 ```json
 {
-  "id": "evt_9f2a7c41",
+  "id": "evt_a52d1c2eb30833c6e7b3ed21",
   "account": {
     "id": "acc_3c1f0a9e2b7d4c58a1e6f204",
     "external_id": null,
@@ -1508,11 +1634,11 @@ The `terminal` object the event emits carries all 17 keys of the terminal object
     }
   },
   "created": 1763110812,
-  "createdAt": "2025-11-14T09:00:12Z",
+  "createdAt": "2025-11-14T09:00:12.000Z",
   "data": {
-    "id": "ppi_Mc8yS3Rb",
+    "id": "ppi_9d078490b235b24e80eb92cc",
     "object": "payment_plan_installment",
-    "payment_plan": "pp_8QN4mTcRk2VwZfLp",
+    "payment_plan": "pp_5c1bb9d8d74f27c18e4a3629",
     "payment_plan_external_id": "PLAN-2026-0117",
     "customer": "cus_739c07713fd4b68565a969cd",
     "customer_external_id": "PAT-799601",
@@ -1551,11 +1677,13 @@ The `terminal` object the event emits carries all 17 keys of the terminal object
 }
 ```
 
+The values shown are illustrative.
+
 `payment_plan.completed`:
 
 ```json
 {
-  "id": "evt_d41c07ab",
+  "id": "evt_3646c8c63a087e5b5770b2f2",
   "account": {
     "id": "acc_3c1f0a9e2b7d4c58a1e6f204",
     "external_id": null,
@@ -1565,9 +1693,9 @@ The `terminal` object the event emits carries all 17 keys of the terminal object
     }
   },
   "created": 1781395651,
-  "createdAt": "2026-06-14T00:07:31Z",
+  "createdAt": "2026-06-14T00:07:31.000Z",
   "data": {
-    "id": "pp_8QN4mTcRk2VwZfLp",
+    "id": "pp_5c1bb9d8d74f27c18e4a3629",
     "object": "payment_plan",
     "external_id": "PLAN-2026-0117",
     "customer": "cus_739c07713fd4b68565a969cd",
@@ -1602,7 +1730,7 @@ The `terminal` object the event emits carries all 17 keys of the terminal object
 
 ```json
 {
-  "id": "evt_5b0e93f2",
+  "id": "evt_fb2db40ae8a86ce10424edfe",
   "account": {
     "id": "acc_3c1f0a9e2b7d4c58a1e6f204",
     "external_id": null,
@@ -1612,11 +1740,11 @@ The `terminal` object the event emits carries all 17 keys of the terminal object
     }
   },
   "created": 1763483200,
-  "createdAt": "2025-11-18T16:26:40Z",
+  "createdAt": "2025-11-18T16:26:40.000Z",
   "data": {
-    "id": "ppp_4Hk9Tz2W",
+    "id": "ppp_a6766968bdcb187da402e727",
     "object": "payment_plan_payment",
-    "payment_plan": "pp_8QN4mTcRk2VwZfLp",
+    "payment_plan": "pp_5c1bb9d8d74f27c18e4a3629",
     "payment_plan_external_id": "PLAN-2026-0117",
     "customer": "cus_739c07713fd4b68565a969cd",
     "customer_external_id": "PAT-799601",
@@ -1640,7 +1768,7 @@ The `terminal` object the event emits carries all 17 keys of the terminal object
     "installments_remaining": 7,
     "allocations": [
       {
-        "installment": "ppi_Mc8yS3Rb",
+        "installment": "ppi_9d078490b235b24e80eb92cc",
         "sequence": 2,
         "kind": "installment",
         "amount": 20000,
@@ -1685,38 +1813,17 @@ The `terminal` object the event emits carries all 17 keys of the terminal object
 - The Payment Plan object in `data` is the plan after the change, and its `status` is the plan's status when the event is sent. A plan created with a payment method sends `payment_plan.created` and `payment_plan.activated` with the same object, `status: "active"`
 - `payment_plan.installment_failed` is sent once per declined automatic charge attempt, retries included. A declined payment through `POST /payment-plans/{id}/payments` answers the request with an error instead and sends no `payment_plan.installment_failed`. `attempt_count` counts the attempts made on the installment, and `next_payment_attempt` is the date of the next retry, or `null` when no retry is scheduled
 - `payment_plan.installment_paid` is sent once per installment. The down payment sends it with `sequence: 0`, both when it is charged at creation and when it is collected on a terminal
-- `deposit` is `null` for a plan created with a payment method. For a plan created without one, `deposit.kind` is `down_payment` when the plan has a down payment and `installment_1` otherwise, `deposit.amount` is the amount the terminal collects, and `deposit.attempt` is `null` until the first terminal attempt and then holds the latest attempt; see [Collect the First Installment on a Terminal](./payment-plans.md#collect-the-first-installment-on-a-terminal)
+- `deposit` is `null` for a plan created with a payment method. For a plan created without one, `deposit.kind` is `down_payment` when the plan has a down payment and `installment_1` otherwise, `deposit.amount` is the amount the terminal collects, and `deposit.attempt` is `null` until the first terminal attempt and then holds the latest attempt; see [Collect the First Installment on a Terminal](./payment-plans-terminal.md#collect-the-first-installment-on-a-terminal)
 - `payment_plan.completed` is the single paid-in-full event. It is sent when the schedule ends with every installment paid, when a payoff payment is recorded, and when the last unpaid installment is paid through the hosted invoice page, the dashboard or `PUT /invoices/{id}`, settled by credit, or collected by the automatic charge or a retry after the schedule ended; `status` is `paid_off` in every case. It is never sent while an installment is still unpaid
 - `payment_plan.payment_succeeded` is sent for every payment `POST /payment-plans/{id}/payments` records — installment payments, principal payments, payoffs and external payments alike — and never for a declined or refused one. Its `data` is the Payment object at the moment the payment is recorded: `id`, `amount`, `external`, `payment_method`, `invoice` and `payoff` match the endpoint's response (except for a payment taken on a terminal, whose `201` is `processing` with `amount` `0`: the event carries the final values), while for a payment that reached the principal, the event is sent after the plan's remaining schedule is rebuilt, and `remaining_balance`, `installments_remaining`, `payment_plan_status` and `payment_plan_summary` describe the plan after it. A repeated request with the same `Idempotency-Key` sends nothing again. When a request ends before its payment is fully recorded, ChaChing finishes recording it later and sends the payment's events then. For one payment they are sent in this order: `payment_plan.installment_paid`, then `payment_plan.payment_succeeded`, then `payment_plan.completed`; a delivery that is retried can arrive after a later event. This event is sent only with `status` `applied` or `partially_applied`.
 - `surcharge_amount` and `amount_charged` on the Installment and Payment objects report the credit card surcharge and the total charged to the card, in cents. While ChaChing cannot read the surcharge from the gateway yet, they read `0` and the amount paid, and `payment_plan.installment_paid` and `payment_plan.payment_succeeded` wait until the surcharge is read, for up to an hour; after an hour they are sent with `surcharge_status` `unavailable`. When ChaChing cannot read the surcharge of a charge (after retrying for up to 7 days, or at once when the charge cannot be matched), the objects keep `surcharge_amount` at `0` and `amount_charged` equal to the amount paid, and that does not change later; the exact amount charged to the card is then the one shown for that transaction in your Dejavoo (iPOSpays) account. See [Credit Card Surcharges](./payment-plans.md#credit-card-surcharges)
 - The principal part of a payment has its own invoice: when the principal is recorded, ChaChing sends `invoice.payment_succeeded` for it (and `invoice.payment_failed` when its card charge is declined), with `payment_plan_charge.kind` `extra_payment` or `payoff`. `payment_plan.payment_succeeded` reports the same money, so count each payment once. A principal recorded without an invoice (account credit, automatic or manual payment switched off, invoicing unavailable) raises no `invoice.*` event.
-- `terminal` on the Payment object is `null` for a payment that was not taken on a terminal. For a payment taken on a terminal it holds the sale, and `payment_plan.payment_succeeded` is sent when ChaChing records it after the terminal approved it; see [Take a Payment on a Terminal](./payment-plans.md#take-a-payment-on-a-terminal)
+- `terminal` on the Payment object is `null` for a payment that was not taken on a terminal. For a payment taken on a terminal it holds the sale, and `payment_plan.payment_succeeded` is sent when ChaChing records it after the terminal approved it; see [Take a Payment on a Terminal](./payment-plans-terminal.md#take-a-payment-on-a-terminal)
 - The plan status `past_due` means the customer's account is in the late-payment warning. It is not the `past-due` failed-payment outcome: reaching that outcome sends `payment_plan.defaulted`
 - The `invoice.*` events keep firing for every installment invoice; the invoice payload's `payment_plan` and `installment` fields link it back to the plan
 - The spelling is `canceled`, with one `l`, for both the status and the event
 - One change can send several events, and deliveries can arrive in any order. Read the plan with `GET /payment-plans/{id}` for its current state; see [Payment Plans](./payment-plans.md)
 - To send your own receipts and notices from these events, see [Send Your Own Customer Notifications](./customer-notifications.md)
-
----
-
-# Important Notes
-
-The data object is contained inside the `data` field.
-
-- The `data` field contains the **full entity object**
-
----
-
-Deleted events
-
-- May contain limited data (e.g., only `id`)
-- Should not be assumed to contain full object
-
----
-
-Always rely on `event`
-
-- Use `event` field to determine how to parse `data`
 
 ---
 
@@ -1729,182 +1836,21 @@ Always rely on `event`
 
 ---
 
-# Example Event
+# Important Notes
 
-```json
-{
-  "id": "evt_789",
-  "account": {
-    "id": "acc_3c1f0a9e2b7d4c58a1e6f204",
-    "external_id": null,
-    "company": {
-      "id": "com_9d2e7b41c6a0f3e85b17d920",
-      "external_id": null
-    }
-  },
-  "created": 1773400500,
-  "createdAt": "2026-03-13T11:15:00Z",
-  "data": {
-    "id": "cus_123",
-    "email": "user@example.com",
-    "status": "active"
-  },
-  "event": "customer.updated"
-}
-```
+The data object is contained inside the `data` field.
+
+- The `data` field contains the **full entity object**
 
 ---
 
-# Webhook Delivery
-
-- Method: `POST`
-- Content-Type: `application/json`
-- Sent to: configured endpoint URL in ChaChing application.
+Deleted events carry the full object as it was just before the deletion.
 
 ---
 
-# Webhook Signatures
+Always rely on `event`
 
-ChaChing signs every webhook delivery with an HMAC-SHA256 signature. Verify it to confirm that the request came from ChaChing and that the payload was not changed.
-
-## Signature Header
-
-Each request includes a `Chaching-Signature` header:
-
-```
-Chaching-Signature: t=<unix_timestamp>,v1=<hex_hmac_sha256>
-```
-
-During the 24 hours after you rotate an endpoint's signing secret, the header carries two `v1` signatures, the one for the new secret first:
-
-```
-Chaching-Signature: t=<unix_timestamp>,v1=<signature_with_new_secret>,v1=<signature_with_previous_secret>
-```
-
-- `t` — Unix timestamp of when the request was sent. Every delivery attempt, retries included, is signed again with a new timestamp.
-- `v1` — HMAC-SHA256 hex digest of the signed payload. There is one `v1` per active secret. Ignore every other scheme name.
-
-## Signing Algorithm
-
-```
-HMAC-SHA256(signing_key, "{timestamp}.{raw_json_body}")
-```
-
-Where:
-- `signing_key` is the endpoint's signing secret, the whole `whsec_…` string including the `whsec_` prefix.
-- `timestamp` is the `t` value from the `Chaching-Signature` header
-- `raw_json_body` is the **raw, unparsed** request body
-
-> ⚠️ Always compute the signature against the **raw request body**, before any JSON parsing. Re-serializing a parsed object may alter whitespace or key ordering and cause signature verification to fail.
-
-## Verifying a Delivery
-
-1. Split the header on `,`, then each element on the first `=`. Keep `t` and every `v1` value; discard the rest.
-2. Compute the expected signature with your signing secret.
-3. Accept the delivery when the expected signature equals ANY of the `v1` values, compared in constant time.
-4. Reject the delivery when `t` is more than 5 minutes away from your server's clock, to stop replayed requests.
-
-## Verification Examples
-
-### Node.js
-
-```javascript
-const crypto = require('crypto');
-
-const TOLERANCE_SECONDS = 300;
-
-function verifyWebhookSignature(rawBody, signatureHeader, signingSecret, nowSeconds = Math.floor(Date.now() / 1000)) {
-  let timestamp = null;
-  const signatures = [];
-  for (const part of signatureHeader.split(',')) {
-    const index = part.indexOf('=');
-    if (index === -1) continue;
-    const key = part.slice(0, index).trim();
-    const value = part.slice(index + 1).trim();
-    if (key === 't') timestamp = value;
-    if (key === 'v1') signatures.push(value);
-  }
-  if (timestamp === null || !/^\d+$/.test(timestamp) || signatures.length === 0) return false;
-  if (Math.abs(nowSeconds - Number(timestamp)) > TOLERANCE_SECONDS) return false;
-
-  const expected = Buffer.from(
-    crypto.createHmac('sha256', signingSecret).update(`${timestamp}.${rawBody}`).digest('hex'),
-    'utf8'
-  );
-  return signatures.some(signature => {
-    const received = Buffer.from(signature, 'utf8');
-    return received.length === expected.length && crypto.timingSafeEqual(received, expected);
-  });
-}
-```
-
-### Python
-
-```python
-import hashlib
-import hmac
-import re
-import time
-
-TOLERANCE_SECONDS = 300
-
-def verify_webhook_signature(raw_body: bytes, signature_header: str, signing_secret: str, now_seconds=None) -> bool:
-    timestamp = None
-    signatures = []
-    for part in signature_header.split(','):
-        key, separator, value = part.strip().partition('=')
-        if not separator:
-            continue
-        if key == 't':
-            timestamp = value
-        elif key == 'v1':
-            signatures.append(value)
-    if timestamp is None or not re.fullmatch(r'[0-9]+', timestamp) or not signatures:
-        return False
-    now = int(time.time()) if now_seconds is None else now_seconds
-    if abs(now - int(timestamp)) > TOLERANCE_SECONDS:
-        return False
-    signed_payload = timestamp.encode('utf-8') + b'.' + raw_body
-    expected = hmac.new(signing_secret.encode('utf-8'), signed_payload, hashlib.sha256).hexdigest()
-    return any(hmac.compare_digest(expected.encode('utf-8'), signature.encode('utf-8')) for signature in signatures)
-```
-
-> ℹ️ Check every `v1` value, not only the first or the last: during a rotation the header carries one signature per active secret, and the one that matches yours can be in either position.
-
-## Endpoints Created Before Signing Secrets
-
-Endpoints that existed before signing secrets were introduced were issued a signing secret automatically, and every delivery to them is signed with it. ChaChing never showed that secret, and your account secret API key no longer verifies any delivery. To obtain the secret:
-
-1. Rotate the endpoint's signing secret (`POST /webhook-endpoints/{id}/rotate-secret`, or **Rotate signing secret** in the UI) and store the `whsec_…` secret.
-2. Deploy the new secret to the server that verifies the deliveries. For 24 hours each delivery also carries a signature for the secret issued automatically; verify with the new secret, which matches one of the `v1` values.
-3. A delivery that failed verification before you deployed the new secret is retried on the usual schedule, and every retry is signed again with the current secrets.
-
----
-
-# Webhook Logs
-
-ChaChing stores webhook delivery history.
-
-Logs include:
-
-- Event type
-- Payload
-- Status (`pending` / `retry` / `success` / `failure`)
-
-> Logs reflect actual data sent from the database
-> 
-
----
-
-# Handling Webhooks (Client Side)
-
-When receiving a webhook:
-
-1. Accept HTTP POST request
-2. Parse JSON payload
-3. Read `event`
-4. Process `data`
-5. Return HTTP `200 OK`
+- Use `event` field to determine how to parse `data`
 
 ---
 
