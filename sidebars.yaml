@@ -44,16 +44,25 @@
 
 - group: Developer Guide
   items:
+    - separator: Start
+    - page: ./Developer Guide/overview.md
+    - page: ./Developer Guide/quickstart-payment-plan.md
+    - page: ./Developer Guide/integrating-staging.md
     - page: ./Developer Guide/api-basics.md
     - page: ./Developer Guide/processor-credentials.md
-    - page: ./Developer Guide/api.json
-    - page: ./Developer Guide/webhook.md
-    - page: ./Developer Guide/subscription-lifecycle.md
+    - separator: Guides
     - page: ./Developer Guide/payment-plans.md
+    - page: ./Developer Guide/payment-plans-terminal.md
+    - page: ./Developer Guide/subscription-lifecycle.md
+    - page: ./Developer Guide/invoices.md
+    - page: ./Developer Guide/card-surcharges.md
     - page: ./Developer Guide/customer-notifications.md
     - page: ./Developer Guide/customer-portal.md
-    - page: ./Developer Guide/card-surcharges.md
-    - page: ./Developer Guide/invoices.md
+    - separator: Webhooks & platforms
+    - page: ./Developer Guide/webhook.md
+    - page: ./Developer Guide/platforms.md
+    - separator: Reference
+    - page: ./Developer Guide/api.json
 
 - group: Settings
   items:
