@@ -97,7 +97,7 @@ No additional API call is required for basic hosted page usage.
 
 The hosted checkout page displays the **workspace name** of the workspace selected in your account. The company name is not shown on hosted pages.
 
-Observed on staging, 2026-11-10: the hosted page shows the account name as the workspace name ("DRV Dejavoo Account" for a company named "DRV Dejavoo"); the company name does not appear.
+Observed on staging, 2026-11-10: the hosted page shows the account name that your dashboard header shows (for example "Rosen Dental"); the legal company name of your settings does not appear.
 
 ---
 
