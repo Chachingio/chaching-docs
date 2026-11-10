@@ -31,7 +31,25 @@ curl -X POST https://stage-api.chaching.io/platform/webhook-endpoints \
 
 <!-- captured: POST /platform/webhook-endpoints on stage, redacted -->
 ```json
-CAPTURE WebhookEndpointWithSecretPublicDto
+{
+  "id": "4a19c6f9-c4c8-4b79-b9a1-379260670c3d",
+  "object": "webhook_endpoint",
+  "endpoint": "https://doctor-cycling-likewise-brother.trycloudflare.com/chaching/webhooks",
+  "enabled_events": [
+    "payment_plan.created",
+    "payment_plan.activated",
+    "payment_plan.installment_paid",
+    "payment_plan.installment_failed",
+    "payment_plan.completed",
+    "payment_plan.canceled",
+    "payment_plan.payment_succeeded"
+  ],
+  "status": "active",
+  "signature_key": "endpoint_secret",
+  "created": 1794269584,
+  "updated": 1794269584,
+  "secret": "<redacted len=49>"
+}
 ```
 
 Returns the webhook endpoint with its signing secret in `secret`. The secret is shown only in this response and in a rotation: store it now. Verify every delivery with it; see [Webhooks](./webhook.md).
@@ -62,7 +80,21 @@ curl -X POST https://stage-api.chaching.io/platform/accounts \
 
 <!-- captured: POST /platform/accounts on stage, redacted -->
 ```json
-CAPTURE PlatformAccountPublicDto
+{
+  "object": "account",
+  "id": "acc_ac3a743a00d0db71b2332f78",
+  "external_id": "location-7",
+  "name": "Rosen Family Dental",
+  "company": {
+    "id": "com_8d2abb56a643c585514c5aa1",
+    "external_id": "office-1042",
+    "name": "Rosen Family Dental"
+  },
+  "time_zone": "America/New_York",
+  "status": "active",
+  "deactivated_at": null,
+  "created": 1794269584
+}
 ```
 
 Returns the Account object with status `201`. Store its `id` (`acc_...`): every later request for this location sends it in `Chaching-Account`. Sending the same `external_id` again returns the same account with status `200`, unchanged, so a lost id is recovered by repeating this request.
@@ -94,7 +126,18 @@ curl -X PUT https://stage-api.chaching.io/dejavoo/credentials \
 
 <!-- captured: PUT /dejavoo/credentials on stage, redacted -->
 ```json
-CAPTURE DejavooCredentialsStatePublicDto
+{
+  "object": "dejavoo_credentials",
+  "active": true,
+  "tpn_set": true,
+  "api_key_set": true,
+  "secret_key_set": true,
+  "secret_key_last4": "t0He",
+  "ecom_token_set": true,
+  "feed_signing_key_set": false,
+  "google_pay_merchant_id_set": false,
+  "updated_at": 1794269586
+}
 ```
 
 Returns which credential fields are set; it never returns a value. ChaChing checks the API key and secret key with iPOSpays before saving anything. The first save sets the account's payment gateway to Dejavoo.
@@ -121,7 +164,23 @@ curl -X POST https://stage-api.chaching.io/dejavoo/terminals \
 
 <!-- captured: GET /dejavoo/terminals on stage, redacted -->
 ```json
-CAPTURE DejavooTerminalPublicDto @ /data/0
+{
+  "id": "393c386a-6c4c-41af-8645-8a1b2b262473",
+  "object": "dejavoo_terminal",
+  "tpn": "123456789013",
+  "label": "UAT P1",
+  "enabled": true,
+  "register_id": null,
+  "isv_id": null,
+  "spin_auth_key_set": true,
+  "credential_rotated_at": 1791760446,
+  "last_probe_at": 1794009709,
+  "last_probe_status": "Online",
+  "build": null,
+  "serial": "P1260428000529",
+  "feed_enable_requested_at": 1791760425,
+  "created": 1791760425
+}
 ```
 
 Returns the terminal with status `201`. Store its `id`: you name it when you collect a deposit. The SPIn Auth Key is never returned.
@@ -149,7 +208,37 @@ curl -X POST https://stage-api.chaching.io/customers \
 
 <!-- captured: POST /customers on stage, redacted -->
 ```json
-CAPTURE CustomersPublicDto
+{
+  "id": "cus_06dc7b45aabd042f600aec0c",
+  "object": "customer",
+  "name": "Jenny Rosen",
+  "email": "jenny.rosen@example.com",
+  "external_id": "patient-55821",
+  "phone": null,
+  "description": null,
+  "created": 1794269591,
+  "currency": "usd",
+  "address": {
+    "line1": null,
+    "line2": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "country": null
+  },
+  "shipping": {
+    "name": "Jenny Rosen",
+    "phone": "",
+    "address": {
+      "line1": null,
+      "line2": null,
+      "city": null,
+      "state": null,
+      "postal_code": null,
+      "country": null
+    }
+  }
+}
 ```
 
 Returns the Customer object with status `201`. `external_id` is your own id for the patient; find the customer later with `GET /customers?external_id=patient-55821`.
@@ -179,7 +268,76 @@ curl -X POST https://stage-api.chaching.io/payment-plans/preview \
 
 <!-- captured: POST /payment-plans/preview on stage, redacted -->
 ```json
-CAPTURE PaymentPlanPreviewDto
+{
+  "object": "payment_plan_preview",
+  "mode": "terminal_deposit",
+  "customer": "cus_06dc7b45aabd042f600aec0c",
+  "total_amount": 1200,
+  "down_payment_amount": 100,
+  "financed_amount": 1100,
+  "installment_amount": 100,
+  "installment_count": 11,
+  "interval": "monthly",
+  "remainder_placement": "first",
+  "start_date": 1811808000,
+  "installments": [
+    {
+      "sequence": 1,
+      "due_date": 1811808000,
+      "amount": 100
+    },
+    {
+      "sequence": 2,
+      "due_date": 1814400000,
+      "amount": 100
+    },
+    {
+      "sequence": 3,
+      "due_date": 1817078400,
+      "amount": 100
+    },
+    {
+      "sequence": 4,
+      "due_date": 1819756800,
+      "amount": 100
+    },
+    {
+      "sequence": 5,
+      "due_date": 1822348800,
+      "amount": 100
+    },
+    {
+      "sequence": 6,
+      "due_date": 1825027200,
+      "amount": 100
+    },
+    {
+      "sequence": 7,
+      "due_date": 1827619200,
+      "amount": 100
+    },
+    {
+      "sequence": 8,
+      "due_date": 1830297600,
+      "amount": 100
+    },
+    {
+      "sequence": 9,
+      "due_date": 1832976000,
+      "amount": 100
+    },
+    {
+      "sequence": 10,
+      "due_date": 1835481600,
+      "amount": 100
+    },
+    {
+      "sequence": 11,
+      "due_date": 1838160000,
+      "amount": 100
+    }
+  ]
+}
 ```
 
 Returns the schedule the plan would have, with nothing created. Replace `CUSTOMER_ID` with the id from step 5, and `start_date` (here 1 June 2027, 00:00 UTC) with a day after today.
@@ -208,7 +366,42 @@ curl -X POST https://stage-api.chaching.io/payment-plans \
 
 <!-- captured: POST /payment-plans on stage, redacted -->
 ```json
-CAPTURE PaymentPlanPublicDto
+{
+  "id": "pp_fb761610ab8be59e112221d7",
+  "object": "payment_plan",
+  "external_id": "treatment-1",
+  "customer": "cus_06dc7b45aabd042f600aec0c",
+  "customer_external_id": "patient-55821",
+  "description": "Orthodontic treatment",
+  "status": "awaiting_deposit",
+  "currency": "USD",
+  "total_amount": 1200,
+  "down_payment_amount": 100,
+  "installment_amount": 100,
+  "installment_count": 11,
+  "interval": "monthly",
+  "start_date": 1811808000,
+  "remainder_placement": "first",
+  "remaining_balance": 1200,
+  "installments_paid": 0,
+  "installments_remaining": 12,
+  "next_due_date": 1794182400,
+  "payment_method": null,
+  "gateway": null,
+  "reference": "EZS0S6S8",
+  "deposit": {
+    "reference": "EZS0S6S8",
+    "kind": "down_payment",
+    "amount": 100,
+    "status": "pending",
+    "transaction_reference": null,
+    "collected_at": null,
+    "attempt": null
+  },
+  "created": 1794269592,
+  "ended_at": null,
+  "canceled_at": null
+}
 ```
 
 Returns the Payment Plan object with status `201` in status `awaiting_deposit`. Its `deposit` object names the `amount` the terminal collects. Nothing is charged until the deposit is collected. Store the plan's `id`:
@@ -268,7 +461,40 @@ curl -G https://stage-api.chaching.io/webhook-deliveries \
 
 <!-- captured: GET /webhook-deliveries on stage, redacted -->
 ```json
-CAPTURE page WebhookDeliveryPublicDto
+{
+  "data": [
+    {
+      "id": "whd_8ed91230db0f6eca61fe73b5",
+      "object": "webhook_delivery",
+      "event": "evt_3b12bdf0ed369e47f07b3e8d",
+      "event_type": "payment_plan.created",
+      "webhook_endpoint": "4a19c6f9-c4c8-4b79-b9a1-379260670c3d",
+      "endpoint": "https://doctor-cycling-likewise-brother.trycloudflare.com/chaching/webhooks",
+      "status": "pending",
+      "response_status_code": null,
+      "created": 1794269592,
+      "updated": 1794269592
+    },
+    {
+      "id": "whd_ab34f5ced45354becd9a304e",
+      "object": "webhook_delivery",
+      "event": "evt_3b12bdf0ed369e47f07b3e8d",
+      "event_type": "payment_plan.created",
+      "webhook_endpoint": "535c6441-e0b3-49c2-b51a-04d771d87ea4",
+      "endpoint": "https://doctor-cycling-likewise-brother.trycloudflare.com/chaching/webhooks",
+      "status": "pending",
+      "response_status_code": null,
+      "created": 1794269592,
+      "updated": 1794269592
+    }
+  ],
+  "meta": {
+    "page": 1,
+    "take": 10,
+    "items_total": 2,
+    "pages_total": 1
+  }
+}
 ```
 
 Returns one page of the account's deliveries of that event type. Store the `id` of the first one (`whd_...`) in `DELIVERY_ID` and read it:
@@ -281,7 +507,78 @@ curl https://stage-api.chaching.io/webhook-deliveries/$DELIVERY_ID \
 
 <!-- captured: GET /webhook-deliveries/{id} on stage, redacted -->
 ```json
-CAPTURE WebhookDeliveryDetailPublicDto
+{
+  "id": "whd_8ed91230db0f6eca61fe73b5",
+  "object": "webhook_delivery",
+  "event": "evt_3b12bdf0ed369e47f07b3e8d",
+  "event_type": "payment_plan.created",
+  "webhook_endpoint": "4a19c6f9-c4c8-4b79-b9a1-379260670c3d",
+  "endpoint": "https://doctor-cycling-likewise-brother.trycloudflare.com/chaching/webhooks",
+  "status": "success",
+  "response_status_code": 200,
+  "created": 1794269592,
+  "updated": 1794269593,
+  "payload": {
+    "id": "evt_3b12bdf0ed369e47f07b3e8d",
+    "account": {
+      "id": "acc_ac3a743a00d0db71b2332f78",
+      "external_id": "location-7",
+      "company": {
+        "id": "com_8d2abb56a643c585514c5aa1",
+        "external_id": "office-1042"
+      }
+    },
+    "created": 1794269592,
+    "createdAt": "2026-11-10T00:13:12.918Z",
+    "data": {
+      "id": "pp_fb761610ab8be59e112221d7",
+      "object": "payment_plan",
+      "status": "awaiting_deposit",
+      "created": 1794269592,
+      "deposit": {
+        "kind": "down_payment",
+        "amount": 100,
+        "status": "pending",
+        "attempt": null,
+        "reference": "EZS0S6S8",
+        "collected_at": null,
+        "transaction_reference": null
+      },
+      "gateway": null,
+      "currency": "USD",
+      "customer": "cus_06dc7b45aabd042f600aec0c",
+      "ended_at": null,
+      "interval": "monthly",
+      "reference": "EZS0S6S8",
+      "start_date": 1811808000,
+      "canceled_at": null,
+      "description": "Orthodontic treatment",
+      "external_id": "treatment-1",
+      "total_amount": 1200,
+      "next_due_date": 1794182400,
+      "payment_method": null,
+      "installment_count": 11,
+      "installments_paid": 0,
+      "remaining_balance": 1200,
+      "installment_amount": 100,
+      "down_payment_amount": 100,
+      "remainder_placement": "first",
+      "customer_external_id": "patient-55821",
+      "installments_remaining": 12
+    },
+    "event": "payment_plan.created"
+  },
+  "attempts": [
+    {
+      "attempt": 1,
+      "created": 1794269593,
+      "response_status_code": 200,
+      "response_body": "{\"ok\":true}",
+      "response_body_truncated": false,
+      "error": null
+    }
+  ]
+}
 ```
 
 Returns the delivery with the payload sent and every attempt. Your endpoint received the same payload; its envelope `account.external_id` is `location-7` and `account.company.external_id` is `office-1042`.

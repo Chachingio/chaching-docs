@@ -853,7 +853,16 @@ Events:
 
 <!-- captured: GET /webhook-deliveries/{id} on stage, redacted -->
 ```json
-CAPTURE PaymentMethodPublicDto
+{
+  "id": "13f79e8a-bece-4f36-8a26-22ef84979de4",
+  "card": {
+    "brand": "visa",
+    "last4": "1111",
+    "exp_year": 2026,
+    "exp_month": 12
+  },
+  "customer": "cus_8cc4ee2404910cd55d72d466"
+}
 ```
 
 ### Notes
@@ -1197,7 +1206,43 @@ An entry of `items.data`:
 
 <!-- captured: GET /subscriptions/{id} on stage, redacted -->
 ```json
-CAPTURE SubscriptionItem @ /items/data/0
+{
+  "created": 1786162872,
+  "current_period_end": 0,
+  "current_period_start": 0,
+  "plan": {
+    "id": "price_a669a0280e8391d4d8431e0a",
+    "object": "plan",
+    "active": true,
+    "amount": 1999,
+    "amount_decimal": "1998.9999999999998",
+    "created": 1786162754,
+    "currency": "USD",
+    "interval": "month",
+    "interval_count": 1,
+    "product": "prod_08cf7f25938505ec8ed2f0d2"
+  },
+  "price": {
+    "id": "price_a669a0280e8391d4d8431e0a",
+    "object": "price",
+    "active": true,
+    "created": 1786162754,
+    "currency": "USD",
+    "description": null,
+    "product": "prod_08cf7f25938505ec8ed2f0d2",
+    "recurring": {
+      "interval": "month",
+      "interval_count": 1
+    },
+    "tax_behavior": "exclusive",
+    "type": "recurring",
+    "unit_amount": 1999,
+    "unit_amount_decimal": "1998.9999999999998"
+  },
+  "quantity": 1,
+  "subscription": "sub_HUOPURqm9NgA0LZ53vToNoaN",
+  "tax_rates": []
+}
 ```
 
 ---

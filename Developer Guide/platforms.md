@@ -58,7 +58,21 @@ curl -X POST https://stage-api.chaching.io/platform/accounts \
 
 <!-- captured: POST /platform/accounts on stage, redacted -->
 ```json
-CAPTURE PlatformAccountPublicDto
+{
+  "object": "account",
+  "id": "acc_0c194ca27ec457a2f1b50f1f",
+  "external_id": "location-7",
+  "name": "Rosen Family Dental",
+  "company": {
+    "id": "com_1779003a63191104815fd879",
+    "external_id": "office-1042",
+    "name": "Rosen Family Dental"
+  },
+  "time_zone": "America/New_York",
+  "status": "active",
+  "deactivated_at": null,
+  "created": 1794269584
+}
 ```
 
 Returns the Account object with status `201`. The company is created on its first use and reused afterwards by `company.external_id`. When an active account of that company already has the same `external_id`, the request returns it with status `200`, unchanged: its `name`, `time_zone` and the company `name` are not updated, and a deactivated account stays deactivated. Two concurrent creates of the same account return one account. No route changes an account's `name`, `time_zone` or ids after creation.
@@ -89,7 +103,31 @@ curl -G https://stage-api.chaching.io/platform/accounts \
 
 <!-- captured: GET /platform/accounts on stage, redacted -->
 ```json
-CAPTURE page PlatformAccountPublicDto
+{
+  "data": [
+    {
+      "object": "account",
+      "id": "acc_0c194ca27ec457a2f1b50f1f",
+      "external_id": "location-7",
+      "name": "Rosen Family Dental",
+      "company": {
+        "id": "com_1779003a63191104815fd879",
+        "external_id": "office-1042",
+        "name": "Rosen Family Dental"
+      },
+      "time_zone": "America/New_York",
+      "status": "active",
+      "deactivated_at": null,
+      "created": 1794269584
+    }
+  ],
+  "meta": {
+    "page": 1,
+    "take": 10,
+    "items_total": 1,
+    "pages_total": 1
+  }
+}
 ```
 
 Returns your platform's accounts, newest first, filtered by `external_id`, `company_external_id` (both exact) and `status` (`active` or `deactivated`). `GET /platform/accounts/{id}` returns one account, deactivated ones included; an id that names no account of your platform answers `404 ACCOUNT_NOT_FOUND`.
