@@ -137,7 +137,7 @@ Each delivery's envelope names the account:
 
 - No dashboard, no users, no bank account, no ChaChing monthly fee.
 - The account's own publishable and secret keys do not exist; a key of that kind answers `401 Invalid apiKey`.
-- Hosted checkout and invoice pages: HOSTED_SENTENCE
+- Hosted checkout and invoice pages: they do not work for a platform account: the `hosted_invoice_url` of its invoices and the checkout address of its prices open on "Invalid or expired token — The requested item could not be found." (observed on staging, 2026-11-10). Collect payments on a platform account through the API and your own pages.
 - Not built: platform key scopes, an IP allow-list, a per-key rate limit and a route to rotate your own key. One rate limit of 200 requests per minute applies per IP address; see [Rate limits](./integrating-staging.md#rate-limits).
 
 ## Environment

@@ -20,7 +20,7 @@ Where:
     - **price_id** (for subscription checkout)
     - **invoice_id** (for unpaid invoice checkout)
 
-V23_OBSERVATION
+A price checkout creates the subscription for the customer who pays: the customer, the subscription and its first charge are created when the payment is approved (observed on staging, 2026-11-10).
 
 ---
 
@@ -57,7 +57,7 @@ Use this when:
 - The invoice is unpaid
 - You want the customer to pay it
 
-V23_OBSERVATION
+Paying a hosted invoice charges the card once and does not save it as a reusable payment method on the customer: after the payment, `GET /customers/{id}/payment-methods` still lists nothing (observed on staging, 2026-11-10). On a Dejavoo account a card is saved for later charges only by a terminal deposit of a payment plan.
 
 Example:
 
@@ -97,7 +97,7 @@ No additional API call is required for basic hosted page usage.
 
 The hosted checkout page displays the **workspace name** of the workspace selected in your account. The company name is not shown on hosted pages.
 
-V23_OBSERVATION
+Observed on staging, 2026-11-10: the hosted page shows the account name as the workspace name ("DRV Dejavoo Account" for a company named "DRV Dejavoo"); the company name does not appear.
 
 ---
 
