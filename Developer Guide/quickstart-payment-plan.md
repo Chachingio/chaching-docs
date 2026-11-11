@@ -6,7 +6,7 @@ Every request goes to staging, `https://stage-api.chaching.io`. Amounts are in c
 
 ## Before you start
 
-- A staging platform key from Chaching, stored in `CHACHING_PLATFORM_KEY`. See [Get access](./integrating-staging.md#get-access).
+- A staging platform key, created by your administrator in the platform console and stored in `CHACHING_PLATFORM_KEY`. See [Get access](./integrating-staging.md#get-access).
 - Your iPOSpays UAT e-commerce credentials: TPN, API key, secret key and e-commerce token.
 - A Dejavoo terminal set up for SPIn Cloud, with its TPN and its 10-character SPIn Auth Key.
 - A public HTTPS URL that receives webhooks. See [Receive webhooks on staging](./integrating-staging.md#receive-webhooks-on-staging).
