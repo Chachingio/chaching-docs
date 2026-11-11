@@ -30,25 +30,44 @@ Turn them off only once your own receipts and notices are live.
 
 Send a receipt for every installment and every payment ChaChing collects by card. Fill it from the Installment object (`payment_plan.installment_paid`) or the Payment object (`payment_plan.payment_succeeded`):
 
+Fields both events carry:
+
 | Receipt line | Field |
 | --- | --- |
 | Merchant name and location | Your records for `account.id` |
 | Description | `payment_plan_summary.description` |
-| `Payment N of M` | `sequence` and `payment_plan_summary.installment_count`; `sequence` `0` is the down payment |
-| Amount and currency | `amount_paid` and `payment_plan_summary.currency` |
 | Credit card surcharge | `surcharge_amount`, printed when above `0` |
-| Total charged | `amount_charged` |
-| Date | `paid_at` |
-| Card brand and last four digits | `card.brand`, `card.last4`; print `Card on file` when `card` is `null`; `card.brand` is the gateway's card network label, not guaranteed lowercase |
+| Card brand and last four digits | `card.brand`, `card.last4`; print `Card on file` when `card` is `null` and `external` is `false`; `card.brand` is the gateway's card network label, not guaranteed lowercase |
 | Transaction type | The word `Purchase` |
 | Remaining balance and payments remaining | `payment_plan_summary.remaining_balance`, `payment_plan_summary.installments_remaining` |
 | Invoice link | `hosted_invoice_url` |
+| Payment recorded (external) | An `external: true` payment: `card` and `payment_method` are `null` and no card was charged. |
+
+From the Installment object:
+
+| Receipt line | Field |
+| --- | --- |
+| `Payment N of M` | `sequence` and `payment_plan_summary.installment_count`; `sequence` `0` is the down payment |
+| Amount and currency | `amount_paid` and `payment_plan_summary.currency` |
+| Total charged | `amount_charged` |
+| Date | `paid_at` |
+
+From `payment_plan.payment_succeeded`:
+
+| Receipt line | Field |
+| --- | --- |
+| `Payment N of M` | `allocations[].sequence` and `payment_plan_summary.installment_count` |
+| Amount and currency | `amount` and `payment_plan_summary.currency` |
+| Total charged | `amount_charged` |
+| Date | `created` |
+
+`amount_charged` can exceed `amount` plus `surcharge_amount`; the difference is not itemized.
 
 Send one receipt for each `payment_plan.payment_succeeded`: its `allocations` list every installment and principal amount the payment paid, each with its own `hosted_invoice_url`. Send one receipt for each `payment_plan.installment_paid` whose installment `id` is not listed in the `allocations` of a `payment_plan.payment_succeeded` of the same plan. ChaChing sends the `payment_plan.installment_paid` events of a payment before its `payment_plan.payment_succeeded`.
 
 Deliveries can arrive out of order after retries, so an `installment_paid` can reach you before the `payment_succeeded` that lists it. Choose one rule for the whole integration:
 
-- **One receipt per payment.** Send the receipt on `payment_plan.payment_succeeded`, and do not send a separate receipt for an `installment_paid` whose installment is listed in that payment's `allocations`. Before you treat an `installment_paid` as standalone, wait up to 70 minutes for a `payment_succeeded` of the same plan that lists it: ChaChing can hold a `payment_succeeded` for up to an hour, plus the delivery retry. Send the standalone receipt when none arrives.
+- **One receipt per payment.** Send the receipt on `payment_plan.payment_succeeded`, and do not send a separate receipt for an `installment_paid` whose installment is listed in that payment's `allocations`. Before you treat an `installment_paid` as standalone, wait for a `payment_succeeded` of the same plan that lists it. Wait up to 70 minutes plus the retry window (about 2 hours in total), or until `payment_plan.payment_succeeded` arrives. Send the standalone receipt when none arrives.
 - **One receipt per installment.** Send one receipt for each `payment_plan.installment_paid` and ignore `payment_plan.payment_succeeded` for receipts.
 
 The card networks set what a receipt for an installment must carry. The receipt ChaChing sends meets these obligations, and a receipt you send in its place has to meet them too, as set out in the Visa Core Rules and Visa Product and Service Rules (Table 5-33 and Table 5-34 on receipt content, and the electronic receipt rules of section 5.9.1.2) and in Visa Business News AI09536:
@@ -102,10 +121,10 @@ Card network rules give the customer at least 7 calendar days from the first dec
 
 ## When ChaChing Sends These Events
 
-ChaChing sends `payment_plan.installment_paid` and `payment_plan.payment_succeeded` once the credit card surcharge of the charge is known, so `surcharge_amount` and `amount_charged` are final when the event arrives. When the surcharge cannot be read within an hour, ChaChing sends the event with `surcharge_amount` `0` and `surcharge_status` `unavailable`; the exact amount charged is then the one shown for that transaction in your Dejavoo (iPOSpays) account.
+ChaChing sends `payment_plan.installment_paid` and `payment_plan.payment_succeeded` once the credit card surcharge of the charge is known, so `surcharge_amount` and `amount_charged` are final when the event arrives. When the surcharge cannot be read within an hour, ChaChing sends the event with `surcharge_amount` `0` and `surcharge_status` `unavailable`; the exact amount charged is then the one shown for that transaction in your Dejavoo (iPOSpays) account. Amounts are in cents of US dollars, the only currency.
 
 For a payment recorded with `POST /payment-plans/{id}/payments` that reaches the unbilled part of the plan, ChaChing sends `payment_plan.payment_succeeded` after it rebuilds the plan's remaining schedule, so `remaining_balance`, `installments_remaining` and `payment_plan_summary` match the response of that request.
 
-Each event is sent once.
+ChaChing produces each event once; a delivery can arrive more than once. Deduplicate on `id`.
 
 See [Webhooks](./webhook.md) for the envelope, the retry policy and the signature, and [Payment Plans](./payment-plans.md) for the plan lifecycle and the surcharge rules.

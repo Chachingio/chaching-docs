@@ -11,6 +11,9 @@ When viewing a customer's profile, you can add a new payment method.
 | **MM/YY** | Card expiration month and year. | Required |
 | **CVC** | Card security code. | Required |
 | **Save with Link** | Checkbox that stores the card using Link | Optional |
+
+On an account that charges through Dejavoo, a card is saved by collecting a payment plan deposit on a terminal; the card form of this page and `POST /payment-methods/{id}/attach` do not apply. See [Payment Plans on a Terminal](../../Developer%20Guide/payment-plans-terminal.md).
+
 ---
 ## Billing Details
 

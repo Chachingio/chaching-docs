@@ -19,7 +19,9 @@ Processor credentials are the payment gateway keys of an account: Dejavoo (iPOSp
 | `GET /stripe/credentials` | Returns the Stripe credential state. |
 | `PUT /stripe/credentials` | Sets or rotates the Stripe credentials. |
 
-Every request carries the account's secret key in the `cc-api-key` header. A publishable key answers `403 SECRET_API_KEY_REQUIRED`. A request that also carries an `Authorization` header is refused: `409`, or `401` when the header carries a signed-in token whose session has ended or that belongs to another account.
+A `GET` of another gateway's credentials answers `200` with `active: false`, every `*_set` `false` and `updated_at: null`.
+
+Every request carries the account's secret key in the `cc-api-key` header. A publishable key answers `403 SECRET_API_KEY_REQUIRED`. Send no `Authorization` header (see [API Basics](./api-basics.md#authentication)).
 
 ## Request Bodies
 
@@ -30,6 +32,12 @@ Every `PUT` sends the gateway's full set of required fields, every time. Optiona
 | Dejavoo | `tpn` (12 digits), `api_key`, `secret_key`, `ecom_token` | `feed_signing_key` (16 to 256 printable characters), `google_pay_merchant_id` (letters and digits, at most 64; `null` removes it) |
 | NMI | `security_key`, `tokenization_key`, `checkout_public_key` | `webhook_signing_key` (16 to 256 printable characters) |
 | Stripe | `publishable_key`, `secret_key` | none |
+
+API keys, secret keys and security keys are trimmed and must be printable ASCII without a backslash.
+
+The TPN is the location's e-commerce TPN, not a terminal TPN.
+
+The `feed_signing_key` is optional. It verifies the iPOSpays FEED deliveries ChaChing receives for this account.
 
 A Stripe publishable key starts with `pk_test_` or `pk_live_`. A Stripe secret key starts with `sk_test_`, `sk_live_`, `rk_test_` or `rk_live_`, and must be in the same mode as the publishable key: both test keys or both live keys.
 
@@ -81,10 +89,11 @@ A `PUT` answers after the new credentials are in use. That usually takes a few s
 | **Status** | **Error** | **When** |
 | --- | --- | --- |
 | `400` | no code | A field fails validation, or the body carries an unknown field. |
-| `401` | no code | The key is unknown or belongs to a deactivated account, or the request carries an `Authorization` header with a signed-in token whose session has ended or that belongs to another account. |
+| `401` | no code | The key is unknown or belongs to a deactivated account, or the request carries an `Authorization` header with a signed-in token whose session has ended or that belongs to another account. Send no `Authorization` header (see [API Basics](./api-basics.md#authentication)). |
 | `403` | `SECRET_API_KEY_REQUIRED` | The key is a publishable key. |
+| `404` | `ACCOUNT_NOT_FOUND` | With a platform key: `Chaching-Account` names no account of your platform. |
 | `409` | `PAYMENT_GATEWAY_LOCKED` | The account is set up on another gateway. |
-| `409` | no code | The request carries any other `Authorization` header. |
+| `409` | no code | The request carries any other `Authorization` header. Send no `Authorization` header (see [API Basics](./api-basics.md#authentication)). |
 | `422` | `DEJAVOO_CREDENTIALS_REJECTED` | iPOSpays rejected the API key and secret key. Nothing was saved. |
 | `422` | `STRIPE_CREDENTIALS_REJECTED` | Stripe rejected the secret key, or the key cannot read the account balance. Nothing was saved. |
 | `429` | `PROCESSOR_CREDENTIALS_RATE_LIMITED` | More than 10 `PUT` requests in one minute with the same key. Wait for the `Retry-After` seconds. |

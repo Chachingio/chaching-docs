@@ -16,8 +16,8 @@ navbar:
       label: Webhook
     - page: ./support&Communication.md
       label: Support
-      
 
-
-
-
+openapi:
+  codeSamples:
+    languages:
+      - lang: curl
