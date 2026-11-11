@@ -11,7 +11,7 @@ Store one platform key per environment, one signing secret per webhook endpoint,
 
 ## Get a platform key
 
-Chaching creates your platform and issues its key (`psk_...`, 47 characters). Chaching sends it through a secure channel within one business day. It is shown to Chaching once, so store it in your secrets manager on receipt. To replace it, Chaching issues a second key, you deploy it, and Chaching revokes the first. See [Get access](./integrating-staging.md#get-access).
+Chaching creates your platform and invites your administrator by email. Your administrator registers through the link (it lasts 24 hours and works once) and creates the platform's keys (`psk_...`, 47 characters) in the platform console at `https://stage.chaching.io/platform`, under **API keys**. Creating or rotating a key takes a 6-digit code that the console emails to the signed-in administrator; the code expires after 10 minutes. The console shows a key once, when it is created or rotated, and Chaching never sees it: store it in your secrets manager at that moment. To replace a key, rotate it and choose under **Current key expires** when the old key stops working: **Now**, **In 1 hour**, **In 24 hours** (the default) or **In 7 days**. Both keys work until then, so deploy the new key before that moment; a key that already expires sooner keeps its earlier expiry. Revoking a key stops it from the next request and takes no code. A platform has at most 10 live keys, and a rotated key counts until it expires. See [Get access](./integrating-staging.md#get-access).
 
 ## Authenticate
 
@@ -176,7 +176,7 @@ Each delivery's envelope names the account:
 - No dashboard, no users, no bank account, no ChaChing monthly fee.
 - The account's own publishable and secret keys do not exist; a key of that kind answers `401 Invalid apiKey`.
 - Hosted checkout and invoice pages: they do not work for a platform account: the `hosted_invoice_url` of its invoices and the checkout address of its prices open on "Invalid or expired token — The requested item could not be found." (observed on staging, 2026-11-10). Collect payments on a platform account through the API and your own pages.
-- Not built: platform key scopes, an IP allow-list, a per-key rate limit and a route to rotate your own key. One rate limit of 200 requests per minute applies per IP address; see [Rate limits](./integrating-staging.md#rate-limits).
+- Not built: platform key scopes, an IP allow-list and a per-key rate limit. Platform keys are created, rotated and revoked in the platform console, not through the public API. One rate limit of 200 requests per minute applies per IP address; see [Rate limits](./integrating-staging.md#rate-limits).
 
 ## Environment
 
