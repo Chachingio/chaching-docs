@@ -63,12 +63,15 @@ Subscription events for an outcome are sent per subscription item, not per subsc
 - A subscription paused through the API or the dashboard before the hold also receives `subscription.paused` for the hold. A subscription that is paused when the hold ends can receive `subscription.resumed`, but it stays paused and is not billed until it is resumed. A pause or resume request made while the customer is in an outcome is rejected; see **Subscription Changes During an Outcome**.
 - After an `invoice.payment_succeeded` for a customer whose subscriptions are on hold, wait a short time, then re-read the subscription with `GET /subscriptions/{id}` to learn whether the hold ended. The hold is re-evaluated separately from the payment event, so a read made immediately on receipt can show the state from before the payment.
 - A pause, resume, or cancellation requested through the API or the dashboard carries `reason: "requested"` and `initiated_by: "merchant"`.
+- `subscription.canceled`, `subscription.paused` and `subscription.resumed` are not sent for a subscription that belongs to a payment plan; follow the plan's `payment_plan.*` events instead.
 
 ---
 
 # Subscription Changes During an Outcome
 
 While a customer is in any of the three outcomes, a well-formed `POST /subscriptions`, `PATCH /subscriptions/{id}`, `POST /subscriptions/{id}/pause`, or `POST /subscriptions/{id}/resume` request for that customer is rejected with HTTP `409` and a body whose `statusCode` is `409` and whose `message` is `Account is blocked pending payment`. A request rejected this way does not change the customer's subscriptions. `DELETE /subscriptions/{id}` is not rejected for this reason, and the late-payment warning does not cause this response.
+
+The subscription write operations can also answer `409` `ACCOUNT_INVOICING_SUSPENDED` and `SUBSCRIPTION_UPDATE_INCOMPLETE`. `POST /subscriptions/{id}/pause` answers `400` `SUBSCRIPTION_ALREADY_PAUSED` for a subscription that is already paused, and `POST /subscriptions/{id}/resume` answers `400` `SUBSCRIPTION_NOT_PAUSED` for one that is not. A `500` with `error` `SUBSCRIPTION_READ_AFTER_WRITE_FAILED` means the change was applied but the subscription could not be read back; read it again with `GET /subscriptions/{id}` instead of repeating the write. Pause, resume and cancel answer the Subscription object as read right after the change; its `status` reflects the change within a few seconds, so read the subscription again to confirm it.
 
 Collect or void the customer's outstanding invoices first. The outcome is re-evaluated separately from a payment, so a request made immediately after the customer pays can still be rejected; wait a short time, then repeat it.
 
@@ -103,7 +106,7 @@ The retry schedule and the outcomes are configured in the dashboard, on the **In
 
 ## Read the settings
 
-`GET /revenue-recovery` returns the account's current settings. Authenticate with the account's API key in the `cc-api-key` header, as on every other endpoint. Send no `Authorization` header on either of these two endpoints: a request that carries one is rejected.
+`GET /revenue-recovery` returns the account's current settings. The publishable key works only on the ChaChing hosted checkout pages; every API operation answers it `403` `SECRET_API_KEY_REQUIRED`. Send no `Authorization` header (see [API Basics](./api-basics.md#authentication)).
 
 Response:
 
@@ -147,7 +150,7 @@ The response body has the same shape as `GET /revenue-recovery`, with `outcome_d
 - `payment_retries` holds at most 10 values. A request with more is rejected with `400`.
 - `subscription_state_on_payment_failure` is one of `cancel`, `unpaid`, `past-due`.
 - `invoice_state_on_payment_failure` is one of `past-due`, `uncollectible`.
-- On an account with Payment Plans enabled, or holding a payment plan that has not ended, `payment_retries` must sum to at least 7 and `subscription_state_on_payment_failure` cannot be `unpaid`; a request that breaks either rule is rejected with `400`. See [Payment Plans](./payment-plans.md).
+- On an account with Payment Plans enabled, or holding a payment plan that has not ended, `payment_retries` must sum to at least 7 and `subscription_state_on_payment_failure` cannot be `unpaid`; a request that breaks either rule is rejected with `400`: `REVENUE_RECOVERY_UNPAID_NOT_ALLOWED_WITH_PAYMENT_PLANS` for `unpaid`, `REVENUE_RECOVERY_RETRY_SUM_BELOW_PLAN_MINIMUM` for a schedule that sums to less than 7. See [Payment Plans](./payment-plans.md).
 - `outcome_day` is read-only. A request body that carries it is rejected with `400`.
 - A rejected request changes nothing: the settings stay as they were.
 

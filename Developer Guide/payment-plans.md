@@ -2,11 +2,11 @@
 
 A payment plan collects a fixed total amount from one customer in a fixed number of scheduled installments. ChaChing stores the plan, charges each installment automatically on its due date against the plan's payment method, retries a declined charge on your account's retry schedule, and reports every change over webhooks. There is no interest. The installments always add up to the total agreed when the plan was created; on an account that charges through iPOSpays (Dejavoo), each credit card charge of a plan also carries the credit card surcharge configured for your account in the iPOSpays S.T.E.A.M portal, recorded separately from the plan amounts; debit card charges carry none (see [Credit Card Surcharges](#credit-card-surcharges)).
 
-Payment Plans are available through the API. They are enabled per merchant account by ChaChing and are off by default. While they are off, every `/payment-plans` endpoint answers `403` with the error code `PAYMENT_PLANS_NOT_ENABLED` and the message `Payment Plans are not enabled for this account. Contact Chaching to enable them.`
+Payment Plans are available through the API. They are enabled per merchant account by ChaChing and are off by default. While they are off, every `/payment-plans` endpoint answers `403` with the error code `PAYMENT_PLANS_NOT_ENABLED` and the message `Payment Plans are not enabled for this account. Contact Chaching to enable them.` Accounts created through the platform API have payment plans enabled.
 
 Merchants also work with payment plans in the ChaChing dashboard. On an account that charges through iPOSpays (Dejavoo), the dashboard collects the deposit of a plan — its down payment, or its first installment when it has none — on one of the account's registered terminals and takes payments on a terminal, through the same deposit and payment flows this page describes. Nothing changes for an integration: every endpoint, object and webhook on this page works as documented.
 
-Every endpoint on this page authenticates with the account API key in the `cc-api-key` header, like every other public endpoint. Amounts are integers in cents, dates and timestamps are Unix seconds, and field names are `snake_case`. For every request and response schema, see the [API Reference](./api.json). For the webhook payloads, see [Webhooks](./webhook.md). Some endpoints require the secret key (`sk_`); each such section says so.
+Every endpoint on this page authenticates with the account API key in the `cc-api-key` header, like every other public endpoint. Amounts are integers in cents, dates and timestamps are Unix seconds, and field names are `snake_case`. For every request and response schema, see the [API Reference](./api.json). For the webhook payloads, see [Webhooks](./webhook.md). Every endpoint on this page requires the account secret API key (`sk_`), or a platform key with `Chaching-Account` (see [Platforms](./platforms.md)), in the `cc-api-key` header. A publishable key (`pk_`) answers `403` `SECRET_API_KEY_REQUIRED` on every endpoint.
 
 ---
 
@@ -36,7 +36,7 @@ For example, $2,100.00 at $200.00 a month with no down payment and the remainder
 | `canceled` | You canceled the plan. Installments not yet billed are removed; amounts already invoiced stay collectible. |
 | `awaiting_deposit` | The plan was created without a payment method and waits for its deposit — the down payment when the plan has one, else its first installment — which the customer pays on one of your Dejavoo terminals. See **Collect the First Installment on a Terminal**. |
 
-`paid_off` and `canceled` are final. The status value is `canceled`, with one `l`.
+`paid_off` and `canceled` are final. The status value is `canceled`, with one `l`. A plan in `awaiting_deposit` accepts no payment, external payments included, until the deposit is collected on a terminal.
 
 | **From** | **To** | **When** | **Event** |
 | --- | --- | --- | --- |
@@ -67,11 +67,13 @@ Request body:
   "down_payment_amount": 30000,
   "installment_amount": 20000,
   "interval": "monthly",
-  "start_date": 1760400000,
+  "start_date": 1811808000,
   "remainder_placement": "first",
   "payment_method": "9f3a1c2e-7b45-4d18-a6c0-2f8e5b7d1a94"
 }
 ```
+
+Replace start_date with a day after today.
 
 | **Field** | **Required** | **Rules** |
 | --- | --- | --- |
@@ -83,7 +85,7 @@ Request body:
 | `installment_amount` | one of the two | Integer cents, at least `1`. Send exactly one of `installment_count` and `installment_amount`; ChaChing derives the other. |
 | `down_payment_amount` | no | Integer cents, `0` or more and less than `total_amount`. Default `0`. |
 | `interval` | no | `weekly`, `biweekly`, `monthly` or `annual`. Default `monthly`. On test environments, such as stage, `daily` is also accepted; production refuses `daily` with `400` `PAYMENT_PLAN_INTERVAL_INVALID`. An `annual` plan cannot start on 29 February. |
-| `start_date` | no | Unix seconds: the due date of installment 1. Only the UTC calendar date is used: the time of day is dropped, the plan starts at 00:00:00 UTC of that date, and that is the `start_date` the plan returns. It must fall on a later calendar day (UTC) than the request; a date on the day of the request is refused. Default: one interval after the day of the request. |
+| `start_date` | no | Unix seconds: the due date of installment 1. Only the calendar date is used and the plan returns 00:00:00 UTC of that date. It must be later than today's date both in UTC and in the account time zone, and, for a start within the next two UTC days, late enough that installment 1 does not bill within an hour of the request; otherwise the request answers `400` `PAYMENT_PLAN_START_DATE_INVALID` and the message names the earliest valid date. Default: one interval after today in the account time zone, never earlier than the day after the current UTC date. |
 | `remainder_placement` | no | `first` or `last`. Default `first`. |
 | `payment_method` | no | The id of a payment method of this customer, as returned by the payment-methods endpoints. Leave it out to collect the deposit on a terminal: the down payment when `down_payment_amount` is above `0`, else installment 1. |
 
@@ -91,7 +93,7 @@ Without `payment_method`, the plan opens in `awaiting_deposit`, and its deposit 
 
 What happens when a plan is created with `payment_method`:
 
-- Before charging anything, ChaChing checks the schedule it registered against the expected installment dates: every date for a plan of up to 12 installments, and, for a longer plan, the first installment date (plus the second when the first installment carries the odd amount). A date that cannot be projected because the customer has another subscription that bills often, such as a daily one, is not checked, and the plan is still created. A date more than 36 months after the day the check runs (UTC) is not checked either, and the plan is still created. A mismatch answers `500` `PAYMENT_PLAN_SCHEDULE_MISMATCH`, and no plan is created.
+- Before charging anything, ChaChing checks the schedule it registered against the expected installment dates: every date for a plan of up to 12 installments, and, for a longer plan, the first installment dates (the exact set depends on the plan). A date that cannot be projected because the customer has another subscription that bills often, such as a daily one, is not checked, and the plan is still created. A date more than 36 months after the day the check runs (UTC) is not checked either, and the plan is still created. A mismatch answers `500` `PAYMENT_PLAN_SCHEDULE_MISMATCH`, and no plan is created.
 - When `down_payment_amount` is greater than `0`, ChaChing charges it immediately against `payment_method` and records it as installment sequence `0`, already paid. When the charge is declined, the request answers `402` `PAYMENT_PLAN_DOWN_PAYMENT_DECLINED` and no plan is created. When its outcome cannot be confirmed, the request answers `502` `PAYMENT_PLAN_DOWN_PAYMENT_UNCONFIRMED`, no plan is created, and the charge is not reversed because it can still settle. The response's `down_payment_invoice_id` is the id of that down-payment invoice; once its charge has settled, send the same request again, with the same `Idempotency-Key` or a new one, and ChaChing handles the invoice as the next item describes.
 - Before it charges a down payment, ChaChing looks for an earlier down-payment invoice of the same customer and the same amount that no plan uses, which is what a create that did not finish leaves behind. When that invoice was paid with the same `payment_method` and was not refunded, the new plan uses that payment: nothing is charged again, and installment `0` carries that earlier invoice in `invoice` and the time of that payment in `paid_at`. When its charge failed, ChaChing voids it and charges the down payment again. When that invoice is still open without a confirmed outcome, when it was settled with a different payment method or without a card payment, when more than one such invoice was paid, or when a failed invoice cannot be voided, the request answers `409` `PAYMENT_PLAN_DOWN_PAYMENT_PENDING`, no plan is created and nothing is charged. From the next UTC day, an earlier down-payment invoice that is still unpaid answers `409` `PAYMENT_PLAN_CUSTOMER_DELINQUENT` instead, until it is paid or voided. An earlier down-payment invoice of a different amount is not matched, so check the customer's invoices before you change `down_payment_amount` after a `502`.
 - `payment_method` becomes the customer's default payment method, and the installments are charged against it.
@@ -101,6 +103,8 @@ What happens when a plan is created with `payment_method`:
 ## The Card on File
 
 A plan with no down payment runs entirely on a card the customer saved earlier. ChaChing does not run a $0.00 card verification. It accepts the saved card only when the card was saved through an approved authorization that established it for automatic payments; otherwise the request answers `409` `PAYMENT_PLAN_CREDENTIAL_NOT_ESTABLISHED` and nothing is charged. Create the plan with a down payment — its charge establishes the card — or ask the customer to enter the card again. On the NMI gateway, a card added to the customer vault without a transaction is refused this way.
+
+On a Dejavoo account, a card saved while the customer pays a hosted invoice cannot be charged again: create the plan with that card and the down payment is declined. Save the card through the subscribe checkout or collect the deposit on a terminal.
 
 Payment Plans run on accounts whose payment gateway is Dejavoo or NMI. On any other gateway the request answers `400` `PAYMENT_PLAN_GATEWAY_NOT_SUPPORTED`.
 
@@ -130,138 +134,17 @@ Change the first two through `PUT /revenue-recovery`; see [Configure Failed-Paym
 
 # Register a Dejavoo Terminal
 
-A terminal is a physical Dejavoo device of your account, addressed by its own TPN. These three endpoints accept only your account's secret API key (`sk_…`). A publishable key answers `403` `SECRET_API_KEY_REQUIRED`, and a request that also sends an `Authorization` header answers `409`.
-
-| **Request** | **What it does** |
-| --- | --- |
-| `GET /dejavoo/terminals` | Lists the terminals of the account as `{ "data": [...] }`, with no `meta`. |
-| `POST /dejavoo/terminals` | Registers a terminal from its `tpn`, `label` and 10-character `spin_auth_key`. ChaChing checks the pair with the terminal network before saving it, and a failed check saves nothing. |
-| `PATCH /dejavoo/terminals/{id}` | Changes a terminal. The updatable fields are `label`, `enabled`, `spin_auth_key`, `register_id`, `isv_id` and `feed_enable_requested`. There is no delete: send `{ "enabled": false }` to disable it. |
-
-The `dejavoo_terminal` object carries `object`, `id`, `tpn`, `label`, `enabled`, `register_id`, `isv_id`, `spin_auth_key_set`, `credential_rotated_at`, `last_probe_at`, `last_probe_status` (`Online`, `Offline` or `null`), `build`, `serial`, `feed_enable_requested_at` and `created`. Timestamps are Unix seconds. The Auth Key is write-only: `spin_auth_key_set` is always `true` and the key is never returned.
-
-| **Status** | **Error** | **When** |
-| --- | --- | --- |
-| `400` | no code | A field fails validation. |
-| `400` | `DEJAVOO_TERMINAL_UPDATE_EMPTY` | `PATCH` with none of the updatable fields. |
-| `401` | no code | The key is unknown or belongs to a deactivated account. |
-| `403` | `SECRET_API_KEY_REQUIRED` | The key is a publishable key. |
-| `404` | `DEJAVOO_TERMINAL_NOT_FOUND` | The `id` is not one of your terminals. |
-| `409` | `DEJAVOO_NOT_CONFIGURED` | `POST` only: the account has no 12-digit e-commerce TPN set. Set it with `PUT /dejavoo/credentials`, see [Processor Credentials](./processor-credentials.md). |
-| `409` | `TERMINAL_TPN_EXISTS` | The TPN is already registered. |
-| `409` | `SPIN_AUTH_KEY_UNREADABLE` | The stored Auth Key cannot be read; send it again. |
-| `422` | `SPIN_CREDENTIALS_REJECTED` | The TPN and Auth Key pair was refused. A wrong key and an unknown TPN carry the same error code. |
-| `503` | `SPIN_UNREACHABLE` | The terminal network did not answer. |
+Moved to [Payment Plans on a Terminal](./payment-plans-terminal.md#register-a-dejavoo-terminal).
 
 ---
 
 # Collect the First Installment on a Terminal
 
-A plan created without `payment_method` collects its deposit on one of your Dejavoo terminals: the down payment when the plan has one, else its first installment. The customer pays it with their card at the counter. ChaChing saves that card, activates the plan, and charges the remaining installments to the same card automatically — installments 1 onward after a down payment, installments 2 onward otherwise — exactly like a plan created with a card on file.
-
-## Before You Start
-
-- Register the terminal with `POST /dejavoo/terminals` and keep the terminal's `id`. See [Register a Dejavoo Terminal](#register-a-dejavoo-terminal).
-- The terminal must be enabled (`enabled: true`) and turned on and connected. ChaChing checks its connection before each deposit.
-- Your ISO sets up each terminal TPN with SPIn Cloud enabled, FEED enabled for the TPN, a Card Entry Screen Timeout of 90 seconds, Tip and Tax disabled, and the same card fee as your e-commerce TPN.
-- The three deposit endpoints below accept only your account's secret API key (`sk_…`) in the `cc-api-key` header. A publishable key (`pk_…`) answers `403` `SECRET_API_KEY_REQUIRED`, and a request that also sends an `Authorization` header answers `409` with no `error` field.
-
-## Start the Deposit
-
-1. Create the plan without `payment_method`. It answers `201` in status `awaiting_deposit`, and its `deposit` object carries the plan's `reference`, its `kind`, the `amount` the terminal collects, `status: "pending"` and `attempt: null`. `kind` is `down_payment` when the plan has a down payment, and `amount` is then the down payment; otherwise `kind` is `installment_1` and `amount` is the amount of installment 1. Until the deposit is collected, a down payment counts as an unpaid installment: `remaining_balance` is `total_amount`, `installments_remaining` counts it, and `next_due_date` is 00:00:00 UTC of the day the plan was created.
-2. Call `POST /payment-plans/{id}/deposit/terminal` with the terminal:
-
-   ```json
-   {
-     "terminal_id": "3f6b2a4e-9c1d-4e8f-a2b7-5d0c9e1f4a63"
-   }
-   ```
-
-   It answers `202` with the Payment Plan object, and `deposit.attempt.state` is `in_flight`. The terminal shows the amount, including the credit card surcharge your account adds when the card is a credit card; the customer confirms it and presents the card.
-3. Poll `GET /payment-plans/{id}` every 2 to 3 seconds until `deposit.attempt.state` is no longer `in_flight`. The request allows the customer up to 180 seconds at the terminal; the terminal itself times out the card prompt earlier (about 30 seconds idle plus 90 seconds of card entry on the P1, measured 2026-10-14). When the terminal's answer is lost, ChaChing keeps confirming the sale for up to 60 more seconds, so an attempt leaves `in_flight` at most 240 seconds after it started.
-
-The `deposit` object while the customer is at the terminal:
-
-```json
-"deposit": {
-  "reference": "K7Q2M9XA",
-  "kind": "installment_1",
-  "amount": 20000,
-  "status": "pending",
-  "transaction_reference": null,
-  "collected_at": null,
-  "attempt": {
-    "id": "ppda_4f9c2e1b7a6d3c8e5f0a1b2c",
-    "object": "payment_plan_deposit_attempt",
-    "terminal": "3f6b2a4e-9c1d-4e8f-a2b7-5d0c9e1f4a63",
-    "reference_id": "K7Q2M9XA01",
-    "state": "in_flight",
-    "started": 1760400000,
-    "resolved": null,
-    "decline_code": null,
-    "decline_message": null,
-    "surcharge_amount": 0,
-    "amount_charged": 0
-  }
-}
-```
+Moved to [Payment Plans on a Terminal](./payment-plans-terminal.md#collect-the-first-installment-on-a-terminal).
 
 ## Deposit Attempt States
 
-`deposit.attempt` is the plan's latest attempt, or `null` before the first one. The state `cancelled` is spelled with two `l`s, the way the terminal reports it; the plan status `canceled` keeps one. Only `declined`, `cancelled`, `not_charged` and `failed` mean that nothing was charged; while an attempt is `in_flight` or `resolving` — including after a communication error between the terminal and the card host — the card can have been charged.
-
-| **State** | **Meaning** | **What you do** |
-| --- | --- | --- |
-| `in_flight` | The customer is at the terminal, or ChaChing is confirming the sale. | Keep polling. To stop the sale while the card prompt is open, call `POST /payment-plans/{id}/deposit/cancel`. |
-| `approved` | The deposit is paid and the card is saved: the down payment, recorded as installment `0`, or installment 1. The plan is `active`, or `paid_off` for a plan with one installment and no down payment, and `deposit.status` is `collected`. `deposit.transaction_reference` is the gateway transaction id of the sale, or the attempt's `reference_id` when the sale was confirmed only through the iPOSpays Transaction Status Check. | Nothing. |
-| `declined` | The card was declined. Nothing was charged. | Start a new attempt, with another card when the customer has one. |
-| `cancelled` | The sale was cancelled on the terminal or with the cancel endpoint. Nothing was charged. | Start a new attempt when the customer is ready. |
-| `not_charged` | The terminal confirmed that no sale took place. | Start a new attempt. |
-| `failed` | The terminal or the SPIn proxy refused the request without producing an authorization, for example because the terminal was busy with another sale, was not connected, or cannot accept that card type; nothing was charged. `decline_message` gives the reason. | Start a new attempt; when `decline_message` reads `busy; retry after <n> s`, wait that long first. |
-| `resolving` | The terminal's answer did not arrive, or did not say whether the card was charged, and the outcome is not known yet. The card can have been charged. | Call `POST /payment-plans/{id}/deposit`. Do not ask the customer to pay again: a new attempt is refused until this one is resolved. |
-| `approved_no_credential` | The card was charged, but ChaChing has not saved it for the next installments yet. The plan stays `awaiting_deposit`. | Call `POST /payment-plans/{id}/deposit` again five minutes later. Do not charge the customer again. |
-| `partial_approval` | The card was charged an amount different from the deposit (`deposit.amount`), or only part of it. The plan is not activated. | Void the sale on the terminal, then start a new attempt. |
-| `force_closed` | The attempt was closed as not collected, by ChaChing staff or by your integration with `POST /dejavoo/terminal-attempts/{id}/force-close`, because its outcome could not be confirmed. The plan stays `awaiting_deposit`; you can start a new attempt or cancel the plan. The card can have been charged: check the sale in your Dejavoo (iPOSpays) account. | Start a new attempt only after that check. |
-
-Fields of the attempt object:
-
-| **Field** | **Meaning** |
-| --- | --- |
-| `id` | The attempt id, `ppda_…`. |
-| `terminal` | The `id` of the terminal the attempt ran on. |
-| `reference_id` | The reference and invoice number the terminal and your Dejavoo (iPOSpays) reports show for this sale: the plan's `reference` followed by the two-digit attempt number. |
-| `state` | One of the states above. |
-| `started` | When the attempt started, Unix seconds. |
-| `resolved` | When its outcome was read, Unix seconds; `null` while it is not known. |
-| `decline_code` | The terminal's status code for a `declined`, `cancelled`, `failed` or `partial_approval` attempt; `null` otherwise. |
-| `decline_message` | The terminal's message for those same states; `null` otherwise. |
-| `surcharge_amount` | The credit card surcharge the terminal added, in integer cents; `0` when none or not known. A debit card sale carries none. |
-| `amount_charged` | The total charged to the card, in integer cents; `0` until the sale is approved. |
-
-## Confirm a Deposit Whose Answer Was Lost
-
-`POST /payment-plans/{id}/deposit`, with an empty body, asks the terminal and iPOSpays what happened to the plan's latest attempt and answers `200` with the Payment Plan object.
-
-- For a `resolving` attempt it confirms the outcome. A sale that went through activates the plan; a sale that never took place ends the attempt `not_charged`. When the outcome still cannot be confirmed, the attempt stays `resolving`: call the endpoint again a minute later.
-- For an `approved_no_credential` attempt it tries again to save the card and activate the plan.
-- For an attempt that is still `in_flight` it answers `409` `PAYMENT_PLAN_DEPOSIT_IN_FLIGHT`; keep polling instead.
-- For an attempt that already ended while the plan still awaits its deposit, it returns the plan unchanged.
-- A plan with no attempt answers `409` `PAYMENT_PLAN_DEPOSIT_NO_ATTEMPT`.
-- A plan that is no longer `awaiting_deposit`, because it was activated or canceled, answers `409` `PAYMENT_PLAN_NOT_AWAITING_DEPOSIT`, and ChaChing asks nothing of the terminal or iPOSpays.
-- The confirmation can take more than a minute. When your request times out before it answers, the confirmation still completes: read the plan with `GET /payment-plans/{id}`. A repeat sent while the confirmation is still running answers `409` `PAYMENT_PLAN_BUSY`.
-
-## Cancel the Sale at the Terminal
-
-`POST /payment-plans/{id}/deposit/cancel`, with an empty body, asks the terminal to cancel the sale while its card prompt is open, and answers `202` with the Payment Plan object. Keep polling: the attempt ends `cancelled` when the terminal confirms the cancellation, and `approved` when the customer had already completed the payment. Once the terminal has answered, or when there is no attempt in `in_flight`, the endpoint answers `409` `PAYMENT_PLAN_DEPOSIT_NOT_IN_FLIGHT`.
-
-## Rules
-
-- One attempt runs at a time on a plan, and one on a terminal. A second start answers `409` `PAYMENT_PLAN_DEPOSIT_IN_FLIGHT` for the same plan, and `409` `DEJAVOO_TERMINAL_BUSY` for the same terminal.
-- A plan accepts up to 99 attempts; the next one answers `409` `PAYMENT_PLAN_DEPOSIT_ATTEMPTS_EXHAUSTED`.
-- A plan whose latest attempt is not resolved yet (`in_flight`, `resolving` or `approved_no_credential`) cannot be canceled: `POST /payment-plans/{id}/cancel` answers `409` `PAYMENT_PLAN_DEPOSIT_IN_FLIGHT` with the message `A terminal deposit attempt is unresolved. Resolve it with POST /payment-plans/{id}/deposit before canceling the plan.` until the attempt reaches a final state. Resolve it first with `POST /payment-plans/{id}/deposit`.
-- When the plan is activated, ChaChing sends `payment_plan.activated` and `payment_plan.installment_paid` for the installment the deposit paid — sequence `0` for a down payment, else sequence `1` — (and `payment_plan.completed` for a plan with one installment and no down payment), and emails the customer the receipt for the down payment or for payment 1.
-- Every Payment Plan object, in the responses and in the webhooks, carries `deposit.attempt`.
-- An attempt that stays `resolving` because the terminal never reports its outcome can be listed and force-closed: see [Find and Force-Close a Stuck Terminal Attempt](#find-and-force-close-a-stuck-terminal-attempt).
+Moved to [Payment Plans on a Terminal](./payment-plans-terminal.md#deposit-attempt-states).
 
 ---
 
@@ -269,7 +152,7 @@ Fields of the attempt object:
 
 - `GET /payment-plans` lists your plans, newest first, with the page parameters `page` and `take` (`take` at most `50`). Filter with `search`, a URL-encoded JSON object: `{"customer": "cus_739c07713fd4b68565a969cd", "status": "past_due,defaulted"}`. `status` takes one status or a comma-separated list. A `search` value that is not valid JSON answers `400`. Add `external_id` to return only the plan whose `external_id` equals that value. Leading and trailing spaces, tabs and line breaks of the value are removed first, then it must equal the stored value exactly (case-sensitive). A value that matches nothing returns an empty page; a value that is empty, blank, longer than 255 characters, contains a control character, or is sent twice answers `400`.
 - `GET /payment-plans/{id}` returns one plan.
-- `GET /payment-plans/{id}/installments` returns the plan's installments in ascending `sequence` order, the down payment first when there is one.
+- `GET /payment-plans/{id}/installments` returns the plan's installments in ascending `sequence` order, the down payment first when there is one. `GET /payment-plans/{id}/installments` is paged like the other lists: `page` and `take` (default `10`, at most `50`); it answers `{ "data": [...], "meta": { "page", "take", "items_total", "pages_total" } }`. A 60-installment plan needs two pages at `take=50`. `GET /invoices` has no plan filter: read each installment's `invoice` id.
 
 The Payment Plan object carries `description`: the text sent when the plan was created, or `null` when none was sent. It cannot be changed afterwards.
 
@@ -282,6 +165,8 @@ An installment's `status` is `scheduled`, `paid`, `failed` or `canceled`. It rea
 The Invoice object, on the invoice endpoints and in every `invoice.*` webhook, carries `payment_plan`, `installment` and `payment_plan_charge`. All three are `null` on an invoice that belongs to no payment plan, and an invoice raised for a payment plan reports `subscription: null`. `payment_plan_charge` describes the plan charge the invoice records: `{ "id": "pp_1ef17ace4b4d96ff32461285", "installment": "ppi_9c1a3d0e2f4b8756a1c0d3ef", "sequence": 3, "payment": "ppp_5d2c8e1f0a3b4c6d7e8f9a0b", "kind": "installment" }`. `id` is the plan; `installment` and `sequence` are the installment the charge pays, both `null` for an extra payment and a payoff; `payment` is the Payment object that paid the invoice, `null` for the down payment charged when the plan is created, for a deposit collected on a terminal and for an installment paid by its automatic charge; `kind` is `down_payment`, `deposit` (the first installment collected on a terminal), `installment`, `extra_payment` or `payoff`. `payment_plan_charge` is also `null` on a plan invoice not matched to an installment yet. An invoice that records the principal part of a payment reports `installment: null`.
 
 ## Preview a Schedule
+
+This endpoint requires the account secret API key (`sk_`), or a platform key with `Chaching-Account`.
 
 `POST /payment-plans/preview` takes the body of `POST /payment-plans` and answers `200` with the schedule that body would produce, without creating anything:
 
@@ -307,9 +192,15 @@ The Invoice object, on the invoice endpoints and in every `invoice.*` webhook, c
 }
 ```
 
+The values shown are illustrative.
+
 `mode` is `card_on_file` when the body carries `payment_method` and `terminal_deposit` when it does not. `installments` lists installments 1 to N; the down payment appears only in `down_payment_amount`. `description` is accepted and ignored.
 
-The preview checks the customer, your payment gateway, the interval, `start_date` and the amounts, with the codes `POST /payment-plans` uses for the same checks: `404` `CUSTOMER_NOT_FOUND`, and `400` `PAYMENT_PLAN_GATEWAY_NOT_SUPPORTED`, `PAYMENT_PLAN_INTERVAL_INVALID`, `PAYMENT_PLAN_START_DATE_INVALID`, `PAYMENT_PLAN_SCHEDULE_INVALID` and `PAYMENT_PLAN_AMOUNT_INVALID`. It does not check the payment method, the customer's account standing and unpaid invoices, an earlier down payment still pending, nor your retry settings, so `POST /payment-plans` can still refuse a body whose preview succeeded: with `404` `PAYMENT_METHOD_NOT_FOUND`; with `409` `PAYMENT_PLAN_PAYMENT_METHOD_NOT_SUPPORTED`, `PAYMENT_PLAN_CREDENTIAL_NOT_ESTABLISHED`, `PAYMENT_PLAN_AUTO_PAY_OFF`, `PAYMENT_PLAN_ACCOUNT_INVOICED_AHEAD`, `PAYMENT_PLAN_CUSTOMER_DELINQUENT`, `PAYMENT_PLAN_DUNNING_SCHEDULE_TOO_SHORT`, `PAYMENT_PLAN_UNPAID_OUTCOME_NOT_SUPPORTED` and `PAYMENT_PLAN_DOWN_PAYMENT_PENDING`; and with every outcome of the down-payment charge, the billing engine and the `Idempotency-Key` that [When a Plan Cannot Be Created](#when-a-plan-cannot-be-created) and [Duplicate Requests](#duplicate-requests) describe.
+The preview checks the customer, your payment gateway, the interval, `start_date` and the amounts, with the codes `POST /payment-plans` uses for the same checks: `404` `CUSTOMER_NOT_FOUND`, and `400` `PAYMENT_PLAN_GATEWAY_NOT_SUPPORTED`, `PAYMENT_PLAN_INTERVAL_INVALID`, `PAYMENT_PLAN_START_DATE_INVALID`, `PAYMENT_PLAN_SCHEDULE_INVALID` and `PAYMENT_PLAN_AMOUNT_INVALID`. It does not check the payment method, the customer's account standing and unpaid invoices, an earlier down payment still pending, nor your retry settings, so `POST /payment-plans` can still refuse a body whose preview succeeded: with `404` `PAYMENT_METHOD_NOT_FOUND`; with `409` `PAYMENT_PLAN_PAYMENT_METHOD_NOT_SUPPORTED`, `PAYMENT_PLAN_CREDENTIAL_NOT_ESTABLISHED`, `PAYMENT_PLAN_AUTO_PAY_OFF`, `PAYMENT_PLAN_ACCOUNT_INVOICED_AHEAD`, `PAYMENT_PLAN_CUSTOMER_DELINQUENT`, `PAYMENT_PLAN_DUNNING_SCHEDULE_TOO_SHORT`, `PAYMENT_PLAN_UNPAID_OUTCOME_NOT_SUPPORTED` and `PAYMENT_PLAN_DOWN_PAYMENT_PENDING`; and with every outcome of the down-payment charge, the billing engine and the `Idempotency-Key` that [When a Plan Cannot Be Created](#when-a-plan-cannot-be-created) and [Duplicate Requests](#duplicate-requests) describe. The preview checks only the shape of `payment_method`; it does not check that the payment method belongs to the customer.
+
+| **Status** | **`error`** | **When** |
+| --- | --- | --- |
+| `502` | `PAYMENT_PLAN_BILLING_ENGINE_UNAVAILABLE` | The billing state could not be read; nothing was started. Retry. |
 
 ## List a Plan's Payments
 
@@ -317,7 +208,7 @@ The preview checks the customer, your payment gateway, the interval, `start_date
 
 `payment_plan_status`, `remaining_balance` and `installments_remaining` describe the plan at the time of the request, not at the time of each payment. A down payment collected on a terminal is not a payment: read it as installment `0` of `GET /payment-plans/{id}/installments` and in the plan's `deposit`.
 
-Both endpoints require the account's secret API key (`sk_…`): a publishable key answers `403` with `SECRET_API_KEY_REQUIRED`, and a request that also carries an `Authorization` header answers `409`.
+This endpoint requires the account secret API key (`sk_`), or a platform key with `Chaching-Account`.
 
 ---
 
@@ -375,217 +266,13 @@ Each recorded payment sends `payment_plan.payment_succeeded`, one `payment_plan.
 
 ## Take a Payment on a Terminal
 
-A customer who comes to your counter can pay an installment, make an extra payment or pay the plan off on one of your Dejavoo terminals. The amount is applied like any other payment: billed installments first, oldest first, then the principal. The sale does not change the card saved on the plan, and installments keep being charged to that card.
-
-1. Call `POST /payment-plans/{id}/payments` with the terminal in `payment_method`, using your account's secret API key (`sk_…`):
-
-   ```json
-   {
-     "amount": 50000,
-     "payment_method": { "type": "terminal", "terminal_id": "3f6b2a4e-9c1d-4e8f-a2b7-5d0c9e1f4a63" }
-   }
-   ```
-
-   It answers `201` with the Payment object in `status: processing`, with `amount: 0` and a `terminal` object whose `state` is `in_flight`. The terminal shows the amount, including the credit card surcharge your account adds when the card is a credit card; the customer confirms it and presents the card.
-2. Poll `GET /payment-plans/{id}/payments/{payment_id}` every 2 to 3 seconds until `terminal.state` is no longer `in_flight`. The request allows the customer up to 180 seconds at the terminal; the terminal itself times out the card prompt earlier (about 30 seconds idle plus 90 seconds of card entry on the P1, measured 2026-10-14). When the terminal's answer is lost, ChaChing keeps confirming the sale for up to 60 more seconds, so a payment leaves `in_flight` at most 240 seconds after it started.
-3. When the sale is approved, ChaChing records the payment: `status` becomes `applied` and `amount` the amount applied, `surcharge_amount` and `amount_charged` report the surcharge the terminal added, ChaChing sends `payment_plan.payment_succeeded` (with `payment_plan.installment_paid` for each installment it paid in full and `payment_plan.completed` for a payoff), and the customer receives the receipt. On this payment `external` reads `false` and `payment_method` reads `null`.
-
-The `terminal` object while the customer is at the terminal:
-
-```json
-"terminal": {
-  "id": "ppda_9b2e4c7a1f3d5e8b0c6a2d4f",
-  "object": "payment_plan_terminal_attempt",
-  "terminal": "3f6b2a4e-9c1d-4e8f-a2b7-5d0c9e1f4a63",
-  "reference_id": "Q4T8M2ZK03",
-  "state": "in_flight",
-  "started": 1760500000,
-  "resolved": null,
-  "decline_code": null,
-  "decline_message": null,
-  "surcharge_amount": 0,
-  "amount_charged": 0,
-  "transaction_id": null,
-  "rrn": null,
-  "auth_code": null,
-  "card_last4": null,
-  "card_brand": null,
-  "card_entry_type": null
-}
-```
-
-| **`terminal.state`** | **Meaning** | **What you do** |
-| --- | --- | --- |
-| `in_flight` | The customer is at the terminal, or ChaChing is confirming the sale. The payment reads `processing`. | Keep polling. To stop the sale while the card prompt is open, call `POST /payment-plans/{id}/payments/{payment_id}/cancel`. |
-| `approved` | The sale was approved. Once ChaChing has recorded it the payment reads `applied`; when the terminal approved more than the amount sent, the amount sent is applied and `amount_charged` includes the difference. When the plan could absorb none of the amount, the terminal approved and charged the card but the payment reads `not_attempted`: `terminal.state` is `approved` or `partial_approval`, `terminal.amount_charged` carries the collected amount and the payment's own `amount_charged` is `0`, so do not ask the customer to pay again. | Nothing. When the payment still reads `processing` a minute later, call `POST /payment-plans/{id}/payments/{payment_id}/resolve`. |
-| `partial_approval` | The terminal approved less than the amount sent. ChaChing records the approved amount and the payment reads `partially_applied`. | Take the rest as a new payment. |
-| `declined` | The card was declined. The payment reads `declined`; nothing was applied. | Take a new payment, with another card when the customer has one. |
-| `cancelled` | The sale was cancelled on the terminal or with the cancel endpoint. The payment reads `not_attempted`; nothing was charged. | Take a new payment when the customer is ready. |
-| `not_charged` | The terminal confirmed that no sale took place. The payment reads `not_attempted`. | Take a new payment. |
-| `failed` | The terminal or the SPIn proxy refused the request without producing an authorization; nothing was charged. The payment reads `not_attempted` and `decline_message` gives the reason. | Take a new payment; when `decline_message` reads `busy; retry after <n> s`, wait that long first. |
-| `resolving` | The terminal's answer did not arrive, or did not say whether the card was charged. The card can have been charged. The payment reads `processing`. | Call `POST /payment-plans/{id}/payments/{payment_id}/resolve`. Do not ask the customer to pay again. |
-| `approved_no_credential` | The card was charged, but ChaChing has not confirmed the amount or recorded the payment yet. The payment reads `processing`. | Call `POST /payment-plans/{id}/payments/{payment_id}/resolve` again five minutes later. Do not charge the customer again. |
-| `force_closed` | The payment was closed as not collected, by ChaChing staff or by your integration with `POST /dejavoo/terminal-attempts/{id}/force-close`, because its outcome could not be confirmed. The payment reads `not_attempted`. The card can have been charged: check the sale in your Dejavoo (iPOSpays) account. | Take a new payment only after that check. |
-
-Fields of the `terminal` object (`null` on a payment that was not taken on a terminal):
-
-| **Field** | **Meaning** |
-| --- | --- |
-| `id` | The terminal attempt id, `ppda_…`. |
-| `terminal` | The `id` of the terminal the sale ran on. |
-| `reference_id` | The reference and invoice number the terminal and your Dejavoo (iPOSpays) reports show for this sale: ten characters, generated for each terminal payment. |
-| `state` | One of the states above. |
-| `started` | When the sale started, Unix seconds. |
-| `resolved` | When its outcome was read, Unix seconds; `null` while it is not known. |
-| `decline_code` | The terminal's status code for a `declined`, `cancelled`, `failed` or `partial_approval` sale; `null` otherwise. |
-| `decline_message` | The terminal's message for those same states; `null` otherwise. |
-| `surcharge_amount` | The credit card surcharge the terminal added, in integer cents; `0` when none or not known. A debit card sale carries none. |
-| `amount_charged` | The total charged to the card, in integer cents; `0` until the sale is approved. |
-| `transaction_id` | The iPOSpays transaction id of the sale, as your Dejavoo reports show it; `null` until it is known. |
-| `rrn` | The sale's retrieval reference number; `null` until it is known. |
-| `auth_code` | The authorization code the terminal returned for the sale; `null` until it is known. |
-| `card_last4` | The last four digits of the card; `null` until they are known. |
-| `card_brand` | The card brand in lowercase, for example `visa`; `null` until it is known. |
-| `card_entry_type` | How the card was read, as the terminal reports it, for example `Contactless` or `Chip`; `null` until it is known. |
-
-### Confirm a Terminal Payment Whose Answer Was Lost
-
-`POST /payment-plans/{id}/payments/{payment_id}/resolve`, with an empty body, asks the terminal and iPOSpays what happened to the sale and answers `200` with the Payment object.
-
-- For a `resolving` sale it confirms the outcome. A sale that went through is recorded; a sale that never took place ends `not_charged` and the payment `not_attempted`. When the outcome still cannot be confirmed, the sale stays `resolving`: call the endpoint again a minute later.
-- For an `approved_no_credential` sale, or an `approved` one whose payment still reads `processing`, it records the payment.
-- For a sale that is still `in_flight` it answers `409` `PAYMENT_PLAN_TERMINAL_PAYMENT_IN_FLIGHT`; keep polling instead.
-- For a payment that no longer reads `processing`, it returns the payment unchanged.
-- For a payment that was not taken on a terminal it answers `409` `PAYMENT_PLAN_PAYMENT_NOT_TERMINAL`.
-- The confirmation can take more than a minute. When your request times out before it answers, the confirmation still completes: read the payment with `GET /payment-plans/{id}/payments/{payment_id}`. A repeat sent while the confirmation is still running answers `409` `PAYMENT_PLAN_BUSY`.
-
-### Cancel the Sale at the Terminal
-
-`POST /payment-plans/{id}/payments/{payment_id}/cancel`, with an empty body, asks the terminal to cancel the sale while its card prompt is open, and answers `202` with the Payment object. Keep polling: the sale ends `cancelled` when the terminal confirms the cancellation, and `approved` when the customer had already completed the payment. Once the terminal has answered, or when the sale is not `in_flight`, the endpoint answers `409` `PAYMENT_PLAN_TERMINAL_PAYMENT_NOT_IN_FLIGHT`.
-
-### Rules for Terminal Payments
-
-- `POST /payment-plans/{id}/payments` with a terminal, the resolve endpoint and the cancel endpoint accept only your account's secret API key (`sk_…`): a publishable key (`pk_…`) answers `403` `SECRET_API_KEY_REQUIRED`, and a request that also sends an `Authorization` header answers `409` with no `error` field. `GET /payment-plans/{id}/payments/{payment_id}` accepts any API key of your account.
-- Only a plan on the Dejavoo gateway takes terminal payments; any other plan answers `409` `PAYMENT_PLAN_TERMINAL_NOT_SUPPORTED`. `external: true` with a terminal answers `400` `PAYMENT_PLAN_TERMINAL_EXTERNAL_NOT_ALLOWED`.
-- The terminal must be registered, enabled, turned on and connected, exactly as for a deposit: the same codes apply (`DEJAVOO_TERMINAL_NOT_FOUND`, `DEJAVOO_TERMINAL_DISABLED`, `DEJAVOO_TERMINAL_OFFLINE`, `SPIN_AUTH_KEY_UNREADABLE`, `DEJAVOO_TERMINAL_ISV_ID_INVALID`, `SPIN_CREDENTIALS_REJECTED`, `SPIN_UNREACHABLE`).
-- While a terminal payment of the plan reads `processing`, every new payment on the plan answers `409` `PAYMENT_PLAN_PAYMENT_PENDING_CONFIRMATION`, and `POST /payment-plans/{id}/cancel` answers `409` `PAYMENT_PLAN_PAYMENT_PENDING_CONFIRMATION` with the message `A terminal payment on this plan is unresolved. Resolve it with POST /payment-plans/{id}/payments/{payment_id}/resolve before canceling the plan.` A sale on a terminal that is already running another one answers `409` `DEJAVOO_TERMINAL_BUSY`.
-- A plan accepts up to 99 terminal attempts, its deposit attempts included; the next one answers `409` `PAYMENT_PLAN_TERMINAL_ATTEMPTS_EXHAUSTED`.
-- A request repeated with the same `Idempotency-Key` answers the stored `201` again and starts no second sale; read the payment with `GET /payment-plans/{id}/payments/{payment_id}` for its current state.
-- The amount is applied to the plan as it stands when ChaChing records the sale. When an installment was paid another way, or its invoice was voided, before the payment was recorded, the amount goes to the next open installment or to the principal. An approved amount the plan can no longer absorb is not applied; ChaChing's team is alerted to refund it at the terminal. When the plan absorbs only part of an approved sale the payment reads `partially_applied`, and when it absorbs none of it, `not_attempted`.
-- A terminal payment that stays `resolving` because the terminal never reports its outcome can be listed and force-closed: see [Find and Force-Close a Stuck Terminal Attempt](#find-and-force-close-a-stuck-terminal-attempt).
+Moved to [Payment Plans on a Terminal](./payment-plans-terminal.md#take-a-payment-on-a-terminal).
 
 ---
 
 # Find and Force-Close a Stuck Terminal Attempt
 
-Every sale ChaChing sends to one of your terminals, a deposit or a payment, is a terminal attempt with an id `ppda_…`. An attempt normally reaches a final state on its own or through the resolve endpoints. When the terminal never reports an outcome, the attempt stays `resolving`: its plan cannot be canceled, and the plan takes no new deposit or payment until the attempt is resolved. These two endpoints list the attempts of your account and close such an attempt as not collected.
-
-| **Request** | **What it does** |
-| --- | --- |
-| `GET /dejavoo/terminal-attempts` | Lists the terminal attempts of the account, in every state, newest first. |
-| `POST /dejavoo/terminal-attempts/{id}/force-close` | Closes one attempt whose outcome could not be confirmed, as not collected. |
-
-Both endpoints accept only your account's secret API key (`sk_…`): a publishable key (`pk_…`) answers `403` `SECRET_API_KEY_REQUIRED`, and a key that matches no account answers `401` (a `pk_`-shaped key that matches no account answers `403` `SECRET_API_KEY_REQUIRED` on the list route and `401` on the force-close route), and a request that also sends an `Authorization` header answers `409` with no `error` field. They answer whether Payment Plans are enabled on your account or not.
-
-## Before You Force-Close
-
-A force-close records that nothing was collected, and it voids and refunds nothing. When the card was in fact charged and the terminal cannot report it, the money stays collected and ChaChing has no record of it: taking the payment again charges the customer twice. Before you force-close an attempt:
-
-1. Call the resolve endpoint first: `POST /payment-plans/{id}/deposit` for a deposit, `POST /payment-plans/{id}/payments/{payment_id}/resolve` for a payment.
-2. Force-close only when the resolve endpoint keeps answering `resolving` and your Dejavoo (iPOSpays) account shows no sale for the attempt's `reference_id`.
-
-Once an attempt's `deadline` has passed, only a status read records a sale that went through: the resolve endpoints make one, and FEED notifications do not record it. ChaChing protects a force-close in two ways:
-
-- It refuses a force-close until 15 minutes after the attempt's `deadline`, which gives a terminal that was briefly offline time to come back.
-- After that, the force-close first reads the sale's status from the terminal, exactly as the resolve endpoints do. When the read finds an outcome (approved, approved but the card not saved yet (`approved_no_credential`), partially approved, declined, cancelled or not charged), ChaChing records it as the resolve endpoints record it, closes nothing and answers `409` `PAYMENT_PLAN_TERMINAL_ATTEMPT_RESOLVED`; read the attempt again to see its state. An attempt that reads `approved_no_credential` needs you to act: call its resolve endpoint again, as the state tables above say.
-- ChaChing closes the attempt only when the read leaves it unresolved: the terminal cannot be reached, does not answer in time or gives no final answer, or it reports no such sale and the iPOSpays check of that sale cannot confirm it.
-
-The call can take up to about a minute because it reads the terminal. If your connection drops before the answer, read the attempt with `GET /dejavoo/terminal-attempts`: a repeated force-close answers `409` `PAYMENT_PLAN_TERMINAL_ATTEMPT_FINAL` when the first one closed it.
-
-When SPIn reports an authentication failure (for example after the terminal's Auth Key changed), the read cannot see the sale. Update the Auth Key with `PATCH /dejavoo/terminals/{id}` and call the resolve endpoint before you force-close.
-
-## List the Attempts
-
-`GET /dejavoo/terminal-attempts` answers a page `{ "data": [...], "meta": { "page", "take", "items_total", "pages_total" } }`, newest first by `started`, with the page parameters `page` and `take` (`take` at most `50`). Filter with `search`, a URL-encoded JSON object with any of these keys:
-
-| **Key** | **Value** |
-| --- | --- |
-| `terminal` | The `id` of one of your terminals. |
-| `state` | One state or a comma-separated list, for example `"resolving,approved_no_credential"`. `resolving` also returns an attempt still `in_flight` whose `deadline` has passed. |
-| `kind` | `deposit`, `payment`, or both separated by a comma. |
-| `created` | The UTC days on which the attempt started, for example `{"type": "between", "from": "2026-11-01", "to": "2026-11-04"}`. The types are `equal`, `between`, `after`, `before` and `inTheLast`, as on the other lists. |
-
-A `search` value that is not a JSON object, or a key with a value outside these, answers `400`.
-
-The `dejavoo_terminal_attempt` object of a deposit whose outcome is not known:
-
-```json
-{
-  "id": "ppda_4f9c2e1b7a6d3c8e5f0a1b2c",
-  "object": "dejavoo_terminal_attempt",
-  "kind": "deposit",
-  "payment_plan": "pp_7d2c9a4e1b6f3c8a5e0d2b4f",
-  "payment": null,
-  "terminal": "3f6b2a4e-9c1d-4e8f-a2b7-5d0c9e1f4a63",
-  "reference_id": "K7Q2M9XA01",
-  "state": "resolving",
-  "amount": 20000,
-  "started": 1760400000,
-  "deadline": 1760400240,
-  "resolved": null,
-  "live": false,
-  "closable": true,
-  "closable_at": 1760401140,
-  "force_closed_at": null,
-  "force_closed_by": null,
-  "force_close_reason": null
-}
-```
-
-| **Field** | **Meaning** |
-| --- | --- |
-| `id` | The attempt id, `ppda_…`: the `id` of `deposit.attempt` on the plan, and of `terminal` on a payment. |
-| `kind` | `deposit` for a plan's deposit, `payment` for a payment taken on a terminal. |
-| `payment_plan` | The plan's `id`, `pp_…`. |
-| `payment` | The payment's `id`, `ppp_…`, for a payment; `null` for a deposit. |
-| `terminal` | The `id` of the terminal the sale ran on. |
-| `reference_id` | The reference and invoice number the terminal and your Dejavoo (iPOSpays) reports show for this sale. |
-| `state` | One of the states of [Deposit Attempt States](#deposit-attempt-states) for a deposit, and of the `terminal.state` table of [Take a Payment on a Terminal](#take-a-payment-on-a-terminal) for a payment. An attempt still `in_flight` after its `deadline` reads `resolving`. |
-| `amount` | The amount sent to the terminal, in integer cents. |
-| `started` | When the attempt started, Unix seconds. |
-| `deadline` | When the sale can no longer be open at the terminal, Unix seconds. |
-| `resolved` | When its outcome was read, Unix seconds; `null` while it is not known. |
-| `live` | `true` while the sale can still be open at the terminal: `in_flight` before `deadline`. |
-| `closable` | `true` when a force-close is accepted now: the attempt is not final, the terminal reported no approval for it, and 15 minutes have passed since `deadline`. The force-close still reads the sale's status first, and it can answer `409` `PAYMENT_PLAN_TERMINAL_ATTEMPT_LIVE` while another request on the same plan is running. |
-| `closable_at` | The earliest time a force-close is accepted, Unix seconds: `deadline` plus 15 minutes. `null` when the attempt is final or the terminal reported an approval for it; such an attempt is never force-closed. |
-| `force_closed_at` | When the attempt was force-closed, Unix seconds; `null` otherwise. |
-| `force_closed_by` | `chaching_staff` when ChaChing staff closed it, `api` when your integration closed it through this endpoint; `null` otherwise. |
-| `force_close_reason` | The reason given with the force-close; `null` otherwise. |
-
-The object never carries the terminal's Auth Key, its TPN, card details or gateway ids.
-
-## Force-Close an Attempt
-
-Call `POST /dejavoo/terminal-attempts/{id}/force-close` with the attempt `id` and your reason:
-
-```json
-{
-  "reason": "Terminal lost power; iPOSpays shows no sale for K7Q2M9XA01."
-}
-```
-
-`reason` is 1 to 500 characters, not blank, with no control characters such as a line break. ChaChing stores it without its leading and trailing spaces and returns it as `force_close_reason`. When the status read leaves the attempt unresolved, the answer is `200` with the attempt in `force_closed`, `force_closed_by` set to `api` and `force_closed_at` set. A deposit's plan stays `awaiting_deposit`: you can start a new attempt or cancel the plan. A payment reads `not_attempted`. ChaChing sends no webhook for a force-close. The force-close answers whether Payment Plans are enabled on your account or not.
-
-| **Status** | **Error** | **When** |
-| --- | --- | --- |
-| `400` | no code | The `id` is not a valid id, `reason` fails validation, or the body carries another field. |
-| `404` | `PAYMENT_PLAN_TERMINAL_ATTEMPT_NOT_FOUND` | The `id` is not an attempt of your account. |
-| `409` | `PAYMENT_PLAN_TERMINAL_ATTEMPT_RESOLVED` | The status read found an outcome. ChaChing recorded it exactly as the resolve endpoints do and closed nothing; `message` names the attempt's state. Read the attempt again. |
-| `409` | `PAYMENT_PLAN_TERMINAL_ATTEMPT_LIVE` | Nothing was changed. The message names the cause: the sale is still open at the terminal (`in_flight` before `deadline`; the body carries `closable_at`, the earliest time a force-close is accepted, Unix seconds); the terminal reported an approval for the attempt (call the resolve endpoint of its plan to record it); another request is working on the plan (retry shortly); or ChaChing could not read the sale status (call the resolve endpoint, then retry). |
-| `409` | `PAYMENT_PLAN_TERMINAL_ATTEMPT_TOO_RECENT` | Less than 15 minutes have passed since `deadline`. The body field `closable_at` is the earliest time a force-close is accepted, Unix seconds. Nothing was changed. |
-| `409` | `PAYMENT_PLAN_TERMINAL_ATTEMPT_FINAL` | The attempt is already final, a force-closed attempt included. Nothing was changed. |
-| `409` | `SPIN_AUTH_KEY_UNREADABLE` | The terminal's stored Auth Key cannot be read, so its status cannot be read. Re-enter it with `PATCH /dejavoo/terminals/{id}`; nothing was changed. |
-| `409` | `PAYMENT_PLAN_NOT_AWAITING_DEPOSIT` | A deposit attempt whose plan is no longer `awaiting_deposit`: its status cannot be read through the deposit resolve endpoint and nothing was changed. Contact ChaChing to close it. |
+Moved to [Payment Plans on a Terminal](./payment-plans-terminal.md#find-and-force-close-a-stuck-terminal-attempt).
 
 ---
 
@@ -667,7 +354,7 @@ A payment recorded with `external: true` is not a card charge. The customer rece
 
 A declined down payment sends the customer no email: the request answers `402` `PAYMENT_PLAN_DOWN_PAYMENT_DECLINED`, and no plan exists.
 
-**Description.** A plan created without `description` prints `Payment plan` followed by the plan id in its place.
+**Description.** A plan created without `description` prints `Payment plan` followed by the plan's `reference` for a plan created without `payment_method`, and by the plan id otherwise.
 
 **Copies of receipts.** Receipts go to the customer. A copy of a receipt goes to your account owner only when both the ChaChing-enabled receipt copy and the account's owner copies (`owner_email_copies_enabled`) are on; contact ChaChing to enable the receipt copy. Failed-payment and overdue notices copy the owner while `owner_email_copies_enabled` is `true`.
 
@@ -690,7 +377,7 @@ Customers and payment plans accept an optional `external_id` when you create the
 - **Scope.** A customer's `external_id` is unique among the active customers of your account, and a plan's among all payment plans of your account, whatever their status. A customer and a plan can carry the same value, and another account can use the same value.
 - **Set once.** The value is set when the object is created and never changes. `PATCH /customers/{id}` with `external_id` in the body answers `400` `CUSTOMER_EXTERNAL_ID_IMMUTABLE`; payment plans have no update endpoint. Customers and plans created before external ids existed have `external_id: null`.
 - **Duplicates.** `POST /customers` with a value an active customer of your account already carries answers `409` `CUSTOMER_EXTERNAL_ID_EXISTS`; `POST /payment-plans` with a value a plan of your account already carries answers `409` `PAYMENT_PLAN_EXTERNAL_ID_EXISTS`. The message names the existing `cus_…` or `pp_…` id and does not repeat the external id. A deleted customer frees its value. `POST /customers` and `POST /payment-plans` with an `external_id` that is not 1 to 255 characters or contains a control character answer `400` with no `error` field.
-- **Retries.** Send an `Idempotency-Key` header on every `POST /payment-plans` that carries an `external_id`. A retry with the same key replays the first answer instead of creating, or refusing, a second plan. Two concurrent creates with the same `external_id` and different keys can leave a charged down payment without a plan; refund it from its invoice.
+- **Retries.** Send an `Idempotency-Key` header on every `POST /payment-plans` that carries an `external_id`. A retry with the same key replays the first answer instead of creating, or refusing, a second plan. Two concurrent creates with the same `external_id` and different keys can leave a charged down payment without a plan. Contact Chaching support with the invoice id of the down payment: there is no refund operation for payment plan charges.
 - **Lookup.** `GET /customers?external_id=…` and `GET /payment-plans?external_id=…` return the normal page, filtered by an exact, case-sensitive match. Leading and trailing spaces, tabs and line breaks of the value are removed first, then it must equal the stored value exactly (case-sensitive). A value that matches nothing returns an empty page; a value that is empty, blank, longer than 255 characters, contains a control character, or is sent twice answers `400`.
 - **Echo.** The Customer and Payment Plan objects carry `external_id`. The Payment Plan object also carries `customer_external_id`; the Installment and Payment objects carry `customer`, `customer_external_id` and `payment_plan_external_id`; the Invoice object carries `customer_external_id` and `payment_plan_external_id`. Webhooks carry the same objects.
 
@@ -704,10 +391,10 @@ Errors use the standard body `{ "statusCode", "message", "error", "timestamp", "
 
 | **Status** | **`error`** | **When** |
 | --- | --- | --- |
-| `400` | `PAYMENT_PLAN_SCHEDULE_INVALID` | Both or neither of `installment_count` and `installment_amount` were sent, `installment_count` is above `60` or larger than the amount to finance allows, `installment_amount` is larger than the amount to finance, or the amounts do not form a valid schedule. |
+| `400` | `PAYMENT_PLAN_SCHEDULE_INVALID` | Both or neither of `installment_count` and `installment_amount` were sent, `installment_count` is above `60` or larger than the amount to finance allows, `installment_amount` is larger than the amount to finance, or the amounts do not form a valid schedule, or `installment_amount` would need more than `60` installments. |
 | `400` | `PAYMENT_PLAN_AMOUNT_INVALID` | `down_payment_amount` is not below `total_amount`, or a payment's `amount` is below `1`. |
 | `400` | `PAYMENT_PLAN_INTERVAL_INVALID` | `interval` is not one of the values this environment accepts: `weekly`, `biweekly`, `monthly` and `annual` everywhere, and `daily` on test environments only. |
-| `400` | `PAYMENT_PLAN_START_DATE_INVALID` | `start_date` is not after the day of the request, or `interval` is `annual` and `start_date` is 29 February (UTC). |
+| `400` | `PAYMENT_PLAN_START_DATE_INVALID` | `start_date` is not after the day of the request, or `interval` is `annual` and `start_date` is 29 February (UTC), or the start is within an hour of the customer's billing time, or is not after today in the account time zone. |
 | `400` | `PAYMENT_PLAN_GATEWAY_NOT_SUPPORTED` | The account's payment gateway does not support Payment Plans. |
 | `400` | `PAYMENT_PLAN_AMOUNT_EXCEEDS_BALANCE` | A payment is larger than what the plan accepts. Nothing is charged. |
 | `400` | `PAYMENT_METHOD_REQUIRED` | A payment was sent with no `payment_method`, it is not external, and the customer has no default payment method. |
@@ -716,7 +403,7 @@ Errors use the standard body `{ "statusCode", "message", "error", "timestamp", "
 | `402` | `PAYMENT_PLAN_DOWN_PAYMENT_DECLINED` | The down payment was declined. No plan was created. |
 | `402` | `PAYMENT_DECLINED` | The first charge of a payment was declined. Nothing was applied. |
 | `403` | `PAYMENT_PLANS_NOT_ENABLED` | Payment Plans are not enabled for this account. |
-| `403` | `SECRET_API_KEY_REQUIRED` | A deposit endpoint, a terminal payment endpoint, a terminal attempt endpoint, the schedule preview or the payments list was called with a publishable (`pk_…`) API key. |
+| `403` | `SECRET_API_KEY_REQUIRED` | Any endpoint was called with a publishable (`pk_...`) API key. |
 | `404` | `PAYMENT_PLAN_NOT_FOUND` | The plan id does not resolve for this account. |
 | `404` | `CUSTOMER_NOT_FOUND` | The customer id does not resolve for this account. |
 | `404` | `PAYMENT_METHOD_NOT_FOUND` | The payment method does not resolve, or it does not belong to the customer. |
@@ -730,6 +417,7 @@ Errors use the standard body `{ "statusCode", "message", "error", "timestamp", "
 | `409` | `PAYMENT_PLAN_CUSTOMER_DELINQUENT` | The customer's account is in the late-payment warning or a failed-payment outcome, or carries an invoice unpaid for one day or more. |
 | `409` | `PAYMENT_PLAN_AUTO_PAY_OFF` | A plan created with `payment_method` has a down payment and automatic payments are turned off for the customer in the billing engine. Nothing was created or charged. Create the plan without a down payment. |
 | `409` | `PAYMENT_PLAN_ACCOUNT_INVOICED_AHEAD` | The customer was already invoiced through a date on or after `start_date`. The message names that date. Nothing was created; choose a `start_date` after it. |
+| `409` | `PAYMENT_PLAN_DOWN_PAYMENT_NOT_ATTEMPTED` | The down payment was not attempted because the payment processor was restarting. Nothing was charged and no plan was created; retry later. |
 | `409` | `PAYMENT_PLAN_DOWN_PAYMENT_PENDING` | An earlier down-payment invoice of the same amount for this customer is still open, or was settled in a way this request cannot use (a different payment method, no card payment, or more than one such invoice). Nothing was created or charged by this request. Check the customer's invoices and transactions: wait for an open charge to finish, send the `payment_method` that paid, or refund or void the invoices that should not count, then send the request again. |
 | `409` | `PAYMENT_PLAN_EXTERNAL_ID_EXISTS` | A payment plan of your account already carries this `external_id`. The message names that plan's `pp_…` id. Nothing was created or charged by this request. |
 | `409` | `PAYMENT_PLAN_NOT_PAYABLE` | The plan is `awaiting_deposit` or `paid_off`. |

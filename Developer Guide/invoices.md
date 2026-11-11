@@ -1,6 +1,6 @@
 # Invoices
 
-Three endpoints act on an existing invoice: send it to the customer by email, get the link to its hosted page, and download its PDF. Each takes the invoice `id` (the `id` of the Invoice object) and requires the account **secret** API key (`sk_…`) in the `cc-api-key` header. A publishable key (`pk_…`) answers `403` with the error code `SECRET_API_KEY_REQUIRED`, and a request that also carries an `Authorization` header answers `409`. An `id` that is not one of your invoices answers `404`.
+Three endpoints act on an existing invoice: send it to the customer by email, get the link to its hosted page, and download its PDF. Each takes the invoice `id` (the `id` of the Invoice object) and requires the account **secret** API key (`sk_…`) in the `cc-api-key` header. A publishable key (`pk_…`) answers `403` with the error code `SECRET_API_KEY_REQUIRED`. Send no `Authorization` header (see [API Basics](./api-basics.md#authentication)). An `id` that is not one of your invoices answers `404`.
 
 None of the three refuses an invoice because of its status: a draft or open invoice is presented as payable, a paid invoice as paid and a void invoice as cancelled.
 
@@ -29,12 +29,12 @@ When the invoice's customer has no email address, the endpoint answers `409` wit
 ```json
 {
   "object": "invoice_hosted_link",
-  "invoice": "84c413b1-cda9-4637-a75d-352e36274bf2",
-  "url": "https://your-business.example.com/checkout/84c413b1-cda9-4637-a75d-352e36274bf2"
+  "invoice": "a80baa67-1341-4184-b712-b6f9b85b5a2b",
+  "url": "https://rosen-dental.stage.chaching.io/checkout/a80baa67-1341-4184-b712-b6f9b85b5a2b"
 }
 ```
 
-`url` is the permanent link of the invoice's hosted page, the link the **Pay this invoice** button of the invoice email opens. It does not expire and is the same on every call. The page shows the invoice as payable, paid or cancelled according to its status.
+`url` is `https://<account slug>.stage.chaching.io/checkout/<invoice id>` on staging and `https://<account slug>.chaching.io/checkout/<invoice id>` in production; an account without a slug gets the dashboard host (`https://stage.chaching.io/checkout/<invoice id>` on staging). The invoice id is a UUID. The link is the permanent link of the invoice's hosted page, the link the **Pay this invoice** button of the invoice email opens. It does not expire and is the same on every call. The page shows the invoice as payable, paid or cancelled according to its status.
 
 ---
 
@@ -55,12 +55,17 @@ When the invoice's customer has no email address, the endpoint answers `409` wit
 | HTTP | Code | When |
 | --- | --- | --- |
 | `400` | — | the `cc-api-key` header is missing or malformed |
+| `400` | no code | `POST /invoices/{id}/send`: the email provider refused the recipient (`Failed to send email. Please verify recipient and sender configuration.`). |
 | `401` | — | the key is unknown |
+| `401` | `MALFORMED_AUTHORIZATION_HEADER` | The `Authorization` header is malformed. |
 | `403` | `SECRET_API_KEY_REQUIRED` | a publishable key was sent |
 | `404` | — | the invoice is not one of yours |
 | `409` | — | the request also carries an `Authorization` header |
 | `409` | `INVOICE_CUSTOMER_EMAIL_MISSING` | send: the invoice's customer has no email address |
 | `429` | — | send and PDF: more than 60 requests in one minute from one IP address |
+| `500` | no code | `POST /invoices/{id}/send` or `GET /invoices/{id}/pdf`: the email or the PDF could not be produced. |
+
+The PDF file name keeps letters, digits, `_` and `-` of the invoice number.
 
 ---
 
@@ -73,6 +78,8 @@ When the invoice's customer has no email address, the endpoint answers `409` wit
 
 To charge an open invoice later, use `PUT /invoices/{id}`. It answers an `invoice_payment` object with the amount in cents and its `transactions`. A `502` with `error: PAYMENT_OUTCOME_UNCONFIRMED` means the charge may have succeeded. Check the invoice before you try again, or you can charge the customer twice.
 
+`PUT /invoices/{id}` outcomes: `402` the charge was declined; `409` `INVOICE_ALREADY_PAID`, `PAYMENT_NOT_ATTEMPTED` (the customer has no payment method, or the payment was not attempted), `PAYMENT_BLOCKED_PENDING_CONFIRMATION` (an earlier payment is still being confirmed), `PAYMENT_PLAN_INVOICE_NOT_PAYABLE` (a guarded payment plan invoice). `DELETE /invoices/{id}`: `409` `INVOICE_ALREADY_VOID`, `INVOICE_PAID_NOT_VOIDABLE`.
+
 The invoice's `collection_method` is the one you created it with. An invoice created with `send_invoice` before this value was recorded reads `charge_automatically`.
 
-The Error Codes table above covers only the three routes that act on an existing invoice. The refusals of `POST /invoices` are the ones named in this section.
+The Error Codes table above covers only the three routes that act on an existing invoice. The refusals of `POST /invoices` are the ones named in this section. It also answers `404 Customer not found` and `404 Price not found` for an unknown `customer` or `price`, a validation `400` with `message` as an array, and `500 Invoice could not be created`.

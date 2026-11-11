@@ -4,7 +4,7 @@ Your customers sign in to the customer portal with a link sent to their email. T
 
 ## Send Your Customers to the Portal
 
-Each account has its own sign-in page, at `/portal/{account_key}/sign-in` on the ChaChing app, where `{account_key}` is your account's own key, not an ID from the API. Copy the full link from **Settings → Customer portal** in the dashboard and put it on your website or in your emails.
+Each account has its own sign-in page, at `/portal/{account_key}/sign-in` on the ChaChing app, where `{account_key}` is your account's `acc_...` id, the same value as `account.id` in every webhook. Copy the full link from **Settings, Customer portal**. Put it on your website or in your emails.
 
 ## How Sign-In Works
 
@@ -14,6 +14,6 @@ Each account has its own sign-in page, at `/portal/{account_key}/sign-in` on the
 
 ## Not Part of the API Reference
 
-The routes behind these pages (`POST /portal/login` and the `/portal/...` routes) serve the portal pages in your customers' browsers. They take no API key, are not in the [API Reference](./api.json), and are not meant for server-side integrations: every operation of the API Reference requires your secret key.
+The routes behind these pages (`POST /portal/login` and the `/portal/...` routes) serve the portal pages in your customers' browsers. They take no API key, are not in the [API Reference](./api.json), and are not meant for server-side integrations: every operation of the API Reference requires a secret or platform key.
 
 To send your own notifications to customers instead, see [Send Your Own Customer Notifications](./customer-notifications.md).
