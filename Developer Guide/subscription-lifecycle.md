@@ -11,14 +11,15 @@ The `status` field of a subscription returned by `GET /subscriptions` and `GET /
 | **Value** | **Meaning** |
 | --- | --- |
 | `active` | The subscription has started, and it is not on hold, cancelled, or expired. |
-| `trial` | The subscription is in its trial period. |
+| `trial` | The subscription is in its trial period and is not paused. |
 | `scheduled` | The subscription starts on a future date. |
 | `paused` | The subscription is on hold for a reason other than the **Blocked as unpaid** outcome, for example a pause requested through the API or the dashboard. |
 | `unpaid` | The subscription is on hold because its customer is in the **Blocked as unpaid** outcome. |
 | `cancelled` | The subscription is cancelled, or its cancellation is scheduled. A cancellation requested through the API or the dashboard reads `cancelled` at once and takes effect at the end of the period already billed; when nothing was billed yet, it takes effect immediately, or on the start date for a subscription that has not started. A later payment does not restore a subscription cancelled by the **Cancelled** outcome. |
 | `expired` | The subscription reached its end date. |
 
-- `paused` and `unpaid` are both holds, and a subscription on hold is not billed. A subscription on hold can read `trial`, `scheduled`, `cancelled`, or `expired` instead of `paused` or `unpaid`.
+- `paused` and `unpaid` are both holds, and a subscription on hold is not billed. A subscription on hold can read `scheduled`, `cancelled`, or `expired` instead of `paused` or `unpaid`, and a subscription on hold for the **Blocked as unpaid** outcome can also read `trial` instead of `unpaid`.
+- A subscription paused through the API during its trial period reads `paused`, unless its customer is in the **Blocked as unpaid** outcome, and reads `trial` again after it is resumed while the trial lasts. Its `trial_start` and `trial_end` do not change.
 - Past due is not a status value. The **Kept past due** outcome does not change `status`.
 - The status value `cancelled` is spelled with two `l`s. The webhook event name `subscription.canceled` is spelled with one.
 - `DELETE /subscriptions/{id}` on a subscription that is already cancelled, or has a cancellation scheduled, answers `400` with `error: SUBSCRIPTION_CANCELLED`. On a subscription that has expired it answers `400` with `error: SUBSCRIPTION_EXPIRED`. Neither sends a webhook. A subscription with an `end_date` that has not reached it is cancelled normally, at the end of the period already billed.
