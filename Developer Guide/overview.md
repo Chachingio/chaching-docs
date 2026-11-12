@@ -4,7 +4,7 @@ ChaChing is a billing API for recurring payments and payment plans. These pages 
 
 {% cards columns=2 %}
 {% card title="Quickstart: your first payment plan" to="./quickstart-payment-plan.md" %}
-Create an account, save its Dejavoo credentials, create a customer and a plan, and collect the deposit on a terminal, in eleven requests.
+Create an account, save its Dejavoo credentials, create a customer and a plan, and collect the deposit on a terminal, in eleven steps.
 {% /card %}
 {% card title="Integrating against staging" to="./integrating-staging.md" %}
 Base URLs, how to get keys, test cards and amounts, idempotency, rate limits and how to receive webhooks on your laptop.

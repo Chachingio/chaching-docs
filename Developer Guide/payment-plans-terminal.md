@@ -6,7 +6,7 @@ This page covers the Dejavoo terminal side of payment plans: registering termina
 
 # Register a Dejavoo Terminal
 
-A terminal is a physical Dejavoo device of your account, addressed by its own TPN. These three endpoints accept only your account's secret API key (`sk_…`). A publishable key answers `403` `SECRET_API_KEY_REQUIRED`, and a request that also sends an `Authorization` header answers `409`.
+A terminal is a physical Dejavoo device of your account, addressed by its own TPN. These three endpoints take your account's secret API key (`sk_…`), or a platform key (`psk_…`) with `Chaching-Account`. A publishable key answers `403` `SECRET_API_KEY_REQUIRED`, and a request that also sends an `Authorization` header answers `409`.
 
 | **Request** | **What it does** |
 | --- | --- |
@@ -42,7 +42,7 @@ A plan created without `payment_method` collects its deposit on one of your Deja
 - Register the terminal with `POST /dejavoo/terminals` and keep the terminal's `id`. See [Register a Dejavoo Terminal](#register-a-dejavoo-terminal).
 - The terminal must be enabled (`enabled: true`) and turned on and connected. ChaChing checks its connection before each deposit.
 - Your ISO sets up each terminal TPN with SPIn Cloud enabled, FEED enabled for the TPN, a Card Entry Screen Timeout of 90 seconds, Tip and Tax disabled, and the same card fee as your e-commerce TPN.
-- The three deposit endpoints below accept only your account's secret API key (`sk_…`) in the `cc-api-key` header. A publishable key (`pk_…`) answers `403` `SECRET_API_KEY_REQUIRED`, and a request that also sends an `Authorization` header answers `409` with no `error` field.
+- The three deposit endpoints below take your account's secret API key (`sk_…`) in the `cc-api-key` header, or a platform key (`psk_…`) with `Chaching-Account`. A publishable key (`pk_…`) answers `403` `SECRET_API_KEY_REQUIRED`, and a request that also sends an `Authorization` header answers `409` with no `error` field.
 
 ## Start the Deposit
 
@@ -155,7 +155,7 @@ Fields of the attempt object:
 
 A customer who comes to your counter can pay an installment, make an extra payment or pay the plan off on one of your Dejavoo terminals. The amount is applied like any other payment: billed installments first, oldest first, then the principal. The sale does not change the card saved on the plan, and installments keep being charged to that card.
 
-1. Call `POST /payment-plans/{id}/payments` with the terminal in `payment_method`, using your account's secret API key (`sk_…`):
+1. Call `POST /payment-plans/{id}/payments` with the terminal in `payment_method`, using your account's secret API key (`sk_…`) or a platform key with `Chaching-Account`:
 
    ```json
    {
@@ -243,7 +243,7 @@ Fields of the `terminal` object (`null` on a payment that was not taken on a ter
 
 ## Rules for Terminal Payments
 
-- `POST /payment-plans/{id}/payments` with a terminal, the resolve endpoint and the cancel endpoint accept only your account's secret API key (`sk_…`): a publishable key (`pk_…`) answers `403` `SECRET_API_KEY_REQUIRED`, and a request that also sends an `Authorization` header answers `409` with no `error` field. `GET /payment-plans/{id}/payments/{payment_id}` accepts the secret key like every other endpoint.
+- `POST /payment-plans/{id}/payments` with a terminal, the resolve endpoint and the cancel endpoint take your account's secret API key (`sk_…`), or a platform key (`psk_…`) with `Chaching-Account`: a publishable key (`pk_…`) answers `403` `SECRET_API_KEY_REQUIRED`, and a request that also sends an `Authorization` header answers `409` with no `error` field. `GET /payment-plans/{id}/payments/{payment_id}` takes the same keys, like every other endpoint.
 - Only a plan on the Dejavoo gateway takes terminal payments; any other plan answers `409` `PAYMENT_PLAN_TERMINAL_NOT_SUPPORTED`. `external: true` with a terminal answers `400` `PAYMENT_PLAN_TERMINAL_EXTERNAL_NOT_ALLOWED`.
 - The terminal must be registered, enabled, turned on and connected, exactly as for a deposit: the same codes apply (`DEJAVOO_TERMINAL_NOT_FOUND`, `DEJAVOO_TERMINAL_DISABLED`, `DEJAVOO_TERMINAL_OFFLINE`, `SPIN_AUTH_KEY_UNREADABLE`, `DEJAVOO_TERMINAL_ISV_ID_INVALID`, `SPIN_CREDENTIALS_REJECTED`, `SPIN_UNREACHABLE`).
 - While a terminal payment of the plan reads `processing`, every new payment on the plan answers `409` `PAYMENT_PLAN_PAYMENT_PENDING_CONFIRMATION`, and `POST /payment-plans/{id}/cancel` answers `409` `PAYMENT_PLAN_PAYMENT_PENDING_CONFIRMATION` with the message `A terminal payment on this plan is unresolved. Resolve it with POST /payment-plans/{id}/payments/{payment_id}/resolve before canceling the plan.` A sale on a terminal that is already running another one answers `409` `DEJAVOO_TERMINAL_BUSY`.
@@ -263,7 +263,7 @@ Every sale ChaChing sends to one of your terminals, a deposit or a payment, is a
 | `GET /dejavoo/terminal-attempts` | Lists the terminal attempts of the account, in every state, newest first. |
 | `POST /dejavoo/terminal-attempts/{id}/force-close` | Closes one attempt whose outcome could not be confirmed, as not collected. |
 
-Both endpoints accept only your account's secret API key (`sk_…`): a publishable key (`pk_…`) answers `403` `SECRET_API_KEY_REQUIRED`, and a key that matches no account answers `401` (a `pk_`-shaped key that matches no account answers `403` `SECRET_API_KEY_REQUIRED` on the list route and `401` on the force-close route), and a request that also sends an `Authorization` header answers `409` with no `error` field. They answer whether Payment Plans are enabled on your account or not.
+Both endpoints take your account's secret API key (`sk_…`), or a platform key (`psk_…`) with `Chaching-Account`: a publishable key (`pk_…`) answers `403` `SECRET_API_KEY_REQUIRED`, and a key that matches no account answers `401` (a `pk_`-shaped key that matches no account answers `403` `SECRET_API_KEY_REQUIRED` on the list route and `401` on the force-close route), and a request that also sends an `Authorization` header answers `409` with no `error` field. They answer whether Payment Plans are enabled on your account or not.
 
 ## Before You Force-Close
 
