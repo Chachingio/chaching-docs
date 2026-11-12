@@ -88,7 +88,7 @@ A `PUT` answers after the new credentials are in use. That usually takes a few s
 
 iPOSpays FEED notifies ChaChing of every transaction of a Dejavoo account, sales taken on its terminals included. Each account has its own FEED webhook URL: `https://stage-api.chaching.io/dejavoo/webhook/{account_id}`.
 
-`{account_id}` is the account's `id` (`acc_...`), returned by `POST /platform/accounts` and `GET /platform/accounts`.
+`{account_id}` is the account's `id` (`acc_...`), returned by `POST /platform/accounts` and `GET /platform/accounts`. Replace `{account_id}` with the account's `id` (the `acc_...` value) when you give the URL to Dejavoo.
 
 Turn FEED on for an account in this order:
 
@@ -108,13 +108,15 @@ ChaChing checks each delivery's `signature` field (HMAC-SHA512 with the account'
 
 A Settlement notification whose signature does not match is answered `200` and not processed: ChaChing does not use Settlement notifications.
 
+When a delivery is rejected, give ChaChing support the account id and the delivery time.
+
 To change the signing key, save the new `feed_signing_key` and send it to Dejavoo the same day: until both sides hold the same key, every Transaction notification answers `401`.
 
 ## The NMI Webhook URL
 
 NMI webhooks tell ChaChing the outcome of the account's NMI transactions. Each account has its own NMI webhook URL: `https://stage-api.chaching.io/nmi/webhook/{account_id}`.
 
-`{account_id}` is the account's `id` (`acc_...`), as in the FEED webhook URL.
+`{account_id}` is the account's `id` (`acc_...`), as in the FEED webhook URL. Replace `{account_id}` with the account's `id` (the `acc_...` value) when you enter the URL in NMI.
 
 Register it in this order:
 
@@ -128,6 +130,8 @@ ChaChing checks each delivery's `Webhook-Signature` header (HMAC-SHA256 with the
 | `200` | ChaChing accepted the delivery. |
 | `401` | The `Webhook-Signature` header is missing, malformed or does not match the account's signing key, the account has no signing key, or the URL names no active account. The body is empty. |
 | Any other status | ChaChing could not process the delivery. NMI retries a delivery that is not answered with `200`. |
+
+When a delivery is rejected, give ChaChing support the account id and the delivery time.
 
 ## Errors
 

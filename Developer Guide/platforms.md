@@ -151,7 +151,7 @@ Each delivery's envelope names the account:
 
 ```json
 "account": {
-  "id": "acc_Rz8kQ2mV5tW9xY3bN7cL4dF6",
+  "id": "acc_9f3a1c7e5b2d4086a1c3e5f7",
   "external_id": "location-7",
   "company": {
     "id": "com_Hp3sJ6uK9wE2rT5yA8zX1vB4",
