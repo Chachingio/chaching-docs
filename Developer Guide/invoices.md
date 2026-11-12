@@ -82,4 +82,4 @@ To charge an open invoice later, use `PUT /invoices/{id}`. It answers an `invoic
 
 The invoice's `collection_method` is the one you created it with. An invoice created with `send_invoice` before this value was recorded reads `charge_automatically`.
 
-The Error Codes table above covers only the three routes that act on an existing invoice. The refusals of `POST /invoices` are the ones named in this section. It also answers `404 Customer not found` and `404 Price not found` for an unknown `customer` or `price`, a validation `400` with `message` as an array, and `500 Invoice could not be created`.
+The Error Codes table above covers only the three routes that act on an existing invoice. The refusals of `POST /invoices` are the ones named in this section. It also answers `404 Customer not found` and `404 Price not found` for an unknown `customer` or `price` (`404 Customer not found` when both are unknown), a validation `400` with `message` as an array, and `500 Invoice could not be created`.

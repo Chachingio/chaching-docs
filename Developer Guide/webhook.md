@@ -823,6 +823,7 @@ Events:
 
 - `address` and `shipping.address` are single objects whose parts are `null` when empty; `phone` and `description` are `null` when empty.
 - Timestamps are in Unix format (seconds)
+- `description` is the value sent in `description` on `POST /customers` or `PATCH /customers/{customer_id}`. It is `null` when none was sent, and after a `PATCH` that sent `null` or an empty string.
 
 ---
 
@@ -1260,6 +1261,7 @@ An entry of `items.data`:
 - `subscription.canceled`, `subscription.paused` and `subscription.resumed` are not sent for a subscription that belongs to a payment plan; follow the plan's `payment_plan.*` events instead.
 - The two fields always travel together: `"dunning"` is always paired with `"system"`, and `"requested"` is always paired with `"merchant"`
 - `items.data[].price.type` is `one_time`, `recurring` or `null`: it is `null` for an item whose price cannot be resolved. Handle `null` wherever you branch on the price type
+- A subscription paused through the API during its trial period reads `paused` on `subscription.paused` and `trial` on the following `subscription.resumed`. A `subscription.paused` with `reason: "dunning"` for a subscription in its trial period reads `trial`.
 
 ---
 
@@ -1323,6 +1325,7 @@ Events:
 - The `description` field may be `null` if not provided
 - The `active` field indicates whether the product is available for use
 - Timestamps are in Unix format (seconds)
+- Creating a product, through `POST /products` or the dashboard, sends `product.created` and then `price.created` for its default price; the two deliveries can arrive in either order. Setting a product's default price in the dashboard sends `product.updated` with the new `default_price`.
 
 ---
 
@@ -1402,6 +1405,7 @@ Events:
 - `product` may be `null` if not linked
 - `unit_amount_decimal` provides a precise representation of the amount
 - `tax_behavior` defines how taxes are applied (inclusive or exclusive)
+- The `price.created` sent when a product is created carries the product's default price, the same object `GET /prices/{id}` returns.
 
 ---
 

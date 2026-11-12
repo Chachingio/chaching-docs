@@ -34,6 +34,7 @@ curl https://stage-api.chaching.io/payment-plans \
 | `403` | `PLATFORM_API_KEY_REQUIRED` | `This route requires a platform API key (psk_...)` | An account secret key on a `/platform` route. |
 | `403` | `SECRET_API_KEY_REQUIRED` | `This route requires the account secret API key (sk_...)` | A publishable key on any route. |
 | `404` | `ACCOUNT_NOT_FOUND` | `Account not found` | `Chaching-Account` names no account of your platform, whatever the reason. |
+| `409` | no code | `This route authenticates with cc-api-key only; remove the Authorization header` | The request carries an `Authorization: Bearer` header. |
 | `409` | `ACCOUNT_DEACTIVATED` | `This account is deactivated. It accepts reads, payment plan cancellations and terminal updates only.` | A write to a deactivated account. See [Deactivate an account](#deactivate-an-account). |
 
 When a request has several faults, the answer reports one of them: the account lookup runs before the key-class check, and on the `/platform` lists the query validation runs before it. Fix the fault reported and send the request again.

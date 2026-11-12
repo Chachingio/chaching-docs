@@ -14,13 +14,13 @@ The **Status** column of the subscriptions table and the status badge on the sub
 | --- | --- |
 | **Active** | The subscription has started, and it is not on hold, cancelled, or expired. |
 | **Scheduled** | The subscription starts on a future date. |
-| **Trial** | The subscription is in its trial period. |
+| **Trial** | The subscription is in its trial period and is not paused. |
 | **Paused** | The subscription is on hold for a reason other than the **Blocked as unpaid** outcome, for example because you paused it. |
 | **Unpaid** | The subscription is on hold because its customer is in the **Blocked as unpaid** outcome. |
 | **Cancelled** | The subscription is cancelled, or its cancellation is scheduled. A cancellation you request shows Cancelled at once and takes effect at the end of the period the customer was already billed for. When nothing was billed yet, it takes effect immediately, or on the start date for a subscription that has not started. |
 | **Expired** | The subscription reached its end date. |
 
-Paused and Unpaid are both holds, and a subscription on hold is not billed. A subscription on hold can show Trial, Scheduled, Cancelled, or Expired instead of Paused or Unpaid.
+Paused and Unpaid are both holds, and a subscription on hold is not billed. A subscription on hold can show Scheduled, Cancelled, or Expired instead of Paused or Unpaid, and a subscription on hold for the **Blocked as unpaid** outcome can also show Trial instead of Unpaid. A subscription paused through the API during its trial period shows **Paused** and offers **Resume**; after it is resumed it shows **Trial** again.
 
 Past due is not a subscription status. The **Kept past due** outcome does not change the status of the customer's subscriptions.
 

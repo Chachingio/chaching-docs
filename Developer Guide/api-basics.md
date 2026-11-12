@@ -143,6 +143,16 @@ Three routes are exceptions. `GET /customers/search` answers a bare array of at 
 
 A list's `search` parameter is a URL-encoded JSON object whose keys the API Reference lists for that list, for example `GET /invoices?search={"status":"open"}`. A key outside that list, a value outside its allowed values, and a `search` that is not a JSON object answer `400`. A status filter takes a comma-separated list, such as `{"status":"open,paid"}`. The shape of a `created` filter is the one the API Reference shows for that list: on transactions, webhook deliveries and terminal attempts it is an object such as `{"type":"inTheLast","amount":7,"unit":"days"}` (units `days`, `weeks`, `months`, `years`; also `equal`, `before` and `after` with `date`, and `between` with `from` and `to`).
 
+Send the `search` value URL-encoded. A `+` in a query string is read as a space, so send a literal plus sign, such as the one in `jenny.rosen+billing@example.com`, as `%2B`. Let your HTTP client's query encoder build the value, or use curl:
+
+```bash
+curl -G https://stage-api.chaching.io/customers \
+  -H "cc-api-key: $CHACHING_SECRET_KEY" \
+  --data-urlencode 'search={"email":"jenny.rosen+billing@example.com"}'
+```
+
+In the `email` key of `GET /customers` and the email match of `GET /customers/search`, a space in the value also matches `+`: such a search returns the addresses that contain the value as sent and the addresses that contain it with each space replaced by `+`. Every other key, and the name match of `GET /customers/search`, read the value as sent.
+
 ## Contract Changes
 
 These changes came before the first integrations went live. The API has no version: a request that sends a removed name answers `400`.
@@ -197,3 +207,13 @@ These changes came before the first integrations went live. The API has no versi
 | Invoice `subscription`, `tax`, `total_taxes`, `period_start`, `period_end`, `next_payment_attempt`, `lines.data[].price.type` | absent when empty | present, `null` when empty |
 | Subscription `initiated_by`, `reason` in the API | absent | present, `null` outside a lifecycle event |
 | `POST /platform/accounts` when ChaChing cannot register the account's billing notifications | `201`, notifications lost | `500` means the outcome is unknown and the account may exist; repeating the request with the same `external_id` values and a new `Idempotency-Key` returns the existing account or creates it; a billing-engine record can remain behind |
+| `POST /products` and a product created in the dashboard | `product.created` only | `product.created`, then `price.created` for the default price; the two deliveries can arrive in either order |
+| Setting a product's default price in the dashboard | no event | `product.updated` with the new `default_price` |
+| A platform key and an `Authorization: Bearer` header the API cannot verify on `/platform/accounts` | `401 Failed to provide Account Service with keys` | `409` |
+| `POST /invoices` with an unknown customer and an unknown price | `404 Price not found` | `404 Customer not found` |
+| A payment method of a deleted customer on `GET /payment-methods` and `GET /payment-methods/{id}` | listed, and `200` | not listed, and `404 Payment method not found` |
+| `description` on `POST /customers` | accepted and not stored | stored and returned |
+| `description` on `PATCH /customers/{customer_id}` | `400` | stored; `null` or `""` removes it |
+| `PATCH /customers/{customer_id}` response | `200` with `1` | `200` with the Customer object |
+| `GET /customers` `search` with an `email` whose `+` is not encoded | matched only addresses containing a space there | also matches the address with the `+` |
+| `status` of a subscription paused through the API during its trial period | `trial` | `paused`, and `trial` again after it is resumed |
