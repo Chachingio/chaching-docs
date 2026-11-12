@@ -4,7 +4,7 @@ Processor credentials are the payment gateway keys of an account: Dejavoo (iPOSp
 
 ## Set Up an Account in Order
 
-1. **Set the processor credentials** with `PUT /dejavoo/credentials`, `PUT /nmi/credentials` or `PUT /stripe/credentials`. The first save sets the account's payment gateway.
+1. **Set the processor credentials** with `PUT /dejavoo/credentials`, `PUT /nmi/credentials` or `PUT /stripe/credentials`. The first save sets the account's payment gateway. On Dejavoo and NMI, include the signing key and give the gateway the account's webhook URL; see [The Dejavoo FEED Webhook URL](#the-dejavoo-feed-webhook-url) and [The NMI Webhook URL](#the-nmi-webhook-url).
 2. **Register the terminals** (Dejavoo only) with `POST /dejavoo/terminals`. A Dejavoo account without an e-commerce TPN answers `409 DEJAVOO_NOT_CONFIGURED`; a successful `PUT /dejavoo/credentials` sets the TPN and clears that error.
 3. **Take the first charge** once the save has answered `200`.
 
@@ -83,6 +83,55 @@ The first save sets the account's payment gateway. After that, only that gateway
 ## Saving Takes a Few Seconds
 
 A `PUT` answers after the new credentials are in use. That usually takes a few seconds; it can take up to about a minute when the gateway check and the configuration step both run to their limits. When the answer is `500 KILL_BILL_PLUGIN_CONFIG_UNCONFIRMED`, the message starts with `Dejavoo configuration was saved, but` (or `NMI` or `Stripe`): the credentials were saved, but ChaChing could not confirm that they are in use. Send the same `PUT` again. When your client times out before the answer, read `GET` and compare `updated_at`.
+
+## The Dejavoo FEED Webhook URL
+
+iPOSpays FEED notifies ChaChing of every transaction of a Dejavoo account, sales taken on its terminals included. Each account has its own FEED webhook URL: `https://stage-api.chaching.io/dejavoo/webhook/{account_id}`.
+
+`{account_id}` is the account's `id` (`acc_...`), returned by `POST /platform/accounts` and `GET /platform/accounts`. Replace `{account_id}` with the account's `id` (the `acc_...` value) when you give the URL to Dejavoo.
+
+Turn FEED on for an account in this order:
+
+1. Choose a signing key of 16 to 256 printable characters and save it as `feed_signing_key` with `PUT /dejavoo/credentials`, in the same request as the four required fields. Until the key is saved, ChaChing answers `401` to every FEED delivery for the account.
+2. Ask Dejavoo, through your ISO, to configure merchant-level FEED for the merchant. Send the merchant's TPNs (the e-commerce TPN and every terminal TPN), the account's FEED webhook URL, HMAC as the authentication type and the signing key, and ask for the configuration to use the current signature version. Dejavoo's team makes this configuration; it is not a setting in the iPOSpays portal. One URL and one signing key cover every TPN of the merchant.
+3. For each terminal TPN you register later, ask Dejavoo to enable FEED for that TPN.
+
+Do not use the FEED setting under Settings in the iPOSpays portal for a ChaChing account. That setting belongs to the ISO account and sends the transactions of every merchant under the ISO to one URL, which ChaChing cannot match to an account. It also does not replace a merchant-level configuration, so every transaction would be delivered twice.
+
+ChaChing checks each delivery's `signature` field (HMAC-SHA512 with the account's signing key) and answers:
+
+| **Status** | **When** |
+| --- | --- |
+| `200` | ChaChing accepted the delivery. |
+| `401` | The delivery is not a signed FEED notification, the URL names no active account, the account has no signing key, or the signature of a Transaction notification does not match the account's signing key. The body is empty. |
+| Any other status | ChaChing could not process the delivery. Dejavoo retries a delivery that is not answered with a `2xx` status, up to three attempts. |
+
+A Settlement notification whose signature does not match is answered `200` and not processed: ChaChing does not use Settlement notifications.
+
+When a delivery is rejected, give ChaChing support the account id and the delivery time.
+
+To change the signing key, save the new `feed_signing_key` and send it to Dejavoo the same day: until both sides hold the same key, every Transaction notification answers `401`.
+
+## The NMI Webhook URL
+
+NMI webhooks tell ChaChing the outcome of the account's NMI transactions. Each account has its own NMI webhook URL: `https://stage-api.chaching.io/nmi/webhook/{account_id}`.
+
+`{account_id}` is the account's `id` (`acc_...`), as in the FEED webhook URL. Replace `{account_id}` with the account's `id` (the `acc_...` value) when you enter the URL in NMI.
+
+Register it in this order:
+
+1. In the NMI Merchant Portal, open Settings, then Webhooks, and copy the signing key the page shows. Save it as `webhook_signing_key` with `PUT /nmi/credentials`, in the same request as the three required fields. Until the key is saved, ChaChing answers `401` to every NMI webhook for the account.
+2. On the same page, click Create, enter the account's NMI webhook URL and select the transaction events (`transaction.sale.success` and the other `transaction.*` events). NMI starts sending as soon as the webhook is saved.
+
+ChaChing checks each delivery's `Webhook-Signature` header (HMAC-SHA256 with the signing key) and answers:
+
+| **Status** | **When** |
+| --- | --- |
+| `200` | ChaChing accepted the delivery. |
+| `401` | The `Webhook-Signature` header is missing, malformed or does not match the account's signing key, the account has no signing key, or the URL names no active account. The body is empty. |
+| Any other status | ChaChing could not process the delivery. NMI retries a delivery that is not answered with `200`. |
+
+When a delivery is rejected, give ChaChing support the account id and the delivery time.
 
 ## Errors
 

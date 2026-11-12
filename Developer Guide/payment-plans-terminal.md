@@ -42,6 +42,7 @@ A plan created without `payment_method` collects its deposit on one of your Deja
 - Register the terminal with `POST /dejavoo/terminals` and keep the terminal's `id`. See [Register a Dejavoo Terminal](#register-a-dejavoo-terminal).
 - The terminal must be enabled (`enabled: true`) and turned on and connected. ChaChing checks its connection before each deposit.
 - Your ISO sets up each terminal TPN with SPIn Cloud enabled, FEED enabled for the TPN, a Card Entry Screen Timeout of 90 seconds, Tip and Tax disabled, and the same card fee as your e-commerce TPN.
+- FEED notifications for these TPNs reach ChaChing once the account's FEED signing key is saved and Dejavoo has configured the account's FEED webhook URL. See [The Dejavoo FEED Webhook URL](./processor-credentials.md#the-dejavoo-feed-webhook-url).
 - The three deposit endpoints below take your account's secret API key (`sk_…`) in the `cc-api-key` header, or a platform key (`psk_…`) with `Chaching-Account`. A publishable key (`pk_…`) answers `403` `SECRET_API_KEY_REQUIRED`, and a request that also sends an `Authorization` header answers `409` with no `error` field.
 
 ## Start the Deposit

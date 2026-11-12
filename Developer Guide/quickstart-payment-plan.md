@@ -148,6 +148,8 @@ Returns which credential fields are set; it never returns a value. ChaChing chec
 | `503` | `DEJAVOO_VERIFICATION_UNAVAILABLE` | iPOSpays did not answer. | Nothing was saved; retry. |
 | `429` | `PROCESSOR_CREDENTIALS_RATE_LIMITED` | More than 10 saves in a minute for this location. | Wait a minute. |
 
+To receive this location's FEED notifications, add `feed_signing_key` to this request and give Dejavoo the location's FEED webhook URL; see [The Dejavoo FEED Webhook URL](./processor-credentials.md#the-dejavoo-feed-webhook-url).
+
 ## 4. Register the terminal
 
 ```bash

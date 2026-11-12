@@ -137,7 +137,7 @@ Returns your platform's accounts, newest first, filtered by `external_id`, `comp
 Run these in order for each new location:
 
 1. `POST /platform/accounts`, and store the `id`.
-2. `PUT /dejavoo/credentials` with `Chaching-Account`: the location's iPOSpays e-commerce TPN, API key, secret key and e-commerce token (all four required; the FEED signing key and Google Pay merchant id are optional). On staging use iPOSpays UAT credentials. See [Processor Credentials](./processor-credentials.md).
+2. `PUT /dejavoo/credentials` with `Chaching-Account`: the location's iPOSpays e-commerce TPN, API key, secret key and e-commerce token (all four required; the FEED signing key and Google Pay merchant id are optional). On staging use iPOSpays UAT credentials. See [Processor Credentials](./processor-credentials.md). To receive the location's FEED notifications, include `feed_signing_key` and give Dejavoo the location's FEED webhook URL; see [The Dejavoo FEED Webhook URL](./processor-credentials.md#the-dejavoo-feed-webhook-url).
 3. `POST /dejavoo/terminals` for each terminal. Before step 2 it answers `409 DEJAVOO_NOT_CONFIGURED`.
 4. `POST /customers`, then the payment plans. Before step 2, `POST /customers` answers `409 PAYMENT_GATEWAY_NOT_CONFIGURED` with the message `This account has no payment gateway credentials. Save the payment gateway credentials before creating customers.`
 
@@ -151,7 +151,7 @@ Each delivery's envelope names the account:
 
 ```json
 "account": {
-  "id": "acc_Rz8kQ2mV5tW9xY3bN7cL4dF6",
+  "id": "acc_9f3a1c7e5b2d4086a1c3e5f7",
   "external_id": "location-7",
   "company": {
     "id": "com_Hp3sJ6uK9wE2rT5yA8zX1vB4",
