@@ -78,7 +78,7 @@ curl -X POST https://stage-api.chaching.io/platform/accounts \
 
 Returns the Account object with status `201`. The company is created on its first use and reused afterwards by `company.external_id`. When an active account of that company already has the same `external_id`, the request returns it with status `200`, unchanged: its `name`, `time_zone` and the company `name` are not updated, and a deactivated account stays deactivated. Two concurrent creates of the same account return one account. To change an account's `name` or `time_zone`, see [Update an account](#update-an-account); no route changes its ids or its company.
 
-- `name` is 1 to 255 UTF-16 code units; control characters are refused with `400`. It is stored exactly as sent.
+- `name` is 1 to 255 characters (Unicode code points); control characters are refused with `400`. It is stored exactly as sent.
 - `time_zone` defaults to `America/New_York`. It accepts an IANA zone whose UTC offset stays between -10:00 and +00:00 all year (the US zones, `Pacific/Honolulu`, `UTC`); any other answers `400 ACCOUNT_TIME_ZONE_INVALID`. Payment plan dates are calendar days in this zone; billing runs at 10:00 UTC.
 - With an `Idempotency-Key`, the rules of [Idempotency](./integrating-staging.md#idempotency) apply. A `500` stored under an `Idempotency-Key` replays for 24 hours, so repeat the request with the same `external_id` values and a NEW `Idempotency-Key`: the create is idempotent on those ids and answers `200` with the existing account or `201`.
 
@@ -165,13 +165,13 @@ curl -X PATCH https://stage-api.chaching.io/platform/accounts/acc_0c194ca27ec457
 }
 ```
 
-Returns the Account object with status `200`. Only the fields you send change; a field you leave out keeps its value, and a body with no field, or with the values the account already has, returns the account unchanged. Works on a deactivated account. When a value changes, ChaChing sends `account.updated`. The `name` is 1 to 255 UTF-16 code units; control characters are refused. Deliveries of `account.updated` can arrive out of order: order them by the envelope's `created` field, and treat `GET /platform/accounts/{id}` as the authoritative current state.
+Returns the Account object with status `200`. Only the fields you send change; a field you leave out keeps its value, and a body with no field, or with the values the account already has, returns the account unchanged. Works on a deactivated account. When a value changes, ChaChing sends `account.updated`. The `name` is 1 to 255 characters (Unicode code points); control characters are refused. Deliveries of `account.updated` can arrive out of order: order them by the envelope's `created` field, and treat `GET /platform/accounts/{id}` as the authoritative current state.
 
 A new `time_zone` applies to payment plans you create afterwards (their default start date and their down-payment due date) and to the dates ChaChing renders; plans that already exist keep their dates. It accepts the zones the create accepts.
 
 | **Status** | **Error code** | **When** |
 | --- | --- | --- |
-| `400` | no code | A field is not a string, is null, a `name` is not 1 to 255 UTF-16 code units or contains a control character, or the body has another field (`external_id` and `company` included). |
+| `400` | no code | A field is not a string, is null, a `name` is not 1 to 255 characters (Unicode code points) or contains a control character, or the body has another field (`external_id` and `company` included). |
 | `400` | `ACCOUNT_TIME_ZONE_INVALID` | `time_zone` is not accepted. |
 | `404` | `ACCOUNT_NOT_FOUND` | The id names no account of your platform. |
 
