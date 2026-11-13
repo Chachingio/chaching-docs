@@ -619,7 +619,7 @@ ChaChing generates webhook events for key system entities. Each event represents
 
 ## Account Events
 
-- `account.updated` — The name, the time zone or the status of an account of your platform changes. Sent only for accounts of a platform; data is the Account object (see [Platforms](./platforms.md))
+- `account.updated` — The name, the time zone or the status of an account of your platform changes. Sent only for accounts of a platform; data is the Account object (see [Platforms](./platforms.md)). Deliveries of `account.updated` can arrive out of order: order them by the envelope's `created` field, and treat `GET /platform/accounts/{id}` as the authoritative current state
 
 ---
 
