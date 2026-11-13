@@ -23,7 +23,7 @@ curl https://stage-api.chaching.io/customers \
 | **Key** | **Prefix** | **Used for** | **Safe to expose** |
 | --- | --- | --- | --- |
 | Secret key | `sk_` | Every API request of your account. | No |
-| Publishable key | `pk_` | The ChaChing hosted checkout pages only. The API answers `403 SECRET_API_KEY_REQUIRED`. | Yes, in a hosted checkout link |
+| Publishable key | `pk_` | The ChaChing hosted checkout pages only. The API answers `403 SECRET_API_KEY_REQUIRED` (`403 PLATFORM_API_KEY_REQUIRED` on `/platform` routes). | Yes, in a hosted checkout link |
 | Platform key | `psk_` | `/platform` routes, and every account route together with `Chaching-Account`. See [Platforms](./platforms.md). | No |
 | Webhook signing secret | `whsec_` | Verifying webhook deliveries; not an API key. | No |
 
@@ -43,11 +43,11 @@ You manage account keys in the dashboard under **Settings, Developer settings**,
 | `401` | no code | `Invalid apiKey` | The key is unknown, revoked or expired, or it belongs to a deactivated account. |
 | `401` | `MALFORMED_AUTHORIZATION_HEADER` | `Malformed Authorization header` | An `Authorization` header that is not `Bearer`, one space and a token. |
 | `401` | no code | `Conflicting account credentials` | An `Authorization` bearer of another account. |
-| `403` | `SECRET_API_KEY_REQUIRED` | `This route requires the account secret API key (sk_...)` | A publishable key. |
-| `403` | `PLATFORM_API_KEY_REQUIRED` | `This route requires a platform API key (psk_...)` | A key other than a platform key on `/platform`. |
+| `403` | `SECRET_API_KEY_REQUIRED` | `This route requires the account secret API key (sk_...)` | A publishable key outside `/platform`. |
+| `403` | `PLATFORM_API_KEY_REQUIRED` | `This route requires a platform API key (psk_...)` | A key other than a platform key on `/platform`, publishable keys included. |
 | `404` | `ACCOUNT_NOT_FOUND` | `Account not found` | `Chaching-Account` names no account the key can act on. |
 | `409` | no code | `This route authenticates with cc-api-key only; remove the Authorization header` | A well-formed `Bearer` header. |
-| `409` | `ACCOUNT_DEACTIVATED` | `This account is deactivated. It accepts reads, payment plan cancellations and terminal updates only.` | A write to a deactivated platform account. |
+| `409` | `ACCOUNT_DEACTIVATED` | `This account is deactivated. It accepts reads, payment plan cancellations, external payment plan payments, terminal updates, and resolving, canceling or force-closing terminal sales only.` | A write to a deactivated platform account. |
 | `429` | no code | | Too many requests; see [Rate limits](#rate-limits). |
 
 A `403` body reads, in full:

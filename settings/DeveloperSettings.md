@@ -13,7 +13,7 @@ This section lists the API keys of the account and lets developers create, rotat
 | **Publishable** | Publishable key (`pk_...`), used only by the ChaChing hosted checkout pages. It does not work on the API endpoints. It is not secret, so the table shows it in full with a copy button. |
 | **Secret** | Secret key (`sk_...`), required by every API endpoint and sent in the `cc-api-key` header. The table shows only its first characters and its last four. See [API Basics](../Developer%20Guide/api-basics.md). |
 
-The publishable key (`pk_`) is used only by the ChaChing hosted checkout pages; every API operation answers it `403` with `SECRET_API_KEY_REQUIRED`. `GET /balance` also requires the secret key. A key of a deactivated account answers `401 Invalid apiKey`.
+The publishable key (`pk_`) is used only by the ChaChing hosted checkout pages; every API operation outside `/platform` answers it `403` with `SECRET_API_KEY_REQUIRED`. `GET /balance` also requires the secret key. A key of a deactivated account answers `401 Invalid apiKey`.
 
 ### Keys Table
 
