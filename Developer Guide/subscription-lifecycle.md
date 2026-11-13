@@ -107,7 +107,7 @@ The retry schedule and the outcomes are configured in the dashboard, on the **In
 
 ## Read the settings
 
-`GET /revenue-recovery` returns the account's current settings. The publishable key works only on the ChaChing hosted checkout pages; every API operation answers it `403` `SECRET_API_KEY_REQUIRED`. Send no `Authorization` header (see [API Basics](./api-basics.md#authentication)).
+`GET /revenue-recovery` returns the account's current settings. The publishable key works only on the ChaChing hosted checkout pages; every API operation outside `/platform` answers it `403` `SECRET_API_KEY_REQUIRED`. Send no `Authorization` header (see [API Basics](./api-basics.md#authentication)).
 
 Response:
 

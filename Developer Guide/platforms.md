@@ -31,13 +31,13 @@ curl https://stage-api.chaching.io/payment-plans \
 | `400` | no code | `Invalid apiKey format` | The key does not start with `pk_`, `sk_` or `psk_`. |
 | `400` | `CHACHING_ACCOUNT_REQUIRED` | `This request uses a platform API key: send the Chaching-Account header with the id of the account it acts on.` | An account route without `Chaching-Account`. |
 | `401` | no code | `Invalid apiKey` | The key is unknown, revoked or expired, or your platform is inactive. |
-| `403` | `PLATFORM_API_KEY_REQUIRED` | `This route requires a platform API key (psk_...)` | An account secret key on a `/platform` route. |
-| `403` | `SECRET_API_KEY_REQUIRED` | `This route requires the account secret API key (sk_...)` | A publishable key on any route. |
+| `403` | `PLATFORM_API_KEY_REQUIRED` | `This route requires a platform API key (psk_...)` | A publishable or secret account key (`pk_...` or `sk_...`) on a `/platform` route. |
+| `403` | `SECRET_API_KEY_REQUIRED` | `This route requires the account secret API key (sk_...)` | A publishable key on any route outside `/platform`. |
 | `404` | `ACCOUNT_NOT_FOUND` | `Account not found` | `Chaching-Account` names no account of your platform, whatever the reason. |
 | `409` | no code | `This route authenticates with cc-api-key only; remove the Authorization header` | The request carries an `Authorization: Bearer` header. |
-| `409` | `ACCOUNT_DEACTIVATED` | `This account is deactivated. It accepts reads, payment plan cancellations and terminal updates only.` | A write to a deactivated account. See [Deactivate an account](#deactivate-an-account). |
+| `409` | `ACCOUNT_DEACTIVATED` | `This account is deactivated. It accepts reads, payment plan cancellations, external payment plan payments, terminal updates, and resolving, canceling or force-closing terminal sales only.` | A request a deactivated account does not accept. See [Deactivate an account](#deactivate-an-account). |
 
-When a request has several faults, the answer reports one of them: the account lookup runs before the key-class check, and on the `/platform` lists the query validation runs before it. Fix the fault reported and send the request again.
+When a request has several faults, the answer reports one of them, and which one depends on the route: on some routes a publishable key is refused before the key is looked up, on others after. Fix the fault reported and send the request again.
 
 ## Create an account
 
@@ -76,7 +76,7 @@ curl -X POST https://stage-api.chaching.io/platform/accounts \
 }
 ```
 
-Returns the Account object with status `201`. The company is created on its first use and reused afterwards by `company.external_id`. When an active account of that company already has the same `external_id`, the request returns it with status `200`, unchanged: its `name`, `time_zone` and the company `name` are not updated, and a deactivated account stays deactivated. Two concurrent creates of the same account return one account. No route changes an account's `name`, `time_zone` or ids after creation.
+Returns the Account object with status `201`. The company is created on its first use and reused afterwards by `company.external_id`. When an active account of that company already has the same `external_id`, the request returns it with status `200`, unchanged: its `name`, `time_zone` and the company `name` are not updated, and a deactivated account stays deactivated. Two concurrent creates of the same account return one account. To change an account's `name` or `time_zone`, see [Update an account](#update-an-account); no route changes its ids or its company.
 
 - `time_zone` defaults to `America/New_York`. It accepts an IANA zone whose UTC offset stays between -10:00 and +00:00 all year (the US zones, `Pacific/Honolulu`, `UTC`); any other answers `400 ACCOUNT_TIME_ZONE_INVALID`. Payment plan dates are calendar days in this zone; billing runs at 10:00 UTC.
 - With an `Idempotency-Key`, the rules of [Idempotency](./integrating-staging.md#idempotency) apply. A `500` stored under an `Idempotency-Key` replays for 24 hours, so repeat the request with the same `external_id` values and a NEW `Idempotency-Key`: the create is idempotent on those ids and answers `200` with the existing account or `201`.
@@ -133,6 +133,47 @@ curl -G https://stage-api.chaching.io/platform/accounts \
 
 Returns your platform's accounts, newest first, filtered by `external_id`, `company_external_id` (both exact) and `status` (`active` or `deactivated`). `GET /platform/accounts/{id}` returns one account, deactivated ones included; an id that names no account of your platform answers `404 ACCOUNT_NOT_FOUND`.
 
+## Update an account
+
+```bash
+curl -X PATCH https://stage-api.chaching.io/platform/accounts/acc_0c194ca27ec457a2f1b50f1f \
+  -H "cc-api-key: $CHACHING_PLATFORM_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Rosen Family Dental - Main Street",
+    "time_zone": "America/Chicago"
+  }'
+```
+
+<!-- captured: PATCH /platform/accounts/{id} on stage, redacted -->
+```json
+{
+  "object": "account",
+  "id": "acc_0c194ca27ec457a2f1b50f1f",
+  "external_id": "location-7",
+  "name": "Rosen Family Dental - Main Street",
+  "company": {
+    "id": "com_1779003a63191104815fd879",
+    "external_id": "office-1042",
+    "name": "Rosen Family Dental"
+  },
+  "time_zone": "America/Chicago",
+  "status": "active",
+  "deactivated_at": null,
+  "created": 1794269584
+}
+```
+
+Returns the Account object with status `200`. Only the fields you send change; a field you leave out keeps its value, and a body with no field, or with the values the account already has, returns the account unchanged. Works on a deactivated account. When a value changes, ChaChing sends `account.updated`.
+
+A new `time_zone` applies to payment plans you create afterwards (their default start date and their down-payment due date) and to the dates ChaChing renders; plans that already exist keep their dates. It accepts the zones the create accepts.
+
+| **Status** | **Error code** | **When** |
+| --- | --- | --- |
+| `400` | no code | A field is not a string, is null, a `name` is not 1 to 255 characters, or the body has another field (`external_id` and `company` included). |
+| `400` | `ACCOUNT_TIME_ZONE_INVALID` | `time_zone` is not accepted. |
+| `404` | `ACCOUNT_NOT_FOUND` | The id names no account of your platform. |
+
 ## Set up a location
 
 Run these in order for each new location:
@@ -147,6 +188,8 @@ Read the credential state of a location with `GET /dejavoo/credentials`.
 ## Platform webhooks
 
 `POST /platform/webhook-endpoints` registers an endpoint that receives the events of every account of your platform, including accounts created later. The nine `/platform/webhook-endpoints` operations take the same bodies and answer the same objects as the account-level [webhook endpoint operations](./webhook.md); your platform holds at most 16 endpoints. An event of an account goes to that account's own endpoints and to your platform's endpoints with the same event `id`; deduplicate on it.
+
+An account of your platform also sends `account.updated` when its `name`, `time_zone` or `status` changes (an update, a deactivation, a reactivation, or a time-zone change made by ChaChing). The event's data is the Account object after the change.
 
 Each delivery's envelope names the account:
 
@@ -165,12 +208,14 @@ Each delivery's envelope names the account:
 
 ## Deactivate an account
 
-`POST /platform/accounts/{id}/deactivate` and `/reactivate` answer the Account object; repeating one changes nothing. While an account is deactivated:
+`POST /platform/accounts/{id}/deactivate` and `/reactivate` answer the Account object; repeating one changes nothing. Each state change sends `account.updated`. While an account is deactivated:
 
 - Every `GET`, `POST /payment-plans/{id}/cancel` and `PATCH /dejavoo/terminals/{id}` work.
-- Every other write answers `409 ACCOUNT_DEACTIVATED` and changes nothing, including `POST /payment-plans/preview`, payments, deposits, credential saves, email settings and webhook endpoint writes.
+- The routes that finish a terminal sale already started work: `POST /payment-plans/{id}/deposit`, `POST /payment-plans/{id}/deposit/cancel`, `POST /payment-plans/{id}/payments/{payment_id}/resolve`, `POST /payment-plans/{id}/payments/{payment_id}/cancel` and `POST /dejavoo/terminal-attempts/{id}/force-close`.
+- `POST /payment-plans/{id}/payments` works only with `"external": true` (a payment collected outside ChaChing); a payment on a saved card or on a terminal answers `409 ACCOUNT_DEACTIVATED`.
+- Every other write answers `409 ACCOUNT_DEACTIVATED` and changes nothing, including `POST /payment-plans/preview`, starting a terminal deposit, credential saves, email settings and webhook endpoint writes.
 - Scheduled installments, retries and webhooks keep running.
-- A plan with a terminal attempt that is still open cannot be cancelled until you reactivate the account.
+- To cancel a plan whose terminal sale is still open, first resolve or cancel the sale (or force-close a stuck attempt), then cancel the plan.
 
 ## What does not apply to a platform account
 

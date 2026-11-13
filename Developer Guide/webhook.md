@@ -617,9 +617,15 @@ ChaChing generates webhook events for key system entities. Each event represents
 
 ---
 
+## Account Events
+
+- `account.updated` — The name, the time zone or the status of an account of your platform changes. Sent only for accounts of a platform; data is the Account object (see [Platforms](./platforms.md))
+
+---
+
 ## Summary
 
-ChaChing currently supports **34 webhook event types** across such entities as:
+ChaChing currently supports **35 webhook event types** across such entities as:
 
 - Customers
 - Payment Methods
@@ -629,6 +635,7 @@ ChaChing currently supports **34 webhook event types** across such entities as:
 - Prices
 - Taxes
 - Payment Plans
+- Accounts (platform accounts only)
 
 ---
 
