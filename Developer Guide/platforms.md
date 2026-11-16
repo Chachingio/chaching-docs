@@ -30,7 +30,7 @@ curl https://stage-api.chaching.io/payment-plans \
 | `400` | no code | `Missing apiKey parameter` | No `cc-api-key` header. |
 | `400` | no code | `Invalid apiKey format` | The key does not start with `pk_`, `sk_` or `psk_`. |
 | `400` | `CHACHING_ACCOUNT_REQUIRED` | `This request uses a platform API key: send the Chaching-Account header with the id of the account it acts on.` | An account route without `Chaching-Account`. |
-| `401` | no code | `Invalid apiKey` | The key is unknown, revoked or expired, or your platform is inactive. |
+| `401` | no code | `Invalid apiKey` | The key is unknown, revoked or expired, your platform is inactive, or the key has an [IP allow-list](#ip-allow-list) that does not contain your address. |
 | `403` | `PLATFORM_API_KEY_REQUIRED` | `This route requires a platform API key (psk_...)` | A publishable or secret account key (`pk_...` or `sk_...`) on a `/platform` route. |
 | `403` | `SECRET_API_KEY_REQUIRED` | `This route requires the account secret API key (sk_...)` | A publishable key on any route outside `/platform`. |
 | `404` | `ACCOUNT_NOT_FOUND` | `Account not found` | `Chaching-Account` names no account of your platform, whatever the reason. |
@@ -38,6 +38,62 @@ curl https://stage-api.chaching.io/payment-plans \
 | `409` | `ACCOUNT_DEACTIVATED` | `This account is deactivated. It accepts reads, payment plan cancellations, external payment plan payments, terminal updates, and resolving, canceling or force-closing terminal sales only.` | A request a deactivated account does not accept. See [Deactivate an account](#deactivate-an-account). |
 
 When a request has several faults, the answer reports one of them, and which one depends on the route: on some routes a publishable key is refused before the key is looked up, on others after. Fix the fault reported and send the request again.
+
+## Key scopes
+
+A platform key carries scopes that decide which operations it can call. Choose them when you create the key in the platform console, under **Access**: **Full access** (`*`), or one or more of five classes. Every public operation belongs to exactly one class, and `*` covers all of them.
+
+| **Scope** | **Operations** |
+| --- | --- |
+| `read` | Every `GET` operation (customers, payment methods, products, transactions, invoices and their document and hosted link, tax rates, prices, subscriptions, balance, revenue recovery, payment plans and their installments and payments, Dejavoo terminals and terminal attempts, webhook endpoints, deliveries and logs, email settings, the three credential states, `/platform/accounts`, `/platform/webhook-endpoints` and their details and logs), plus `POST /payment-plans/preview`. |
+| `operate` | The writes on an account's data: customers, products, invoices (including `POST /invoices/{id}/send`), tax rates, prices, subscriptions (including pause and resume), payment methods (attach, detach, set default), `PUT /revenue-recovery`, `PATCH /email-settings`, payment plans (create, cancel, payments, resolve, cancel and force-close of terminal sales, deposits), and Dejavoo terminals (`POST` and `PATCH`). |
+| `accounts` | `POST /platform/accounts`, `PATCH /platform/accounts/{id}`, `POST /platform/accounts/{id}/deactivate` and `POST /platform/accounts/{id}/reactivate`. |
+| `processor_credentials` | `PUT /dejavoo/credentials`, `PUT /nmi/credentials` and `PUT /stripe/credentials`. |
+| `webhooks` | Every write on `/webhook-endpoints` and on `/platform/webhook-endpoints`: create, update, delete, enable, disable and rotate-secret. |
+
+The scopes of a key cannot be changed after the key is created. To change them, create a new key; rotating a key copies its scopes and its IP allow-list to the replacement. A platform key can call only the operations of the [API Reference](./api.json); any other route answers `403 PLATFORM_API_KEY_ROUTE_NOT_ALLOWED`.
+
+A key without the scope of an operation answers `403 API_KEY_SCOPE_INSUFFICIENT`, and the message names the missing scope. This response is from a key with only the `read` scope calling `POST /platform/accounts`:
+
+```bash
+curl -X POST https://stage-api.chaching.io/platform/accounts \
+  -H "cc-api-key: $CHACHING_PLATFORM_KEY_READ_ONLY" \
+  -H "Content-Type: application/json" \
+  -d '{"external_id": "location-7", "name": "Rosen Family Dental - Main Street", "company": {"external_id": "office-1042", "name": "Rosen Family Dental"}}'
+```
+
+<!-- captured: POST /platform/accounts on stage with a read-only key, 2026-11-16, redacted -->
+```json
+{
+  "statusCode": 403,
+  "message": "This platform API key lacks the accounts scope required by this operation.",
+  "error": "API_KEY_SCOPE_INSUFFICIENT",
+  "timestamp": "2026-11-16T16:10:08.245Z",
+  "path": "/platform/accounts"
+}
+```
+
+| **Status** | **Error code** | **When** | **What to do** |
+| --- | --- | --- | --- |
+| `403` | `API_KEY_SCOPE_INSUFFICIENT` | The key's scopes include neither `*` nor the scope of the operation. | Create a key with the scope the message names. |
+| `403` | `PLATFORM_API_KEY_ROUTE_NOT_ALLOWED` | The route is not a public API operation. | Call a documented operation. |
+
+## IP allow-list
+
+A key can carry an IP allow-list: the addresses it can be used from. An empty list accepts every address. Set the list in the platform console when you create the key, or edit it later on the key's row with the 6-digit code the console emails to the signed-in administrator; the change applies from the next request.
+
+- At most 50 entries.
+- An entry is an IPv4 address in dotted decimal without leading zeros, an IPv6 address, or an address with a prefix (`203.0.113.0/24`). The prefix is 24 to 32 for IPv4 and 48 to 128 for IPv6, and the address of a range is its network address.
+- An IPv4-mapped IPv6 address (`::ffff:...`) is refused: write the IPv4 address. Any IPv6 entry inside `::/8` (`::`, `::1`, IPv4-compatible and IPv4-mapped addresses) is refused with `400 IP_ALLOWLIST_INVALID`.
+- Duplicate entries are refused. The first entry that fails answers `400 IP_ALLOWLIST_INVALID` with a message that names the entry.
+- An IPv4 caller is matched only against IPv4 entries, and an IPv6 caller only against IPv6 entries.
+
+A request from an address outside a key's list answers the generic `401 Invalid apiKey`, the same answer as for an unknown key. The console shows the last refused IP address and its time on the key's row. Repeated refusals count toward the refusals limit of [Rate limits](./api-basics.md#rate-limits).
+
+| **Status** | **Error code** | **When** | **What to do** |
+| --- | --- | --- | --- |
+| `400` | `IP_ALLOWLIST_INVALID` | An entry of the list is not accepted when you create or edit a key. | Correct the entry the message names. |
+| `401` | no code | The key has a list and the request comes from an address outside it. | Call from a listed address, or edit the list. |
 
 ## Create an account
 
@@ -90,6 +146,7 @@ A new account starts with payment plans enabled, customer emails and owner copie
 | `400` | `ACCOUNT_TIME_ZONE_INVALID` | `time_zone` is not accepted. |
 | `400` | `IDEMPOTENCY_KEY_INVALID` | The key is not 1 to 255 printable ASCII characters without spaces. |
 | `409` | `IDEMPOTENCY_KEY_IN_PROGRESS` | The first request with this key is still running. |
+| `429` | `PLATFORM_ACCOUNT_CREATE_BUSY` | More than 5 account creations are in progress. Retry after the `Retry-After` seconds (2). |
 | `422` | `IDEMPOTENCY_KEY_REUSED` | The key was used with a different body. |
 | `500` | no code | The outcome is unknown: the account may or may not exist. Repeat the request with the same external_id values (company and account) and a new Idempotency-Key: it returns the existing account or creates it. A billing-engine record created during a failed attempt can remain behind. |
 | `502` | `IDEMPOTENCY_REQUEST_INCOMPLETE` | The first request with this key never completed. Read the account list before you retry with a new key. |
@@ -205,6 +262,8 @@ Each delivery's envelope names the account:
 }
 ```
 
+Endpoints created with a key keep receiving events after that key is revoked; delete or disable the endpoint to stop them.
+
 `GET /platform/webhook-endpoints/{id}/logs` lists an endpoint's deliveries across all your accounts, without the payload and without the account. To read a delivery's payload and attempts, call `GET /webhook-deliveries/{id}` with the `Chaching-Account` of the account whose `id` is in the envelope you received.
 
 ## Deactivate an account
@@ -223,7 +282,7 @@ Each delivery's envelope names the account:
 - No dashboard, no users, no bank account, no ChaChing monthly fee.
 - The account's own publishable and secret keys do not exist; a key of that kind answers `401 Invalid apiKey`.
 - Hosted checkout and invoice pages: they do not work for a platform account: the `hosted_invoice_url` of its invoices and the checkout address of its prices open on "Invalid or expired token — The requested item could not be found." (observed on staging, 2026-11-10). Collect payments on a platform account through the API and your own pages.
-- Not built: platform key scopes, an IP allow-list and a per-key rate limit. Platform keys are created, rotated and revoked in the platform console, not through the public API. One rate limit of 200 requests per minute applies per IP address; see [Rate limits](./integrating-staging.md#rate-limits).
+- Platform keys are created, rotated and revoked in the platform console, not through the public API. They carry [scopes](#key-scopes) and an optional [IP allow-list](#ip-allow-list), and have their own quotas of 6,000 requests per platform and 600 per account per minute; see [Rate limits](./integrating-staging.md#rate-limits).
 
 ## Environment
 

@@ -48,6 +48,8 @@ When the invoice's customer has no email address, the endpoint answers `409` wit
 
 `POST /invoices/{id}/send` and `GET /invoices/{id}/pdf` each accept at most 60 requests per minute from one IP address; the next request in that minute answers `429`. Every endpoint also counts toward the general limit of 200 requests per minute per IP address.
 
+With a platform API key, the 60-per-minute budget of each of these two routes applies per key and `Chaching-Account`, and the `RateLimit-*` headers describe that budget. One platform key also has an aggregate of 120 requests per minute across both routes together and all its accounts; past it the API answers `429` with `Retry-After`. Platform-key requests count toward the platform quotas instead of the general per-IP limit; see [Rate limits](./api-basics.md#rate-limits).
+
 ---
 
 # Error Codes
