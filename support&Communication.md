@@ -70,7 +70,7 @@ Yes. Go to **Customers**, hover over a customer, select **View details**, and cl
 
 **Can I delete a customer?**
 
-Yes. Customers can be deleted from the customer details page. Historical invoices and payments remain available for reporting and audit purposes.
+Yes. Customers can be deleted from the customer details page. Historical invoices and payments remain available for reporting and audit purposes. A customer with a payment plan that is awaiting its deposit, active, past due or defaulted cannot be deleted: cancel the plan, or collect its remaining balance, first.
 
 **Can I export customer data?**
 

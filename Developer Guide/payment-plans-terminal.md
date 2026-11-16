@@ -47,7 +47,7 @@ A plan created without `payment_method` collects its deposit on one of your Deja
 
 ## Start the Deposit
 
-1. Create the plan without `payment_method`. It answers `201` in status `awaiting_deposit`, and its `deposit` object carries the plan's `reference`, its `kind`, the `amount` the terminal collects, `status: "pending"` and `attempt: null`. `kind` is `down_payment` when the plan has a down payment, and `amount` is then the down payment; otherwise `kind` is `installment_1` and `amount` is the amount of installment 1. Until the deposit is collected, a down payment counts as an unpaid installment: `remaining_balance` is `total_amount`, `installments_remaining` counts it, and `next_due_date` is the due date of the deposit: for a plan with a down payment, 00:00:00 UTC of the creation day in the account time zone; for a plan without one, its `start_date`.
+1. Create the plan without `payment_method`. It answers `201` in status `awaiting_deposit`, and its `deposit` object carries the plan's `reference`, its `kind`, the `amount` the terminal collects, `status: "pending"`, `attempt: null` and `external: false`. `kind` is `down_payment` when the plan has a down payment, and `amount` is then the down payment; otherwise `kind` is `installment_1` and `amount` is the amount of installment 1. Until the deposit is collected, a down payment counts as an unpaid installment: `remaining_balance` is `total_amount`, `installments_remaining` counts it, and `next_due_date` is the due date of the deposit: for a plan with a down payment, 00:00:00 UTC of the creation day in the account time zone; for a plan without one, its `start_date`.
 2. Call `POST /payment-plans/{id}/deposit/terminal` with the terminal:
 
    ```json
@@ -88,7 +88,8 @@ The `deposit` object while the customer is at the terminal:
     "decline_message": null,
     "surcharge_amount": 0,
     "amount_charged": 0
-  }
+  },
+  "external": false
 }
 ```
 
@@ -144,10 +145,10 @@ Fields of the attempt object:
 
 - One attempt runs at a time on a plan, and one on a terminal. A second start answers `409` `PAYMENT_PLAN_DEPOSIT_IN_FLIGHT` for the same plan, and `409` `DEJAVOO_TERMINAL_BUSY` for the same terminal.
 - A plan accepts up to 99 attempts; the next one answers `409` `PAYMENT_PLAN_DEPOSIT_ATTEMPTS_EXHAUSTED`.
-- A plan whose latest attempt is not resolved yet (`in_flight`, `resolving` or `approved_no_credential`) cannot be canceled: `POST /payment-plans/{id}/cancel` answers `409` `PAYMENT_PLAN_DEPOSIT_IN_FLIGHT` with the message `A terminal deposit attempt is unresolved. Resolve it with POST /payment-plans/{id}/deposit before canceling the plan.` until the attempt reaches a final state. Resolve it first with `POST /payment-plans/{id}/deposit`.
+- A plan whose latest attempt is not resolved yet (`in_flight`, `resolving` or `approved_no_credential`) cannot be canceled: `POST /payment-plans/{id}/cancel` answers `409` `PAYMENT_PLAN_DEPOSIT_IN_FLIGHT` with the message `A terminal deposit attempt is unresolved. Resolve it with POST /payment-plans/{id}/deposit before canceling the plan.` until the attempt reaches a final state. Resolve it first with `POST /payment-plans/{id}/deposit`. The same `409` `PAYMENT_PLAN_DEPOSIT_IN_FLIGHT` refuses a deposit collected outside ChaChing while an attempt is unresolved, with the message `A terminal deposit attempt on this payment plan is unresolved, and the card can have been charged. Resolve it with POST /payment-plans/{id}/deposit, or force-close it, before recording a deposit collected outside Chaching.`
 - When the plan is activated, ChaChing sends `payment_plan.activated` and `payment_plan.installment_paid` for the installment the deposit paid — sequence `0` for a down payment, else sequence `1` — (and `payment_plan.completed` for a plan with one installment and no down payment), and emails the customer the receipt for the down payment or for payment 1.
 - Every Payment Plan object carries `deposit`: an object with `attempt` for a plan created without `payment_method`, and `null` for a plan created with one.
-- A plan in `awaiting_deposit` accepts no payment, external payments included, until the deposit is collected on a terminal.
+- A plan in `awaiting_deposit` accepts only one payment: the deposit collected outside ChaChing, recorded with `POST /payment-plans/{id}/payments` and `external: true`; see [Record a Deposit Collected Outside Chaching](./payment-plans.md#record-a-deposit-collected-outside-chaching). Every other payment answers `409` `PAYMENT_PLAN_NOT_PAYABLE`.
 - An attempt that stays `resolving` because the terminal never reports its outcome can be listed and force-closed: see [Find and Force-Close a Stuck Terminal Attempt](#find-and-force-close-a-stuck-terminal-attempt).
 
 ---
@@ -353,7 +354,7 @@ Call `POST /dejavoo/terminal-attempts/{id}/force-close` with the attempt `id` an
 }
 ```
 
-`reason` is 1 to 500 characters, not blank, with no control characters such as a line break. ChaChing stores it without its leading and trailing spaces and returns it as `force_close_reason`. When the status read leaves the attempt unresolved, the answer is `200` with the attempt in `force_closed`, `force_closed_by` set to `api` and `force_closed_at` set. A deposit's plan stays `awaiting_deposit`: you can start a new attempt or cancel the plan. A payment reads `not_attempted`. ChaChing sends no webhook for a force-close. The force-close answers whether Payment Plans are enabled on your account or not.
+`reason` is 1 to 500 characters, not blank, with no control characters such as a line break. ChaChing stores it without its leading and trailing spaces and returns it as `force_close_reason`. When the status read leaves the attempt unresolved, the answer is `200` with the attempt in `force_closed`, `force_closed_by` set to `api` and `force_closed_at` set. A deposit's plan stays `awaiting_deposit`: you can start a new attempt, record the deposit collected outside ChaChing after you check the sale in your Dejavoo (iPOSpays) account (see [Record a Deposit Collected Outside Chaching](./payment-plans.md#record-a-deposit-collected-outside-chaching)), or cancel the plan. A payment reads `not_attempted`. ChaChing sends no webhook for a force-close. The force-close answers whether Payment Plans are enabled on your account or not.
 
 | **Status** | **Error** | **When** |
 | --- | --- | --- |
