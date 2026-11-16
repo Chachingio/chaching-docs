@@ -73,11 +73,23 @@ Every other `POST` takes no key. Before you retry one of them, look the object u
 
 ## Rate limits
 
-- 200 requests per 60 seconds from one IP address, over all keys and all accounts. A platform backend that serves many locations from one IP shares this budget: polling one terminal deposit every 2 to 3 seconds uses 20 to 30 requests a minute.
-- `POST /invoices/{id}/send` and `GET /invoices/{id}/pdf`: 60 requests per 60 seconds each, from one IP address.
-- `PUT /dejavoo/credentials`, `/nmi/credentials` and `/stripe/credentials`: 10 per 60 seconds per key, and with a platform key per key and location.
+Two regimes apply, by key.
 
-Every response carries `RateLimit-Policy`, `RateLimit-Limit`, `RateLimit-Remaining` and `RateLimit-Reset`. Beyond a limit the API answers `429`; wait the seconds in `RateLimit-Reset` and back off on repeats. There is no per-key or per-platform limit beyond these.
+**Account keys (`sk_`):**
+
+- 200 requests per 60 seconds from one IP address, over all account keys. Polling one terminal deposit every 2 to 3 seconds uses 20 to 30 requests a minute.
+- `POST /invoices/{id}/send` and `GET /invoices/{id}/pdf`: 60 requests per 60 seconds each, from one IP address.
+- `PUT /dejavoo/credentials`, `/nmi/credentials` and `/stripe/credentials`: 10 per 60 seconds per key.
+
+**Platform keys (`psk_`):**
+
+- 6,000 requests per 60 seconds per platform and 600 requests per 60 seconds per account (`Chaching-Account`). A request past either quota answers `429 PLATFORM_RATE_LIMITED` with `Retry-After`, and keeps doing so when the client retries without honouring `Retry-After`. The `RateLimit-*` headers describe the tighter quota.
+- Platform-key requests are not counted by the 200-per-IP limit. Their per-IP ceiling is 12,000 requests per 60 seconds from one IP address, whatever their outcome; it is answered like the general per-IP limit: `429` with the body `Too many requests, please try again later.`, `Retry-After` and no error code. Requests with different unrecognised keys fall under it.
+- Refusals limit: after 200 refused requests with the same unrecognised platform key from one IP address in a minute (an unknown, revoked or expired key, a key of an inactive platform, a key used from outside its IP allow-list), that key from that IP answers `429 PLATFORM_API_KEY_REFUSALS_LIMITED` with `Retry-After` until the minute ends. It refuses only that key from that IP; a burst of legitimate concurrent requests is never refused by it.
+- `PUT /dejavoo/credentials`, `/nmi/credentials` and `/stripe/credentials`: 10 per 60 seconds per key and location.
+- Invoice documents keep their lower per-route limits; see [Invoices](./invoices.md#rate-limits).
+
+Every response to an account key, and every platform-key response that reached the quota check, carries `RateLimit-Policy`, `RateLimit-Limit`, `RateLimit-Remaining` and `RateLimit-Reset`; a platform-key request refused earlier (`401`, `403`) carries none. Beyond a limit the API answers `429`; wait the seconds in `Retry-After` (or `RateLimit-Reset`) and back off on repeats. See [API Basics](./api-basics.md#rate-limits).
 
 ## Receive webhooks on staging
 

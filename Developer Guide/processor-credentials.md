@@ -80,6 +80,10 @@ A Stripe restricted key (`rk_`) needs read access to Balance; without it the req
 
 The first save sets the account's payment gateway. After that, only that gateway's credentials can be saved: a `PUT` for another gateway answers `409 PAYMENT_GATEWAY_LOCKED` and changes nothing. No request changes or removes the gateway, and no request deletes credentials; send a new set with `PUT` to rotate them.
 
+## Replacing Credentials Notifies Your Platform
+
+When a platform key replaces credentials that already exist, the console users of your platform receive an e-mail notice. It is sent without delaying the response, once the new credentials reached the billing engine, also when a later step of that save answers an error. At most five such notices are sent per platform in 10 minutes; further replacements in that window are reported in one summary message when it ends.
+
 ## Saving Takes a Few Seconds
 
 A `PUT` answers after the new credentials are in use. That usually takes a few seconds; it can take up to about a minute when the gateway check and the configuration step both run to their limits. When the answer is `500 KILL_BILL_PLUGIN_CONFIG_UNCONFIRMED`, the message starts with `Dejavoo configuration was saved, but` (or `NMI` or `Stripe`): the credentials were saved, but ChaChing could not confirm that they are in use. Send the same `PUT` again. When your client times out before the answer, read `GET` and compare `updated_at`.
@@ -146,7 +150,9 @@ When a delivery is rejected, give ChaChing support the account id and the delive
 | `422` | `DEJAVOO_CREDENTIALS_REJECTED` | iPOSpays rejected the API key and secret key. Nothing was saved. |
 | `422` | `STRIPE_CREDENTIALS_REJECTED` | Stripe rejected the secret key, or the key cannot read the account balance. Nothing was saved. |
 | `429` | `PROCESSOR_CREDENTIALS_RATE_LIMITED` | More than 10 `PUT` requests in one minute with the same key. Wait for the `Retry-After` seconds. |
+| `429` | `PROCESSOR_CREDENTIALS_OVERWRITE_LIMITED` | With a platform key: a `PUT` that replaces existing credentials when your platform already replaced credentials 10 times in the current hour. Wait for the `Retry-After` seconds. |
 | `500` | `KILL_BILL_PLUGIN_CONFIG_NOT_WRITTEN` | Nothing was saved. Send the request again. |
 | `500` | `KILL_BILL_PLUGIN_CONFIG_UNCONFIRMED` | The credentials were saved but not confirmed in use. Send the same request again. |
+| `503` | `PROCESSOR_CREDENTIALS_AUDIT_FAILED` | The audit record of a replacement could not be written. Nothing was changed. Send the request again. |
 | `503` | `DEJAVOO_VERIFICATION_UNAVAILABLE` | iPOSpays could not be reached. Nothing was saved. |
 | `503` | `STRIPE_VERIFICATION_UNAVAILABLE` | Stripe could not be reached. Nothing was saved. |

@@ -40,15 +40,19 @@ You manage account keys in the dashboard under **Settings, Developer settings**,
 | `400` | no code | `Missing apiKey parameter` | The request has no `cc-api-key` header. |
 | `400` | no code | `Invalid apiKey format` | The key does not start with `pk_`, `sk_` or `psk_`. |
 | `400` | `CHACHING_ACCOUNT_REQUIRED` | `This request uses a platform API key: send the Chaching-Account header with the id of the account it acts on.` | A platform key without `Chaching-Account`. |
-| `401` | no code | `Invalid apiKey` | The key is unknown, revoked or expired, or it belongs to a deactivated account. |
+| `401` | no code | `Invalid apiKey` | The key is unknown, revoked or expired, or it belongs to a deactivated account. A platform key answers the same `401` when its platform is inactive, and when the key has an IP allow-list that does not contain the IP address of the request (see [IP allow-list](./platforms.md#ip-allow-list)). |
 | `401` | `MALFORMED_AUTHORIZATION_HEADER` | `Malformed Authorization header` | An `Authorization` header that is not `Bearer`, one space and a token. |
 | `401` | no code | `Conflicting account credentials` | An `Authorization` bearer of another account. |
 | `403` | `SECRET_API_KEY_REQUIRED` | `This route requires the account secret API key (sk_...)` | A publishable key outside `/platform`. |
 | `403` | `PLATFORM_API_KEY_REQUIRED` | `This route requires a platform API key (psk_...)` | A key other than a platform key on `/platform`, publishable keys included. |
+| `403` | `API_KEY_SCOPE_INSUFFICIENT` | `This platform API key lacks the accounts scope required by this operation.` (the message names the scope the operation needs) | A platform key whose scopes do not include the scope of the operation. Create or rotate a key with the scope; see [Key scopes](./platforms.md#key-scopes). |
+| `403` | `PLATFORM_API_KEY_ROUTE_NOT_ALLOWED` | `Platform API keys cannot call this route.` | A platform key on a route that is not one of the public API operations. |
 | `404` | `ACCOUNT_NOT_FOUND` | `Account not found` | `Chaching-Account` names no account the key can act on. |
 | `409` | no code | `This route authenticates with cc-api-key only; remove the Authorization header` | A well-formed `Bearer` header. |
 | `409` | `ACCOUNT_DEACTIVATED` | `This account is deactivated. It accepts reads, payment plan cancellations, external payment plan payments, terminal updates, and resolving, canceling or force-closing terminal sales only.` | A write to a deactivated platform account. |
-| `429` | no code | | Too many requests; see [Rate limits](#rate-limits). |
+| `429` | no code | `Too many requests, please try again later.` | Too many requests from one IP address; see [Rate limits](#rate-limits). Wait the seconds in `Retry-After`. |
+| `429` | `PLATFORM_RATE_LIMITED` | `Too many requests for this platform in the current 60-second window. Retry after n seconds.` or `Too many requests for this account (Chaching-Account) in the current 60-second window. Retry after n seconds.` | A platform key spent the quota of its platform or of the account named by `Chaching-Account`; see [Rate limits](#rate-limits). Wait the seconds in `Retry-After`. |
+| `429` | `PLATFORM_API_KEY_REFUSALS_LIMITED` | `Too many refused platform API key requests from this IP address. Try again in a minute.` | 200 refused requests with the same unrecognised platform key from one IP address in a minute. Replace the revoked, expired or unknown key, or fix its allow-list, and wait for `Retry-After`. |
 
 A `403` body reads, in full:
 
@@ -88,7 +92,18 @@ Every error body has `statusCode`, `message`, `timestamp` and `path`, and `error
 
 ## Rate limits
 
-200 requests per 60 seconds from one IP address, over all keys. Every response carries `RateLimit-Policy`, `RateLimit-Limit`, `RateLimit-Remaining` and `RateLimit-Reset`; beyond the limit the API answers `429`. Some routes have lower limits; see [Rate limits](./integrating-staging.md#rate-limits).
+The limit depends on the key.
+
+- **Account keys:** 200 requests per 60 seconds from one IP address, over all account keys. Every response carries `RateLimit-Policy`, `RateLimit-Limit`, `RateLimit-Remaining` and `RateLimit-Reset`; beyond the limit the API answers `429` with the body `Too many requests, please try again later.` and a `Retry-After` header. Some routes have lower limits; see [Rate limits](./integrating-staging.md#rate-limits).
+- **Platform keys:** 6,000 requests per 60 seconds for your whole platform and 600 requests per 60 seconds for each account named by `Chaching-Account`. A request that finds either quota spent answers `429 PLATFORM_RATE_LIMITED` with `Retry-After`, the seconds to wait. The `RateLimit-*` headers describe whichever of the two quotas is tighter for that request. A platform-key request past its quota keeps answering `429 PLATFORM_RATE_LIMITED`, also when the client retries without honouring `Retry-After`.
+
+Platform-key requests are not counted by the 200-per-IP limit. They have their own per-IP ceiling of 12,000 requests per 60 seconds from one IP address, whatever their outcome; past it the API answers like the general per-IP limit: `429` with the body `Too many requests, please try again later.`, a `Retry-After` header and no error code.
+
+A platform key that the API refuses to recognise has one more limit. An unknown, revoked or expired key, a key of an inactive platform, and a key used from an IP address outside its allow-list each count as a refused request. After 200 refused requests with the same unrecognised platform key from one IP address in a minute, that same key from that IP answers `429 PLATFORM_API_KEY_REFUSALS_LIMITED` with `Retry-After` until the minute ends. Valid keys, and every other key from the same IP address, keep being served. Requests with different unrecognised keys fall under the 12,000-per-minute per-IP ceiling. A burst of legitimate concurrent requests is never refused by this limit, and the `403`, `400`, `404`, `409` and quota `429` answers of a recognised key never count toward it.
+
+## Request IDs
+
+Every response carries a `Request-Id` header, for example `Request-Id: req_0123456789abcdef0123456789abcdef`: `req_` followed by 32 hexadecimal characters. ChaChing generates it for each request and ignores a `Request-Id` header you send. Quote it when you contact support, so the request can be found.
 
 ## Names
 
