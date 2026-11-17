@@ -36,7 +36,7 @@ For example, $2,100.00 at $200.00 a month with no down payment and the remainder
 | `canceled` | You canceled the plan. Installments not yet billed are removed; amounts already invoiced stay collectible. |
 | `awaiting_deposit` | The plan was created without a payment method and waits for its deposit — the down payment when the plan has one, else its first installment. The customer pays it on one of your Dejavoo terminals (see **Collect the First Installment on a Terminal**), or you record it as collected outside ChaChing (see **Record a Deposit Collected Outside Chaching**). |
 
-`paid_off` and `canceled` are final. The status value is `canceled`, with one `l`. A plan in `awaiting_deposit` accepts only a payment with `external: true` of at least the deposit through `POST /payment-plans/{id}/payments`: it records the deposit collected outside ChaChing and activates the plan (see **Record a Deposit Collected Outside Chaching**). Every other payment answers `409` `PAYMENT_PLAN_NOT_PAYABLE`.
+`paid_off` and `canceled` are final. The status value is `canceled`, with one `l`. A plan in `awaiting_deposit` accepts only a payment with `external: true` of at least the deposit through `POST /payment-plans/{id}/payments`: it records the deposit collected outside ChaChing and activates the plan (see **Record a Deposit Collected Outside Chaching**). A payment without `external: true` answers `409` `PAYMENT_PLAN_NOT_PAYABLE`, and an external payment below the deposit answers `400` `PAYMENT_PLAN_AMOUNT_BELOW_DEPOSIT`.
 
 | **From** | **To** | **When** | **Event** |
 | --- | --- | --- | --- |
@@ -165,17 +165,17 @@ When the customer pays the deposit of a plan in `awaiting_deposit` outside ChaCh
 | --- | --- |
 | `amount` | Integer cents, at least the plan's `deposit.amount` and at most its `remaining_balance`. The deposit is recorded whole; any amount above it is applied to the part of the plan not billed yet and shortens the plan from its end. The whole `remaining_balance` pays the plan off. |
 | `external` | `true`. A payment without it answers `409` `PAYMENT_PLAN_NOT_PAYABLE`. |
-| `payment_method` | Not required. A saved card of the plan's customer, saved with your account's Dejavoo gateway and set up for automatic payments. It becomes the plan's card and the customer's default payment method, and the remaining installments are charged to it automatically. Because it becomes the customer's default payment method, every later automatic charge of that customer uses it, its subscriptions and other payment plans included. |
+| `payment_method` | No; required when the customer has a default payment method. A saved card of the plan's customer, saved with your account's current payment gateway and set up for automatic payments. It becomes the plan's card and the customer's default payment method, and the remaining installments are charged to it automatically. Because it becomes the customer's default payment method, every later automatic charge of that customer uses it, its subscriptions and other payment plans included. |
 
 **Without `payment_method`:**
 
-- When the customer has a default payment method, the request answers `409` `PAYMENT_PLAN_PAYMENT_METHOD_REQUIRED` and records nothing, because that method would be charged for the remaining installments. Its `message` says which card to name in `payment_method`.
+- When the customer has a default payment method, the request answers `409` `PAYMENT_PLAN_PAYMENT_METHOD_REQUIRED` and records nothing, because that method would be charged for the remaining installments. Its `message` tells you to name a card in `payment_method`.
 - When the customer has no default payment method, the plan is activated without a card, and its `payment_method` reads `null` for the life of the plan. Each remaining installment is invoiced on its due date and nothing is charged automatically. Collect it with `POST /payment-plans/{id}/payments` (`external: true` for money you collected, or a terminal payment), on the hosted invoice page, or with `PUT /invoices/{id}`. An installment left unpaid moves the plan to `past_due` and `defaulted` on the schedule of your revenue recovery settings, and ChaChing sends no failed-payment notice for an automatic charge that was never attempted. A card that later becomes the customer's default payment method, for example through another plan or a subscription, pays the next installments automatically.
 
 **Before you record it:**
 
 - A plan whose latest terminal deposit attempt is not resolved (`in_flight`, `resolving` or `approved_no_credential`) answers `409` `PAYMENT_PLAN_DEPOSIT_IN_FLIGHT`. Resolve the attempt with `POST /payment-plans/{id}/deposit`, or force-close it, first.
-- After a force-closed attempt, check the sale in your Dejavoo (iPOSpays) account. When it was approved, refund it there before you record the deposit, so the customer does not pay twice.
+- After a force-closed attempt, or an attempt in `partial_approval`, check the sale in your Dejavoo (iPOSpays) account. When money was taken, void or refund it there before you record the deposit, so the customer does not pay twice.
 
 **What ChaChing sends**, in this order: `invoice.payment_succeeded` for the deposit invoice, `invoice.payment_succeeded` for the invoice of the amount above the deposit when there is one, `payment_plan.activated`, `payment_plan.installment_paid` for the deposit (sequence `0` for a down payment, else sequence `1`), `payment_plan.payment_succeeded`, and `payment_plan.completed` when the payment paid the plan off. The customer receives the `Payment recorded` email. The plan's `deposit` object then reads `status: "collected"`, `external: true`, `transaction_reference: null` and `collected_at` set to the time of the request.
 
@@ -189,11 +189,13 @@ When the customer pays the deposit of a plan in `awaiting_deposit` outside ChaCh
 | `409` | `PAYMENT_PLAN_PAYMENT_METHOD_NOT_SUPPORTED` | `payment_method` is not a card saved with your account's current payment gateway. |
 | `409` | `PAYMENT_PLAN_CREDENTIAL_NOT_ESTABLISHED` | The card named in `payment_method` was not set up for automatic payments. Ask the customer to enter the card again, or record the deposit without a card. |
 | `409` | `PAYMENT_PLAN_DEPOSIT_IN_FLIGHT` | A terminal deposit attempt on the plan is unresolved. |
-| `409` | `PAYMENT_PLAN_START_DATE_TOO_SOON` | The first installment charged after the deposit bills within 1 hour. Cancel the plan and create it again with a later start date. |
+| `409` | `PAYMENT_PLAN_START_DATE_TOO_SOON` | The first installment charged after the deposit bills within 1 hour. Cancel the plan and create it again with a later start date. The same code answers when the billing time of the customer cannot be determined; contact support. |
 | `409` | `PAYMENT_PLAN_INSTALLMENT_BILLING_IN_PROGRESS` | The amount goes beyond the deposit and the next installment is being billed or is about to bill. |
 | `502` | `PAYMENT_PLAN_DEPOSIT_INVOICE_NOT_RECORDED` | The deposit could not be recorded on its invoice, or its invoice payment could not be confirmed. The plan was not activated; send the request again with a new `Idempotency-Key`: the new request reuses the same invoice, so the deposit is not recorded twice. |
 | `502` | `PAYMENT_PLAN_PAYMENT_UNCONFIRMED` | The deposit was recorded and the plan is `active`, but the payment could not be read back. Read the plan and its payments with `GET /payment-plans/{id}` and `GET /payment-plans/{id}/payments` before you send anything else: the same body with a new `Idempotency-Key` would record the money a second time. |
-| `502` | `PAYMENT_PLAN_BILLING_ENGINE_UNAVAILABLE` | Billing data could not be read. Nothing was recorded; send the request again, with the same `Idempotency-Key` or a new one. |
+| `502` | `PAYMENT_PLAN_BILLING_ENGINE_UNAVAILABLE` | Billing data could not be read. Nothing was recorded on the plan; send the request again, with the same `Idempotency-Key` or a new one. |
+
+The errors common to every payment on a plan, such as `409` `PAYMENT_PLAN_BUSY` and `409` `PAYMENT_PLAN_NOT_AWAITING_DEPOSIT` (another request activated or canceled the plan meanwhile), are listed under [Error Codes](#error-codes).
 
 ---
 
@@ -464,7 +466,7 @@ Errors use the standard body `{ "statusCode", "message", "error", "timestamp", "
 | `404` | `PAYMENT_PLAN_TERMINAL_ATTEMPT_NOT_FOUND` | The terminal attempt id does not resolve for this account. |
 | `409` | `PAYMENT_PLAN_CREDENTIAL_NOT_ESTABLISHED` | The saved card was not established for automatic payments. Create the plan with a down payment, or ask the customer to enter the card again. On a deposit collected outside, the card named in `payment_method` was not set up for automatic payments: name another card, or record the deposit without a card. |
 | `409` | `PAYMENT_PLAN_PAYMENT_METHOD_NOT_SUPPORTED` | On a create, the payment method is not a card saved with the account's current payment gateway. On `POST /payment-plans/{id}/payments`, on `PUT /invoices/{id}` and on a payment from the hosted invoice page or the dashboard of an invoice that carries an unpaid installment, the card that would be charged — `payment_method`, or the customer's default payment method when it is omitted — is not a card saved with the payment gateway the plan was created on; a plan created before you changed your payment gateway keeps accepting its own cards. Nothing was created or charged. Send a payment method returned by the payment-methods endpoints, or record money you collected yourself with `external: true` on `POST /payment-plans/{id}/payments`. On a deposit collected outside, `payment_method` is not a card saved with your account's current payment gateway. |
-| `409` | `PAYMENT_PLAN_PAYMENT_METHOD_REQUIRED` | A deposit collected outside was recorded without `payment_method` and the customer has a default payment method. Nothing is recorded; `message` says which card to name. |
+| `409` | `PAYMENT_PLAN_PAYMENT_METHOD_REQUIRED` | A deposit collected outside was recorded without `payment_method` and the customer has a default payment method. Nothing is recorded; `message` tells you to name a card in `payment_method`. |
 | `409` | `PAYMENT_PLAN_UNPAID_OUTCOME_NOT_SUPPORTED` | Your failed-payment outcome is `unpaid`. |
 | `409` | `PAYMENT_PLAN_DUNNING_SCHEDULE_TOO_SHORT` | Your `payment_retries` sum to less than 7 days. |
 | `409` | `PAYMENT_PLAN_CUSTOMER_DELINQUENT` | The customer's account is in the late-payment warning or a failed-payment outcome, or carries an invoice unpaid for one day or more. |
