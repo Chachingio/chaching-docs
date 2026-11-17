@@ -165,7 +165,7 @@ When the customer pays the deposit of a plan in `awaiting_deposit` outside ChaCh
 | --- | --- |
 | `amount` | Integer cents, at least the plan's `deposit.amount` and at most its `remaining_balance`. The deposit is recorded whole; any amount above it is applied to the part of the plan not billed yet and shortens the plan from its end. The whole `remaining_balance` pays the plan off. |
 | `external` | `true`. A payment without it answers `409` `PAYMENT_PLAN_NOT_PAYABLE`. |
-| `payment_method` | Not required. A saved card of the plan's customer, saved with your account's Dejavoo gateway and set up for automatic payments. It becomes the plan's card and the customer's default payment method, and the remaining installments are charged to it automatically. |
+| `payment_method` | Not required. A saved card of the plan's customer, saved with your account's Dejavoo gateway and set up for automatic payments. It becomes the plan's card and the customer's default payment method, and the remaining installments are charged to it automatically. Because it becomes the customer's default payment method, every later automatic charge of that customer uses it, its subscriptions and other payment plans included. |
 
 **Without `payment_method`:**
 
@@ -185,13 +185,15 @@ When the customer pays the deposit of a plan in `awaiting_deposit` outside ChaCh
 | `400` | `PAYMENT_PLAN_AMOUNT_EXCEEDS_BALANCE` | `amount` is above the remaining balance. |
 | `404` | `PAYMENT_METHOD_NOT_FOUND` | `payment_method` does not resolve, or does not belong to the customer. |
 | `409` | `PAYMENT_PLAN_PAYMENT_METHOD_REQUIRED` | `payment_method` was not sent and the customer has a default payment method. |
+| `409` | `ACCOUNT_DEACTIVATED` | The account is deactivated and the request names a card, or the customer has a default payment method. On a deactivated account the deposit is recorded only without a card. |
 | `409` | `PAYMENT_PLAN_PAYMENT_METHOD_NOT_SUPPORTED` | `payment_method` is not a card saved with your account's current payment gateway. |
 | `409` | `PAYMENT_PLAN_CREDENTIAL_NOT_ESTABLISHED` | The card named in `payment_method` was not set up for automatic payments. Ask the customer to enter the card again, or record the deposit without a card. |
 | `409` | `PAYMENT_PLAN_DEPOSIT_IN_FLIGHT` | A terminal deposit attempt on the plan is unresolved. |
 | `409` | `PAYMENT_PLAN_START_DATE_TOO_SOON` | The first installment charged after the deposit bills within 1 hour. Cancel the plan and create it again with a later start date. |
 | `409` | `PAYMENT_PLAN_INSTALLMENT_BILLING_IN_PROGRESS` | The amount goes beyond the deposit and the next installment is being billed or is about to bill. |
-| `502` | `PAYMENT_PLAN_DEPOSIT_INVOICE_NOT_RECORDED` | The deposit could not be recorded on its invoice. Nothing was recorded on the plan; send the request again with a new `Idempotency-Key`. |
-| `502` | `PAYMENT_PLAN_BILLING_ENGINE_UNAVAILABLE` | Billing data could not be read. Nothing was recorded; send the request again with a new `Idempotency-Key`. |
+| `502` | `PAYMENT_PLAN_DEPOSIT_INVOICE_NOT_RECORDED` | The deposit could not be recorded on its invoice, or its invoice payment could not be confirmed. The plan was not activated; send the request again with a new `Idempotency-Key`: the new request reuses the same invoice, so the deposit is not recorded twice. |
+| `502` | `PAYMENT_PLAN_PAYMENT_UNCONFIRMED` | The deposit was recorded and the plan is `active`, but the payment could not be read back. Read the plan and its payments with `GET /payment-plans/{id}` and `GET /payment-plans/{id}/payments` before you send anything else: the same body with a new `Idempotency-Key` would record the money a second time. |
+| `502` | `PAYMENT_PLAN_BILLING_ENGINE_UNAVAILABLE` | Billing data could not be read. Nothing was recorded; send the request again, with the same `Idempotency-Key` or a new one. |
 
 ---
 
@@ -505,7 +507,7 @@ Errors use the standard body `{ "statusCode", "message", "error", "timestamp", "
 | `500` | `PAYMENT_PLAN_SCHEDULE_MISMATCH` | The registered schedule did not match the expected installment dates. No plan was created. |
 | `502` | `PAYMENT_PLAN_DOWN_PAYMENT_UNCONFIRMED` | The down payment's outcome could not be confirmed. No plan was created and the charge is not reversed. `down_payment_invoice_id` is the id of the down-payment invoice to check. Once its charge has settled, send the same request again; this answer is not stored, so the same `Idempotency-Key` is accepted. A retry that itself answers a stored `502`, for example `PAYMENT_PLAN_BILLING_ENGINE_UNAVAILABLE`, needs a new key. A charge paid with the same `payment_method` is used for the new plan and is not taken again. From the next UTC day, the request answers `409` `PAYMENT_PLAN_CUSTOMER_DELINQUENT` instead until that invoice is paid or voided. Check the customer's invoices before you change the amount. |
 | `502` | `PAYMENT_PLAN_PAYMENT_UNCONFIRMED` | The first charge's outcome could not be confirmed. It is not reversed; read the plan before retrying. |
-| `502` | `PAYMENT_PLAN_DEPOSIT_INVOICE_NOT_RECORDED` | A terminal deposit, or a deposit collected outside, could not be recorded on its invoice. For a deposit collected outside nothing was recorded on the plan: send the request again with a new `Idempotency-Key`. For a terminal deposit, resolve it again. |
+| `502` | `PAYMENT_PLAN_DEPOSIT_INVOICE_NOT_RECORDED` | A terminal deposit, or a deposit collected outside, could not be recorded on its invoice. For a deposit collected outside the plan was not activated, and its invoice payment can already be recorded: send the request again with a new `Idempotency-Key`, which reuses that invoice. For a terminal deposit, resolve it again. |
 | `502` | `PAYMENT_PLAN_BILLING_ENGINE_UNAVAILABLE` | Billing data could not be read, including the billing account of the customer when `start_date` is checked (create, preview, terminal deposit and deposit collected outside). Nothing was created or charged; safe to retry with a new `Idempotency-Key`. |
 | `502` | `PAYMENT_PLAN_EXTERNAL_ID_CHECK_FAILED` | The duplicate check of `external_id` right before the down payment could not be read. Nothing was created or charged; the same `Idempotency-Key` is evaluated again on the next request. |
 | `502` | `PAYMENT_PLAN_CANCEL_INCOMPLETE` | The cancellation did not complete. The plan keeps its status and installments, but part of its schedule can already be stopped. Repeat the request: a repeat completes the rest. |
