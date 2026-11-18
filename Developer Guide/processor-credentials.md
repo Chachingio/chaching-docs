@@ -146,6 +146,7 @@ When a delivery is rejected, give ChaChing support the account id and the delive
 | `403` | `SECRET_API_KEY_REQUIRED` | The key is a publishable key. |
 | `404` | `ACCOUNT_NOT_FOUND` | With a platform key: `Chaching-Account` names no account of your platform. |
 | `409` | `PAYMENT_GATEWAY_LOCKED` | The account is set up on another gateway. |
+| `409` | `PROCESSOR_CREDENTIALS_SAVE_IN_PROGRESS` | Another save of this account's credentials is in progress. Wait for the `Retry-After` seconds and send the request again: the retry is answered from the account's state at that time: it replaces the credentials the other save set, answers `409 PAYMENT_GATEWAY_LOCKED` when that save set another gateway, and is a first save when that save failed. |
 | `409` | no code | The request carries any other `Authorization` header. Send no `Authorization` header (see [API Basics](./api-basics.md#authentication)). |
 | `422` | `DEJAVOO_CREDENTIALS_REJECTED` | iPOSpays rejected the API key and secret key. Nothing was saved. |
 | `422` | `STRIPE_CREDENTIALS_REJECTED` | Stripe rejected the secret key, or the key cannot read the account balance. Nothing was saved. |
