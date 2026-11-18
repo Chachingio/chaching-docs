@@ -9,7 +9,7 @@ When you select **View details** on a customer row, you are taken to the **Custo
 | **Element** | **Description** |
 | --- | --- |
 | **Customer Name** | Displayed at the top of the page. |
-| **Delete** | Permanently deletes the customer from your workspace. |
+| **Delete** | Permanently deletes the customer from your workspace. A customer with a payment plan that is awaiting its deposit, active, past due or defaulted cannot be deleted: cancel the plan, or collect its remaining balance, first. |
 | **Edit customer** | Opens the customer editor where you can update contact, billing, or shipping details. |
 | **Email** | The customer’s primary email address. |
 ---

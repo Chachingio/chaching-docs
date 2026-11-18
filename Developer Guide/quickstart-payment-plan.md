@@ -398,7 +398,8 @@ curl -X POST https://stage-api.chaching.io/payment-plans \
     "status": "pending",
     "transaction_reference": null,
     "collected_at": null,
-    "attempt": null
+    "attempt": null,
+    "external": false
   },
   "created": 1794269592,
   "ended_at": null,
@@ -406,7 +407,7 @@ curl -X POST https://stage-api.chaching.io/payment-plans \
 }
 ```
 
-Returns the Payment Plan object with status `201` in status `awaiting_deposit`. Its `deposit` object names the `amount` the terminal collects. Nothing is charged until the deposit is collected. Store the plan's `id`:
+Returns the Payment Plan object with status `201` in status `awaiting_deposit`. Its `deposit` object names the `amount` the terminal collects. Nothing is charged until the deposit is collected. When the customer pays the deposit outside ChaChing instead, record it with `POST /payment-plans/{id}/payments` and `external: true`; see [Record a Deposit Collected Outside Chaching](./payment-plans.md#record-a-deposit-collected-outside-chaching). Store the plan's `id`:
 
 ```bash
 export PLAN_ID="pp_..."
@@ -474,7 +475,8 @@ curl -X POST https://stage-api.chaching.io/payment-plans/$PLAN_ID/deposit/termin
       "decline_message": null,
       "surcharge_amount": 0,
       "amount_charged": 0
-    }
+    },
+    "external": false
   },
   "created": 1794269623,
   "ended_at": null,
@@ -536,7 +538,8 @@ curl https://stage-api.chaching.io/payment-plans/$PLAN_ID \
       "decline_message": null,
       "surcharge_amount": 3,
       "amount_charged": 103
-    }
+    },
+    "external": false
   },
   "created": 1794269623,
   "ended_at": null,
@@ -636,6 +639,7 @@ curl https://stage-api.chaching.io/webhook-deliveries/$DELIVERY_ID \
         "amount": 100,
         "status": "pending",
         "attempt": null,
+        "external": false,
         "reference": "EZS0S6S8",
         "collected_at": null,
         "transaction_reference": null

@@ -547,7 +547,7 @@ ChaChing generates webhook events for key system entities. Each event represents
 
 - `customer.created` — A new customer is created
 - `customer.updated` — An existing customer is updated
-- `customer.deleted` — A customer is deleted
+- `customer.deleted` — A customer is deleted; not sent when the delete is refused with 409 CUSTOMER_HAS_OPEN_PAYMENT_PLANS
 
 ---
 
@@ -565,7 +565,7 @@ ChaChing generates webhook events for key system entities. Each event represents
 - `invoice.finalized` — An invoice is finalized and ready for payment
 - `invoice.sent` — An invoice is sent to the customer
 - `invoice.payment_succeeded` — Invoice payment completed successfully
-- `invoice.payment_failed` — Invoice payment failed
+- `invoice.payment_failed` — Invoice payment failed; not sent for an installment of a payment plan with no card when no payment was attempted on it (a declined payment on it is still announced)
 
 ---
 
@@ -605,7 +605,7 @@ ChaChing generates webhook events for key system entities. Each event represents
 ## Payment Plan Events
 
 - `payment_plan.created` — A payment plan is created
-- `payment_plan.activated` — A payment plan starts running
+- `payment_plan.activated` — A payment plan starts running: at creation for a plan created with a payment method, or when its deposit is collected on a terminal or recorded as collected outside ChaChing
 - `payment_plan.installment_paid` — An installment of a payment plan is paid
 - `payment_plan.installment_failed` — An automatic charge attempt on an installment is declined
 - `payment_plan.past_due` — A payment plan changes to `past_due`
@@ -1540,6 +1540,7 @@ carries the Payment object.
 | `deposit.status` | string, one of `pending`, `collected` | no |
 | `deposit.transaction_reference` | string | yes |
 | `deposit.collected_at` | integer | yes |
+| `deposit.external` | boolean | no |
 | `deposit.attempt` | object | yes |
 | `deposit.attempt.id` | string | no |
 | `deposit.attempt.object` | string | no |
@@ -1847,15 +1848,15 @@ The values shown are illustrative.
 
 - The Payment Plan object in `data` is the plan after the change, and its `status` is the plan's status when the event is sent. A plan created with a payment method sends `payment_plan.created` and `payment_plan.activated` with the same object, `status: "active"`
 - `payment_plan.installment_failed` is sent once per declined automatic charge attempt, retries included. A declined payment through `POST /payment-plans/{id}/payments` answers the request with an error instead and sends no `payment_plan.installment_failed`. `attempt_count` counts the attempts made on the installment, and `next_payment_attempt` is the date of the next retry, or `null` when no retry is scheduled
-- `payment_plan.installment_paid` is sent once per installment. The down payment sends it with `sequence: 0`, both when it is charged at creation and when it is collected on a terminal
-- `deposit` is `null` for a plan created with a payment method. For a plan created without one, `deposit.kind` is `down_payment` when the plan has a down payment and `installment_1` otherwise, `deposit.amount` is the amount the terminal collects, and `deposit.attempt` is `null` until the first terminal attempt and then holds the latest attempt; see [Collect the First Installment on a Terminal](./payment-plans-terminal.md#collect-the-first-installment-on-a-terminal)
+- `payment_plan.installment_paid` is sent once per installment. The down payment sends it with `sequence: 0`, both when it is charged at creation and when it is collected on a terminal; a deposit recorded as collected outside ChaChing sends it for its row, `sequence: 0` or `sequence: 1`, once the payment is recorded
+- `deposit` is `null` for a plan created with a payment method. For a plan created without one, `deposit.kind` is `down_payment` when the plan has a down payment and `installment_1` otherwise, `deposit.amount` is the deposit, collected on a terminal or recorded as collected outside ChaChing, and `deposit.attempt` is `null` until the first terminal attempt and then holds the latest attempt; see [Collect the First Installment on a Terminal](./payment-plans-terminal.md#collect-the-first-installment-on-a-terminal). `deposit.external` is `true` when the deposit was recorded as collected outside ChaChing and `false` otherwise; a plan activated that way without a card has `payment_method: null`
 - `payment_plan.completed` is the single paid-in-full event. It is sent when the schedule ends with every installment paid, when a payoff payment is recorded, and when the last unpaid installment is paid through the hosted invoice page, the dashboard or `PUT /invoices/{id}`, settled by credit, or collected by the automatic charge or a retry after the schedule ended; `status` is `paid_off` in every case. It is never sent while an installment is still unpaid
-- `payment_plan.payment_succeeded` is sent for every payment `POST /payment-plans/{id}/payments` records — installment payments, principal payments, payoffs and external payments alike — and never for a declined or refused one. Its `data` is the Payment object at the moment the payment is recorded: `id`, `amount`, `external`, `payment_method`, `invoice` and `payoff` match the endpoint's response (except for a payment taken on a terminal, whose `201` is `processing` with `amount` `0`: the event carries the final values), while for a payment that reached the principal, the event is sent after the plan's remaining schedule is rebuilt, and `remaining_balance`, `installments_remaining`, `payment_plan_status` and `payment_plan_summary` describe the plan after it. A repeated request with the same `Idempotency-Key` sends nothing again. When a request ends before its payment is fully recorded, ChaChing finishes recording it later and sends the payment's events then. For one payment they are sent in this order: `payment_plan.installment_paid`, then `payment_plan.payment_succeeded`, then `payment_plan.completed`; a delivery that is retried can arrive after a later event. This event is sent only with `status` `applied` or `partially_applied`.
+- `payment_plan.payment_succeeded` is sent for every payment `POST /payment-plans/{id}/payments` records — installment payments, principal payments, payoffs and external payments alike — and never for a declined or refused one. Its `data` is the Payment object at the moment the payment is recorded: `id`, `amount`, `external`, `payment_method`, `invoice` and `payoff` match the endpoint's response (except for a payment taken on a terminal, whose `201` is `processing` with `amount` `0`: the event carries the final values), while for a payment that reached the principal, the event is sent after the plan's remaining schedule is rebuilt, and `remaining_balance`, `installments_remaining`, `payment_plan_status` and `payment_plan_summary` describe the plan after it. A repeated request with the same `Idempotency-Key` sends nothing again. When a request ends before its payment is fully recorded, ChaChing finishes recording it later and sends the payment's events then. For one payment they are sent in this order: `payment_plan.installment_paid`, then `payment_plan.payment_succeeded`, then `payment_plan.completed`; a delivery that is retried can arrive after a later event. This event is sent only with `status` `applied` or `partially_applied`. A deposit recorded as collected outside ChaChing sends `payment_plan.activated` first, then the deposit's `payment_plan.installment_paid`, `payment_plan.payment_succeeded` and, when it paid the plan off, `payment_plan.completed`.
 - `surcharge_amount` and `amount_charged` on the Installment and Payment objects report the credit card surcharge and the total charged to the card, in cents. While ChaChing cannot read the surcharge from the gateway yet, they read `0` and the amount paid, and `payment_plan.installment_paid` and `payment_plan.payment_succeeded` wait until the surcharge is read, for up to an hour; after an hour they are sent with `surcharge_status` `unavailable`. When ChaChing cannot read the surcharge of a charge (after retrying for up to 7 days, or at once when the charge cannot be matched), the objects keep `surcharge_amount` at `0` and `amount_charged` equal to the amount paid, and that does not change later; the exact amount charged to the card is then the one shown for that transaction in your Dejavoo (iPOSpays) account. See [Credit Card Surcharges](./payment-plans.md#credit-card-surcharges)
 - The principal part of a payment has its own invoice: when the principal is recorded, ChaChing sends `invoice.payment_succeeded` for it (and `invoice.payment_failed` when its card charge is declined), with `payment_plan_charge.kind` `extra_payment` or `payoff`. `payment_plan.payment_succeeded` reports the same money, so count each payment once. A principal recorded without an invoice (account credit, automatic or manual payment switched off, invoicing unavailable) raises no `invoice.*` event.
 - `terminal` on the Payment object is `null` for a payment that was not taken on a terminal. For a payment taken on a terminal it holds the sale, and `payment_plan.payment_succeeded` is sent when ChaChing records it after the terminal approved it; see [Take a Payment on a Terminal](./payment-plans-terminal.md#take-a-payment-on-a-terminal)
 - The plan status `past_due` means the customer's account is in the late-payment warning. It is not the `past-due` failed-payment outcome: reaching that outcome sends `payment_plan.defaulted`
-- The `invoice.*` events keep firing for every installment invoice; the invoice payload's `payment_plan` and `installment` fields link it back to the plan
+- The `invoice.*` events keep firing for every installment invoice; the invoice payload's `payment_plan` and `installment` fields link it back to the plan. An installment of a plan without a card sends no `invoice.payment_failed` for the automatic charge that is never attempted on it; a declined payment on it is announced as for any invoice
 - The spelling is `canceled`, with one `l`, for both the status and the event
 - One change can send several events, and deliveries can arrive in any order. Read the plan with `GET /payment-plans/{id}` for its current state; see [Payment Plans](./payment-plans.md)
 - To send your own receipts and notices from these events, see [Send Your Own Customer Notifications](./customer-notifications.md)
