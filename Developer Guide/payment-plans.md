@@ -146,7 +146,7 @@ Returns the Payment Plan object.
 | `409` | `PAYMENT_PLAN_BUSY` | Another operation on this plan is in progress. | Retry shortly. |
 | `409` | `PAYMENT_METHOD_CHANGE_IN_PROGRESS` | Another change to this customer's payment methods is in progress. | Try again. |
 | `500` | none | The change could not be completed. The plan's card is unchanged. | Read the plan, then send the request again. |
-| `502` | `PAYMENT_PLAN_BILLING_ENGINE_UNAVAILABLE` | The change could not be confirmed: it was either not applied or is being completed. | Read the plan with `GET /payment-plans/{id}` to see its card before you send the request again. Sending the same request again is safe. |
+| `502` | `PAYMENT_PLAN_BILLING_ENGINE_UNAVAILABLE` | The change could not be written to the billing engine, or the write could not be confirmed. The plan keeps the card that `GET /payment-plans/{id}` shows. | Read the plan to see its card. Send the request again when it is not the card you asked for. |
 
 ### What is charged when you change the card
 
