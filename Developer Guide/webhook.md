@@ -241,7 +241,7 @@ Filter with `search`, a URL-encoded JSON object. A filter value that is not vali
 | `status` | one or more of `pending`, `retry`, `success`, `failure`, comma-separated | `{"status": "failure,retry"}` |
 | `response_status_code` | the exact HTTP status | `{"response_status_code": 500}` |
 | `created` | a date filter: `type` `equal`, `after` or `before` with `date`; `between` with `from` and `to`; `inTheLast` with `amount` and `unit` (`days`, `weeks`, `months` or `years`). Days are UTC calendar days. | `{"created": {"type": "after", "date": "2026-10-01"}}` |
-| `endpoint` | text contained in the URL, on `GET /webhook-deliveries` only | `{"endpoint": "example.com"}` |
+| `endpoint` | text contained in the URL, on `GET /webhook-deliveries` and `GET /platform/webhook-deliveries` only | `{"endpoint": "example.com"}` |
 
 A search key outside this table answers `400`.
 
@@ -483,14 +483,15 @@ ChaChing waits up to 30 seconds for the whole response, and up to 10 seconds to 
 - If a delivery fails, the webhook is retried
 - If **max retries NOT reached,** retry continues
 - If **max retries reached,** the delivery status is set to `failure`
-- A delivery is set to `failure` only when its last automatic attempt fails. A disabled or deleted endpoint receives no further attempts; re-enabling it before the next attempt resumes them
+- A delivery is `failure` when its latest attempt failed and no automatic attempt is scheduled: the last automatic attempt failed, a resend failed, or the endpoint was disabled, deleted or given a new URL before the next attempt was due
+- Changing an endpoint's URL, disabling it or deleting it ends the retries still scheduled for it: those deliveries become `failure` when their next attempt comes due (re-enabling a disabled endpoint before then resumes them). If you change the URL during an outage, [resend](#resending-a-delivery) the failed deliveries
 - A retry already scheduled is sent even if the endpoint's `enabled_events` changes in the meantime
 - Each delivery's `next_attempt` (Unix seconds) shows when its next attempt is due; it is `null` once the delivery succeeded or failed
 
 **Retry Policy:**
 
 - Attempts: the first delivery, then **10 retries**, for a maximum of 11 automatic attempts.
-- Retry window: **about 3 days** (71.6 hours) — the delays between attempts are approximately 1 minute, 5 minutes, 30 minutes, 2 hours, 5 hours, 10 hours, 12 hours, 12 hours, 15 hours and 15 hours, each randomized by up to 20% in both directions.
+- Retry window: **about 3 days** (nominal 71.6 hours) — the delays between attempts are approximately 1 minute, 5 minutes, 30 minutes, 2 hours, 5 hours, 10 hours, 12 hours, 12 hours, 15 hours and 15 hours, each randomized by up to 20% in both directions.
 
 > ⚠️ Webhooks are delivered at least once: the same event can arrive more than once, for example after a resend or after a retry whose first response was lost. Deduplicate on the envelope `id` (`evt_…`), which is signed and is the same on every attempt, retry and resend.
 > 
@@ -506,7 +507,7 @@ POST /webhook-deliveries/{id}/resend
 POST /platform/webhook-deliveries/{id}/resend
 ```
 
-The first route takes the account secret key (`sk_…`); the second takes a platform key with the `webhooks` scope. No request body is read.
+The first route takes the account secret key (`sk_…`); the second takes a platform key with the `webhooks` scope. An account that belongs to a platform refuses its own `sk_…`: use the platform key with the `Chaching-Account` header on the first route (see [Platforms](./platforms.md)). No request body is read.
 
 ```bash
 curl -X POST https://stage-api.chaching.io/webhook-deliveries/whd_0123456789abcdef01234567/resend \
@@ -515,16 +516,18 @@ curl -X POST https://stage-api.chaching.io/webhook-deliveries/whd_0123456789abcd
 
 The answer is `202` with the delivery object, whose `status` is `pending`; ChaChing sends the request right after. A resend is signed with a fresh timestamp and carries the same body and the same `evt_…` id as the original, so deduplicate on that `id`.
 
-A resend that succeeds while the delivery is still retrying cancels its remaining automatic attempts.
+A resend that succeeds while the delivery is still retrying cancels its remaining automatic attempts. A delivery can be resent in any status and as often as you ask; a resend that fails leaves the delivery `failure`, also when it had succeeded before.
 
 A delivery can be resent for 30 days after its event. The refusals are:
 
 | Status | `error` | When |
 |--------|---------|------|
-| `409` | `WEBHOOK_DELIVERY_PLATFORM_ENDPOINT` | The delivery went to a platform endpoint; resend it with the platform route. |
+| `409` | `WEBHOOK_DELIVERY_PLATFORM_ENDPOINT` | Account route only: the delivery went to a platform endpoint; resend it with the platform route. |
 | `409` | `WEBHOOK_EVENT_TOO_OLD_TO_RESEND` | The event is older than 30 days. |
-| `409` | `WEBHOOK_ENDPOINT_UNAVAILABLE` | The delivery's endpoint is deleted or disabled. |
+| `409` | `WEBHOOK_ENDPOINT_UNAVAILABLE` | The delivery's endpoint is disabled or, on the account route, deleted. |
 | `409` | `WEBHOOK_DELIVERY_ATTEMPT_IN_PROGRESS` | An attempt of the delivery is running now; the answer carries `Retry-After: 5`. |
+
+On the platform route a delivery whose endpoint was deleted answers `404` like an unknown id.
 
 An unknown id, or the id of a delivery that is not yours, answers `404` with `WEBHOOK_DELIVERY_NOT_FOUND`. A refusal changes nothing.
 
@@ -537,7 +540,7 @@ GET /events
 GET /events/{id}
 ```
 
-Both take the account secret key. `GET /events` answers newest first with the page parameters `page` and `take` (`take` is at most 50). A platform lists the events of all its accounts with `GET /platform/events`, which also filters by `account`.
+Both take the account secret key; an account that belongs to a platform uses the platform key with `Chaching-Account` instead (see [Platforms](./platforms.md)). `GET /events` answers newest first with the page parameters `page` and `take` (`take` is at most 50). A platform lists the events of all its accounts with `GET /platform/events`, which also filters by `account`.
 
 The Event object has seven keys:
 
@@ -593,7 +596,7 @@ Webhook delivery has the following internal states:
 - `pending` → waiting to be sent
 - `retry` → retry in progress
 - `success` → delivered successfully
-- `failure` → the delivery's last automatic attempt failed. The delivery's attempts show what each attempt got; send the delivery again with a [resend](#resending-a-delivery)
+- `failure` → the delivery's latest attempt failed and no automatic attempt is scheduled: the last automatic attempt failed, a resend failed (also for a delivery that had succeeded), or the endpoint was disabled, deleted or given a new URL before the next attempt was due. A delivery from before the 72-hour retry window that was still open when this behavior began is set to `failure` without a new attempt. The delivery's attempts show what each attempt got; send the delivery again with a [resend](#resending-a-delivery)
 
 ---
 
@@ -773,7 +776,7 @@ Every webhook sent by ChaChing follows this structure:
 
 ## Fields Description
 
-- `id` — Unique event identifier. The same on every endpoint that receives the event and on every retry. Use it to deduplicate
+- `id` — Unique event identifier. The same on every endpoint that receives the event on every retry and on every resend. Use it to deduplicate
 - `account` — The merchant account the event belongs to: `id` (`acc_…`), `external_id`, and its `company` with `id` (`com_…`) and `external_id`. `external_id` is the value your platform sent as `external_id` when it created the account (`company.external_id` for the company); it is `null` for accounts created in the dashboard.
 - `created` — When the event was generated, in Unix seconds
 - `createdAt` — The same instant as an ISO 8601 string. Deprecated: use `created`
@@ -1979,6 +1982,6 @@ An endpoint receives only the event types in its `enabled_events`
 
 **Endpoint must be stable**
 
-➡ If your endpoint fails → events may be lost after retries
+➡ If your endpoint keeps failing, its deliveries end as `failure` after the retry window; nothing is lost for 30 days: list the events with `GET /events` and resend the failed deliveries
 
 ---
