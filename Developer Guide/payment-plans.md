@@ -142,16 +142,21 @@ Returns the Payment Plan object.
 | `409` | `PAYMENT_PLAN_PAYMENT_METHOD_NOT_CHANGEABLE` | The plan is `awaiting_deposit`, `canceled` or `paid_off`. | For a plan in `awaiting_deposit`, collect its deposit first. A closed plan keeps its card. |
 | `409` | `ACCOUNT_DEACTIVATED` | The account is deactivated and the request names a card. | Send `null`, or reactivate the account first. |
 | `409` | `PAYMENT_PLAN_PAYMENT_METHOD_NOT_SUPPORTED` | The card is not saved with the payment gateway of this plan. | Choose a card saved with the plan's gateway. |
-| `409` | `PAYMENT_PLAN_CREDENTIAL_NOT_ESTABLISHED` | The saved card was not set up for automatic payments. | Save the card again through a terminal payment with `save_payment_method`, or keep the plan's current card. |
-| `409` | `PAYMENT_METHOD_NOT_REUSABLE` | The saved card was used for a one-time payment and cannot be charged again. | Ask the customer to enter the card again. |
+| `409` | `PAYMENT_PLAN_CREDENTIAL_NOT_ESTABLISHED` | The saved card was not set up for automatic payments. This includes a card that was used for a one-time payment and has no stored credential. | Save the card again through a terminal payment with `save_payment_method`, or keep the plan's current card. |
 | `409` | `PAYMENT_PLAN_BUSY` | Another operation on this plan is in progress. | Retry shortly. |
 | `409` | `PAYMENT_METHOD_CHANGE_IN_PROGRESS` | Another change to this customer's payment methods is in progress. | Try again. |
 | `500` | none | The change could not be completed. The plan's card is unchanged. | Read the plan, then send the request again. |
-| `502` | `PAYMENT_PLAN_BILLING_ENGINE_UNAVAILABLE` | The change could not be recorded in the billing engine. Nothing changed. | Send the request again. |
+| `502` | `PAYMENT_PLAN_BILLING_ENGINE_UNAVAILABLE` | The change could not be confirmed: it was either not applied or is being completed. | Read the plan with `GET /payment-plans/{id}` to see its card before you send the request again. Sending the same request again is safe. |
 
 ### What is charged when you change the card
 
 Replacing the card charges each installment that is billed and not yet paid once on the new card. ChaChing reports each charge like an automatic installment payment: `invoice.payment_succeeded` and `payment_plan.installment_paid`, and the receipt email to the customer, when it is approved; `invoice.payment_failed` and `payment_plan.installment_failed`, and the failed-payment email to the customer, when it is declined. A declined charge is not retried automatically and the installment stays open. Collect it with a payment on the plan, on the hosted invoice page, or by giving the plan another card. A retry that was scheduled on the previous card does not run. The installments that are not billed yet are charged on the new card when they are billed.
+
+Three rules limit these charges:
+
+- An installment that already has a payment in progress is not charged again by the change. The result of that payment settles it.
+- If the plan's card is changed again while the charges are being made, the remaining installments are not charged on the replaced card.
+- An installment is attempted once per card. After a failed attempt on a card, choosing that same card again does not retry it. Charge it with `POST /payment-plans/{id}/payments`.
 
 The request answers `200` before those charges finish. Read their results from the events, from `GET /payment-plans/{id}/installments` and from `GET /invoices/{id}`. Removing the card charges nothing.
 
@@ -513,12 +518,11 @@ Errors use the standard body `{ "statusCode", "message", "error", "timestamp", "
 | `404` | `PAYMENT_PLAN_PAYMENT_NOT_FOUND` | The payment id does not resolve to a payment of this plan. |
 | `404` | `PAYMENT_PLAN_TERMINAL_ATTEMPT_NOT_FOUND` | The terminal attempt id does not resolve for this account. |
 | `409` | `PAYMENT_PLAN_CREDENTIAL_NOT_ESTABLISHED` | The saved card was not established for automatic payments. Create the plan with a down payment, or ask the customer to enter the card again. On a deposit collected outside, the card named in `payment_method` was not set up for automatic payments: name another card, or record the deposit without a card. |
-| `409` | `PAYMENT_PLAN_PAYMENT_METHOD_NOT_SUPPORTED` | On a create, the payment method is not a card saved with the account's current payment gateway. On `POST /payment-plans/{id}/payments`, on `PUT /invoices/{id}` and on a payment from the hosted invoice page or the dashboard of an invoice that carries an unpaid installment, the card that would be charged — `payment_method`, or the customer's default payment method when it is omitted — is not a card saved with the payment gateway the plan was created on; a plan created before you changed your payment gateway keeps accepting its own cards. Nothing was created or charged. Send a payment method returned by the payment-methods endpoints, or record money you collected yourself with `external: true` on `POST /payment-plans/{id}/payments`. On a deposit collected outside, `payment_method` is not a card saved with your account's Dejavoo gateway. |
+| `409` | `PAYMENT_PLAN_PAYMENT_METHOD_NOT_SUPPORTED` | On a create, the payment method is not a card saved with the account's current payment gateway. On `POST /payment-plans/{id}/payments`, on `PUT /invoices/{id}` and on a payment from the hosted invoice page or the dashboard of any invoice that carries an unpaid installment, the card that would be charged — `payment_method`, or the customer's default payment method when it is omitted — is not a card saved with the payment gateway the plan was created on; a plan created before you changed your payment gateway keeps accepting its own cards. Nothing was created or charged. Send a payment method returned by the payment-methods endpoints, or record money you collected yourself with `external: true` on `POST /payment-plans/{id}/payments`. On a deposit collected outside, `payment_method` is not a card saved with your account's Dejavoo gateway. |
 | `409` | `PAYMENT_PLAN_PAYMENT_METHOD_REQUIRED` | An invoice that is an installment of a payment plan without a card, or that holds installments of plans with different cards, was paid with `PUT /invoices/{id}` or from the hosted invoice page or the dashboard without a payment method. It is not charged to a saved card automatically. Nothing is charged; pay it on the hosted invoice page, or record the payment on the payment plan. |
 | `409` | `PAYMENT_PLAN_PAYMENT_METHOD_NOT_CHANGEABLE` | On `PATCH /payment-plans/{id}`, the plan is `awaiting_deposit`, `canceled` or `paid_off`. Nothing was changed. |
 | `409` | `PAYMENT_METHOD_IN_USE_BY_PAYMENT_PLAN` | The payment method is the card of an open payment plan (`active`, `past_due` or `defaulted`), so it cannot be detached. Nothing was deleted; give the plan another card, or remove its card, first. |
 | `409` | `PAYMENT_METHOD_CHANGE_IN_PROGRESS` | Another change to this customer's payment methods is in progress. Nothing was changed; try again. |
-| `409` | `PAYMENT_METHOD_NOT_REUSABLE` | On `PATCH /payment-plans/{id}`, the saved card was used for a one-time payment and cannot be charged again. Ask the customer to enter the card again. |
 | `409` | `ACCOUNT_DEACTIVATED` | On `PATCH /payment-plans/{id}`, the account is deactivated and the request names a card. Send `payment_method` `null`, or reactivate the account first. |
 | `409` | `PAYMENT_PLAN_UNPAID_OUTCOME_NOT_SUPPORTED` | Your failed-payment outcome is `unpaid`. |
 | `409` | `PAYMENT_PLAN_DUNNING_SCHEDULE_TOO_SHORT` | Your `payment_retries` sum to less than 7 days. |
