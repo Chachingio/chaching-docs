@@ -45,11 +45,11 @@ A platform key carries scopes that decide which operations it can call. Choose t
 
 | **Scope** | **Operations** |
 | --- | --- |
-| `read` | Every `GET` operation (customers, payment methods, products, transactions, invoices and their document and hosted link, tax rates, prices, subscriptions, balance, revenue recovery, payment plans and their installments and payments, Dejavoo terminals and terminal attempts, webhook endpoints, deliveries and logs, email settings, the three credential states, `/platform/accounts`, `/platform/webhook-endpoints` and their details and logs), plus `POST /payment-plans/preview`. |
+| `read` | Every `GET` operation (customers, payment methods, products, transactions, invoices and their document and hosted link, tax rates, prices, subscriptions, balance, revenue recovery, payment plans and their installments and payments, Dejavoo terminals and terminal attempts, webhook endpoints, deliveries and logs, events, email settings, the three credential states, `/platform/accounts`, `/platform/webhook-endpoints` and their details and logs, `/events`, `/platform/events`, `/platform/webhook-deliveries` and its detail), plus `POST /payment-plans/preview`. |
 | `operate` | The writes on an account's data: customers, products, invoices (including `POST /invoices/{id}/send`), tax rates, prices, subscriptions (including pause and resume), payment methods (attach, detach, set default), `PUT /revenue-recovery`, `PATCH /email-settings`, payment plans (create, cancel, payments, resolve, cancel and force-close of terminal sales, deposits), and Dejavoo terminals (`POST` and `PATCH`). |
 | `accounts` | `POST /platform/accounts`, `PATCH /platform/accounts/{id}`, `POST /platform/accounts/{id}/deactivate` and `POST /platform/accounts/{id}/reactivate`. |
 | `processor_credentials` | `PUT /dejavoo/credentials`, `PUT /nmi/credentials` and `PUT /stripe/credentials`. |
-| `webhooks` | Every write on `/webhook-endpoints` and on `/platform/webhook-endpoints`: create, update, delete, enable, disable and rotate-secret. |
+| `webhooks` | Every write on `/webhook-endpoints` and on `/platform/webhook-endpoints` (create, update, delete, enable, disable and rotate-secret), and the two resend operations `POST /webhook-deliveries/{id}/resend` and `POST /platform/webhook-deliveries/{id}/resend`. |
 
 The scopes of a key cannot be changed after the key is created. To change them, create a new key; rotating a key copies its scopes and its IP allow-list to the replacement. A platform key can call only the operations of the [API Reference](./api.json); any other route answers `403 PLATFORM_API_KEY_ROUTE_NOT_ALLOWED`.
 
@@ -264,7 +264,7 @@ Each delivery's envelope names the account:
 
 Endpoints created with a key keep receiving events after that key is revoked; delete or disable the endpoint to stop them.
 
-`GET /platform/webhook-endpoints/{id}/logs` lists an endpoint's deliveries across all your accounts, without the payload and without the account. To read a delivery's payload and attempts, call `GET /webhook-deliveries/{id}` with the `Chaching-Account` of the account whose `id` is in the envelope you received.
+`GET /platform/webhook-deliveries` lists the deliveries to your endpoints across all your accounts, each with its `account`; filter by `account`, `status` and the other delivery filters. `GET /platform/webhook-deliveries/{id}` answers one with its payload and attempts, and `POST /platform/webhook-deliveries/{id}/resend` sends it again. `GET /platform/events` lists the events of all your accounts.
 
 ## Deactivate an account
 

@@ -93,7 +93,7 @@ Every response to an account key, and every platform-key response that reached t
 
 ## Receive webhooks on staging
 
-ChaChing delivers events to a public URL; it refuses `localhost`, private, loopback and other non-public addresses when you register the endpoint. To receive events on a laptop, expose your local server through a tunnel that gives it a public HTTPS URL, for example `cloudflared tunnel --url http://localhost:4242`, and register that URL. Answer `2xx` within 15 seconds, before slow work; verify the signature on the raw body; deduplicate on the event `id`. See [Webhooks](./webhook.md).
+ChaChing delivers events to a public URL; it refuses `localhost`, private, loopback and other non-public addresses when you register the endpoint. To receive events on a laptop, expose your local server through a tunnel that gives it a public HTTPS URL, for example `cloudflared tunnel --url http://localhost:4242`, and register that URL. Answer `2xx` first, before slow work (ChaChing waits up to 30 seconds for the whole response and 10 seconds to connect); verify the signature on the raw body; deduplicate on the event `id`. See [Webhooks](./webhook.md).
 
 ## How a card is saved
 

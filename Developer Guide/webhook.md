@@ -17,10 +17,7 @@ graph TD;
   E --> F{"Response is HTTP 2xx?"};
 
   F -- Yes --> G["Set delivery status to success"];
-  F -- No --> K{"Permanent rejection? (any status below 500 except 408 and 429)"};
-
-  K -- Yes --> L["Stop immediately - Set delivery status to failure"];
-  K -- No --> H["Retry delivery (according to retry policy)"];
+  F -- No --> H["Retry delivery (according to retry policy)"];
   H --> I{"Max retries reached?"};
 
   I -- No --> D;
@@ -35,10 +32,7 @@ graph TD;
 5. Your system receives and processes the event.
 6. Your endpoint must return an HTTP `2xx` response:
     - A `2xx` response sets the delivery status to `success`
-    - A `5xx` response is retryable: the delivery status is `retry` while retries remain, and the delivery is retried according to the retry policy below
-    - An HTTP `408` (Request Timeout) and an HTTP `429` (Too Many Requests) are also treated as retryable
-    - No response at all — network failure, DNS failure, connection timeout, read timeout — is also treated as retryable
-    - Any other non-`2xx` response is a **permanent rejection**: every `3xx` redirect and every `4xx` other than `408` and `429` (for example `400`, `401`, `403`, `404`, `410`). The delivery status is set to `failure` immediately and the delivery is never retried
+    - Every other outcome is a failure and is retried: any response other than `2xx` (every `3xx`, `4xx` and `5xx`), a timeout and a network error such as a DNS failure or a refused connection. The delivery status is `retry` while automatic attempts remain, and the delivery is retried according to the retry policy below
 
 ---
 
@@ -137,6 +131,9 @@ Two endpoints can have the same URL: each receives its own delivery of every eve
 | `GET` | `/webhook-endpoints/{id}/logs` | List the deliveries sent to a webhook endpoint |
 | `GET` | `/webhook-deliveries` | List the account's webhook deliveries, newest first |
 | `GET` | `/webhook-deliveries/{id}` | Retrieve a webhook delivery with its payload and attempts |
+| `POST` | `/webhook-deliveries/{id}/resend` | Send a delivery again, see [Resending a Delivery](#resending-a-delivery) |
+| `GET` | `/events` | List the account's events, see [Listing Events](#listing-events) |
+| `GET` | `/events/{id}` | Retrieve an event |
 
 ### The Webhook Endpoint Object
 
@@ -244,7 +241,7 @@ Filter with `search`, a URL-encoded JSON object. A filter value that is not vali
 | `status` | one or more of `pending`, `retry`, `success`, `failure`, comma-separated | `{"status": "failure,retry"}` |
 | `response_status_code` | the exact HTTP status | `{"response_status_code": 500}` |
 | `created` | a date filter: `type` `equal`, `after` or `before` with `date`; `between` with `from` and `to`; `inTheLast` with `amount` and `unit` (`days`, `weeks`, `months` or `years`). Days are UTC calendar days. | `{"created": {"type": "after", "date": "2026-10-01"}}` |
-| `endpoint` | text contained in the URL, on `GET /webhook-deliveries` only | `{"endpoint": "example.com"}` |
+| `endpoint` | text contained in the URL, on `GET /webhook-deliveries` and `GET /platform/webhook-deliveries` only | `{"endpoint": "example.com"}` |
 
 A search key outside this table answers `400`.
 
@@ -254,12 +251,14 @@ A search key outside this table answers `400`.
 | --- | --- |
 | `id` | The delivery id, `whd_…` |
 | `object` | `webhook_delivery` |
+| `account` | The id of the account the delivery belongs to, `acc_…`, or `null` when it cannot be resolved |
 | `event` | The event id, `evt_…`: the `id` of the delivered payload |
 | `event_type` | The event type |
 | `webhook_endpoint` | The endpoint id, or `null` when the endpoint was deleted or when an earlier delivery could not be matched to one endpoint |
 | `endpoint` | The URL the delivery was sent to, or `null` when an earlier delivery never recorded one |
 | `status` | `pending`, `retry` while another attempt is scheduled, `success` or `failure` |
 | `response_status_code` | The HTTP status of the latest attempt, or `null` when it got no response |
+| `next_attempt` | Unix seconds: when the next attempt is due, or `null` once the delivery succeeded or failed |
 | `created`, `updated` | Unix seconds |
 
 ### Retrieve a Delivery
@@ -277,7 +276,7 @@ Answers the delivery object plus `payload`, the event's envelope in its current 
 | `response_status_code` | The HTTP status, or `null` when no response arrived |
 | `response_body` | What your server answered, or `null` when no response arrived |
 | `response_body_truncated` | `true` when the stored text is not your server's complete answer: it was cut at 16 KiB, or reading it stopped early (size limit, time limit or a connection error). `false` only when the whole answer was read and nothing was cut. An empty `response_body` with `true` means nothing could be stored |
-| `error` | `null` when a response arrived; otherwise `timeout`, `connection_refused`, `dns_failure`, `tls_error`, `blocked`, `connection_error`, or `not_sent` when ChaChing did not send the request |
+| `error` | `null` when a response arrived; otherwise `timeout`, `connection_refused`, `dns_failure`, `tls_error`, `blocked`, `connection_error`, `interrupted` when the attempt stopped before ChaChing recorded its outcome (ChaChing does not know whether the request reached your endpoint), or `not_sent` when ChaChing did not send the request |
 
 Attempts are kept for 30 days. A delivery older than that, or one sent before attempts were recorded, answers `attempts: []`, with its payload and its final status. Deliveries and their payloads are kept.
 
@@ -319,6 +318,7 @@ Until `previous_secret_expires_at`, every delivery carries two `v1` signatures: 
 | `400` | no code | A path id is not `prefix_` plus letters and digits and not a UUID. |
 | `404` | `WEBHOOK_ENDPOINT_NOT_FOUND` | The id is not one of your endpoints. |
 | `404` | `WEBHOOK_DELIVERY_NOT_FOUND` | The id is not one of your deliveries. |
+| `404` | `WEBHOOK_EVENT_NOT_FOUND` | The id is not one of your events. |
 
 ### Signing
 
@@ -438,6 +438,12 @@ def verify_webhook_signature(raw_body: bytes, signature_header: str, signing_sec
 
 > ℹ️ Check every `v1` value, not only the first or the last: during a rotation the header carries one signature per active secret, and the one that matches yours can be in either position.
 
+## Outbound IP Addresses
+
+ChaChing does not send webhooks from fixed IP addresses: the addresses change when the servers that send them are replaced. Do not allow-list ChaChing by IP address; verify the `Chaching-Signature` header of every request instead.
+
+---
+
 ## Endpoints Created Before Signing Secrets
 
 Endpoints that existed before signing secrets were introduced were issued a signing secret automatically, and every delivery to them is signed with it. ChaChing never showed that secret, and your account secret API key no longer verifies any delivery. To obtain the secret:
@@ -462,41 +468,101 @@ When receiving a webhook:
 
 # Receive on Staging
 
-ChaChing delivers only to public URLs. On staging, expose a local server through a tunnel that gives it a public HTTPS URL, for example `cloudflared tunnel --url http://localhost:4242`, and register that URL. To catch up after downtime, list deliveries with `GET /webhook-deliveries` (attempts are kept 30 days); a platform reads its endpoints' deliveries with `GET /platform/webhook-endpoints/{id}/logs` and each payload with the account-level read. Events can arrive out of order: read the object's current state from the API before you act on an older event.
+ChaChing delivers only to public URLs. On staging, expose a local server through a tunnel that gives it a public HTTPS URL, for example `cloudflared tunnel --url http://localhost:4242`, and register that URL. To catch up after downtime, list the events you missed with `GET /events` and `search={"delivery_success":false}` and resend the failed deliveries (see [Listing Events](#listing-events) and [Resending a Delivery](#resending-a-delivery)); `GET /webhook-deliveries` lists the deliveries themselves (attempts are kept 30 days). A platform reads the deliveries to its endpoints with `GET /platform/webhook-deliveries` and resends them with `POST /platform/webhook-deliveries/{id}/resend`. Events can arrive out of order: read the object's current state from the API before you act on an older event.
 
 ---
 
 # Retry Behavior
 
-ChaChing automatically retries failed webhook deliveries.
+ChaChing retries every failed delivery: any response other than `2xx` (every `3xx`, `4xx` and `5xx`), a timeout and a network error. Redirects are not followed and count as failures.
 
-Retries are triggered when:
-
-- Network failure
-- Timeout
-- HTTP `5xx` response
-- HTTP `408` (Request Timeout)
-- HTTP `429` (Too Many Requests)
-
-ChaChing waits up to 15 seconds for your response; a slower response counts as a timeout and is retried. Redirects are not followed.
-
-Retries are **not** triggered when the endpoint returns any other non-`2xx` status — every `3xx` redirect and every `4xx` other than `408` and `429`, for example `400`, `401`, `403`, `404` and `410`. Those statuses tell ChaChing the endpoint will never accept this payload, so the delivery status is set to `failure` after the first attempt and the returned status code is recorded in the delivery log.
+ChaChing waits up to 30 seconds for the whole response, and up to 10 seconds to connect; a slower response counts as a timeout and is retried. Answer with a `2xx` first and do slow work afterwards.
 
 **Retry Flow:**
 
-- If a delivery fails with a retryable condition, the webhook is retried
+- If a delivery fails, the webhook is retried
 - If **max retries NOT reached,** retry continues
 - If **max retries reached,** the delivery status is set to `failure`
-- If a delivery is **permanently rejected**, no retry is scheduled and the delivery status is set to `failure` right away
-- A retry already scheduled is sent even if the endpoint's `enabled_events` changes in the meantime; a disabled or deleted endpoint receives no further retries
+- A delivery is `failure` when its latest attempt failed and no automatic attempt is scheduled: the last automatic attempt failed, a resend failed, or the endpoint was disabled, deleted or given a new URL before the next attempt was due
+- Changing an endpoint's URL, disabling it or deleting it ends the retries still scheduled for it: those deliveries become `failure` when their next attempt comes due (re-enabling a disabled endpoint before then resumes them). If you change the URL during an outage, [resend](#resending-a-delivery) the failed deliveries
+- A retry already scheduled is sent even if the endpoint's `enabled_events` changes in the meantime
+- Each delivery's `next_attempt` (Unix seconds) shows when its next attempt is due; it is `null` once the delivery succeeded or failed
 
 **Retry Policy:**
 
-- Attempts: **5 retries** after the first delivery, for a maximum of 6 delivery attempts
-- Retry window: **approximately 43 minutes** — the delays between attempts are approximately 15 seconds, 45 seconds, 2 minutes, 10 minutes and 30 minutes, each randomized by up to 20% in both directions
+- Attempts: the first delivery, then **10 retries**, for a maximum of 11 automatic attempts.
+- Retry window: **about 3 days** (nominal 71.6 hours) — the delays between attempts are approximately 1 minute, 5 minutes, 30 minutes, 2 hours, 5 hours, 10 hours, 12 hours, 12 hours, 15 hours and 15 hours, each randomized by up to 20% in both directions.
 
-> ⚠️ Webhooks may be delivered multiple times. Ensure your system handles duplicates (use event `id`).
+> ⚠️ Webhooks are delivered at least once: the same event can arrive more than once, for example after a resend or after a retry whose first response was lost. Deduplicate on the envelope `id` (`evt_…`), which is signed and is the same on every attempt, retry and resend.
 > 
+
+---
+
+# Resending a Delivery
+
+Send a delivery again, for example after you fixed your endpoint:
+
+```
+POST /webhook-deliveries/{id}/resend
+POST /platform/webhook-deliveries/{id}/resend
+```
+
+The first route takes the account secret key (`sk_…`); the second takes a platform key with the `webhooks` scope. An account that belongs to a platform refuses its own `sk_…`: use the platform key with the `Chaching-Account` header on the first route (see [Platforms](./platforms.md)). No request body is read.
+
+```bash
+curl -X POST https://stage-api.chaching.io/webhook-deliveries/whd_0123456789abcdef01234567/resend \
+  -H "cc-api-key: $CHACHING_SECRET_KEY"
+```
+
+The answer is `202` with the delivery object, whose `status` is `pending`; ChaChing sends the request right after. A resend is signed with a fresh timestamp and carries the same body and the same `evt_…` id as the original, so deduplicate on that `id`.
+
+A resend that succeeds while the delivery is still retrying cancels its remaining automatic attempts. A delivery can be resent in any status and as often as you ask; a resend that fails leaves the delivery `failure`, also when it had succeeded before.
+
+A delivery can be resent for 30 days after its event. The refusals are:
+
+| Status | `error` | When |
+|--------|---------|------|
+| `409` | `WEBHOOK_DELIVERY_PLATFORM_ENDPOINT` | Account route only: the delivery went to a platform endpoint; resend it with the platform route. |
+| `409` | `WEBHOOK_EVENT_TOO_OLD_TO_RESEND` | The event is older than 30 days. |
+| `409` | `WEBHOOK_ENDPOINT_UNAVAILABLE` | The delivery's endpoint is disabled or, on the account route, deleted. |
+| `409` | `WEBHOOK_DELIVERY_ATTEMPT_IN_PROGRESS` | An attempt of the delivery is running now; the answer carries `Retry-After: 5`. |
+
+On the platform route a delivery whose endpoint was deleted answers `404` like an unknown id.
+
+An unknown id, or the id of a delivery that is not yours, answers `404` with `WEBHOOK_DELIVERY_NOT_FOUND`. A refusal changes nothing.
+
+---
+
+# Listing Events
+
+```
+GET /events
+GET /events/{id}
+```
+
+Both take the account secret key; an account that belongs to a platform uses the platform key with `Chaching-Account` instead (see [Platforms](./platforms.md)). `GET /events` answers newest first with the page parameters `page` and `take` (`take` is at most 50). A platform lists the events of all its accounts with `GET /platform/events`, which also filters by `account`.
+
+The Event object has seven keys:
+
+| Field | Description |
+| --- | --- |
+| `id` | The event id, `evt_…`: the `id` of the delivered envelope |
+| `object` | `event` |
+| `account` | The account the event belongs to, as in the envelope |
+| `created` | Unix seconds |
+| `data` | The event's data |
+| `event` | The event type |
+| `pending_webhooks` | The number of the event's deliveries that are not yet `success` |
+
+Filter with `search`, a URL-encoded JSON object:
+
+| Key | Value | Example |
+| --- | --- | --- |
+| `created` | a date filter, as for deliveries | `{"created": {"type": "after", "date": "2026-10-01"}}` |
+| `event_type` | one or more event types, comma-separated | `{"event_type": "invoice.created,invoice.finalized"}` |
+| `delivery_success` | `true` when every delivery of the event succeeded, `false` otherwise | `{"delivery_success": false}` |
+
+To catch up after downtime, list `GET /events` with `search={"delivery_success":false}` and a `created` range, then resend the failed deliveries. Events are kept for at least 30 days. An unknown id answers `404` with `WEBHOOK_EVENT_NOT_FOUND`.
 
 ---
 
@@ -530,7 +596,7 @@ Webhook delivery has the following internal states:
 - `pending` → waiting to be sent
 - `retry` → retry in progress
 - `success` → delivered successfully
-- `failure` → the delivery was abandoned. Two situations produce it: the endpoint returned a **permanent rejection**, in which case no retry was attempted at all; and the endpoint kept failing with retryable conditions until every retry was exhausted. The delivery's attempts tell the two apart
+- `failure` → the delivery's latest attempt failed and no automatic attempt is scheduled: the last automatic attempt failed, a resend failed (also for a delivery that had succeeded), or the endpoint was disabled, deleted or given a new URL before the next attempt was due. A delivery from before the 72-hour retry window that was still open when this behavior began is set to `failure` without a new attempt. The delivery's attempts show what each attempt got; send the delivery again with a [resend](#resending-a-delivery)
 
 ---
 
@@ -645,7 +711,7 @@ ChaChing generates webhook events for charges its billing engine initiates on it
 
 ## Automatic Renewal Events
 
-An automatic subscription renewal produces the following sequence of events:
+An automatic subscription renewal emits the following events in this order; deliveries can arrive in any order:
 
 1. `invoice.created` — the renewal invoice is created
 2. `invoice.finalized` — the invoice is committed and ready for payment
@@ -710,7 +776,7 @@ Every webhook sent by ChaChing follows this structure:
 
 ## Fields Description
 
-- `id` — Unique event identifier. The same on every endpoint that receives the event and on every retry. Use it to deduplicate
+- `id` — Unique event identifier. The same on every endpoint that receives the event on every retry and on every resend. Use it to deduplicate
 - `account` — The merchant account the event belongs to: `id` (`acc_…`), `external_id`, and its `company` with `id` (`com_…`) and `external_id`. `external_id` is the value your platform sent as `external_id` when it created the account (`company.external_id` for the company); it is `null` for accounts created in the dashboard.
 - `created` — When the event was generated, in Unix seconds
 - `createdAt` — The same instant as an ISO 8601 string. Deprecated: use `created`
@@ -1851,7 +1917,7 @@ The values shown are illustrative.
 - `payment_plan.installment_paid` is sent once per installment. The down payment sends it with `sequence: 0`, both when it is charged at creation and when it is collected on a terminal; a deposit recorded as collected outside ChaChing sends it for its row, `sequence: 0` or `sequence: 1`, once the payment is recorded
 - `deposit` is `null` for a plan created with a payment method. For a plan created without one, `deposit.kind` is `down_payment` when the plan has a down payment and `installment_1` otherwise, `deposit.amount` is the deposit, collected on a terminal or recorded as collected outside ChaChing, and `deposit.attempt` is `null` until the first terminal attempt and then holds the latest attempt; see [Collect the First Installment on a Terminal](./payment-plans-terminal.md#collect-the-first-installment-on-a-terminal). `deposit.external` is `true` when the deposit was recorded as collected outside ChaChing and `false` otherwise; a plan activated that way without a card has `payment_method: null`
 - `payment_plan.completed` is the single paid-in-full event. It is sent when the schedule ends with every installment paid, when a payoff payment is recorded, and when the last unpaid installment is paid through the hosted invoice page, the dashboard or `PUT /invoices/{id}`, settled by credit, or collected by the automatic charge or a retry after the schedule ended; `status` is `paid_off` in every case. It is never sent while an installment is still unpaid
-- `payment_plan.payment_succeeded` is sent for every payment `POST /payment-plans/{id}/payments` records — installment payments, principal payments, payoffs and external payments alike — and never for a declined or refused one. Its `data` is the Payment object at the moment the payment is recorded: `id`, `amount`, `external`, `payment_method`, `invoice` and `payoff` match the endpoint's response (except for a payment taken on a terminal, whose `201` is `processing` with `amount` `0`: the event carries the final values), while for a payment that reached the principal, the event is sent after the plan's remaining schedule is rebuilt, and `remaining_balance`, `installments_remaining`, `payment_plan_status` and `payment_plan_summary` describe the plan after it. A repeated request with the same `Idempotency-Key` sends nothing again. When a request ends before its payment is fully recorded, ChaChing finishes recording it later and sends the payment's events then. For one payment they are sent in this order: `payment_plan.installment_paid`, then `payment_plan.payment_succeeded`, then `payment_plan.completed`; a delivery that is retried can arrive after a later event. This event is sent only with `status` `applied` or `partially_applied`. A deposit recorded as collected outside ChaChing sends `payment_plan.activated` first, then the deposit's `payment_plan.installment_paid`, `payment_plan.payment_succeeded` and, when it paid the plan off, `payment_plan.completed`.
+- `payment_plan.payment_succeeded` is sent for every payment `POST /payment-plans/{id}/payments` records — installment payments, principal payments, payoffs and external payments alike — and never for a declined or refused one. Its `data` is the Payment object at the moment the payment is recorded: `id`, `amount`, `external`, `payment_method`, `invoice` and `payoff` match the endpoint's response (except for a payment taken on a terminal, whose `201` is `processing` with `amount` `0`: the event carries the final values), while for a payment that reached the principal, the event is sent after the plan's remaining schedule is rebuilt, and `remaining_balance`, `installments_remaining`, `payment_plan_status` and `payment_plan_summary` describe the plan after it. A repeated request with the same `Idempotency-Key` sends nothing again. When a request ends before its payment is fully recorded, ChaChing finishes recording it later and sends the payment's events then. For one payment they are emitted in this order: `payment_plan.installment_paid`, then `payment_plan.payment_succeeded`, then `payment_plan.completed`; deliveries can arrive in any order. This event is sent only with `status` `applied` or `partially_applied`. A deposit recorded as collected outside ChaChing emits `payment_plan.activated` first, then the deposit's `payment_plan.installment_paid`, `payment_plan.payment_succeeded` and, when it paid the plan off, `payment_plan.completed`; deliveries can arrive in any order.
 - `surcharge_amount` and `amount_charged` on the Installment and Payment objects report the credit card surcharge and the total charged to the card, in cents. While ChaChing cannot read the surcharge from the gateway yet, they read `0` and the amount paid, and `payment_plan.installment_paid` and `payment_plan.payment_succeeded` wait until the surcharge is read, for up to an hour; after an hour they are sent with `surcharge_status` `unavailable`. When ChaChing cannot read the surcharge of a charge (after retrying for up to 7 days, or at once when the charge cannot be matched), the objects keep `surcharge_amount` at `0` and `amount_charged` equal to the amount paid, and that does not change later; the exact amount charged to the card is then the one shown for that transaction in your Dejavoo (iPOSpays) account. See [Credit Card Surcharges](./payment-plans.md#credit-card-surcharges)
 - The principal part of a payment has its own invoice: when the principal is recorded, ChaChing sends `invoice.payment_succeeded` for it (and `invoice.payment_failed` when its card charge is declined), with `payment_plan_charge.kind` `extra_payment` or `payoff`. `payment_plan.payment_succeeded` reports the same money, so count each payment once. A principal recorded without an invoice (account credit, automatic or manual payment switched off, invoicing unavailable) raises no `invoice.*` event.
 - `terminal` on the Payment object is `null` for a payment that was not taken on a terminal. For a payment taken on a terminal it holds the sale, and `payment_plan.payment_succeeded` is sent when ChaChing records it after the terminal approved it; see [Take a Payment on a Terminal](./payment-plans-terminal.md#take-a-payment-on-a-terminal)
@@ -1916,6 +1982,6 @@ An endpoint receives only the event types in its `enabled_events`
 
 **Endpoint must be stable**
 
-➡ If your endpoint fails → events may be lost after retries
+➡ If your endpoint keeps failing, its deliveries end as `failure` after the retry window; nothing is lost for 30 days: list the events with `GET /events` and resend the failed deliveries
 
 ---
