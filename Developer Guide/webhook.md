@@ -614,6 +614,7 @@ ChaChing generates webhook events for key system entities. Each event represents
 - `payment_plan.completed` — A payment plan is paid off
 - `payment_plan.canceled` — A payment plan is canceled
 - `payment_plan.payment_succeeded` — A payment is recorded on a payment plan
+- `payment_plan.payment_method_updated` — A payment plan's card is set, replaced or removed
 
 ---
 
@@ -625,7 +626,7 @@ ChaChing generates webhook events for key system entities. Each event represents
 
 ## Summary
 
-ChaChing currently supports **35 webhook event types** across such entities as:
+ChaChing currently supports **36 webhook event types** across such entities as:
 
 - Customers
 - Payment Methods
@@ -1493,6 +1494,7 @@ Events:
 - `payment_plan.reactivated`
 - `payment_plan.completed`
 - `payment_plan.canceled`
+- `payment_plan.payment_method_updated`, plus `previous_payment_method`, the plan's card before the change (string or null)
 
 carry the Payment Plan object.
 
@@ -1841,6 +1843,10 @@ The values shown are illustrative.
   "event": "payment_plan.payment_succeeded"
 }
 ```
+
+`payment_plan.payment_method_updated`, with `previous_payment_method` set to the plan's card before the change:
+
+<!-- capture pending: payment_plan.payment_method_updated delivery on stage, redacted (CHA-489, after deploy) -->
 
 ---
 
