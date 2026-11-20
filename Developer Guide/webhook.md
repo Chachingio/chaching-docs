@@ -1912,7 +1912,60 @@ The values shown are illustrative.
 
 `payment_plan.payment_method_updated`, with `previous_payment_method` set to the plan's card before the change:
 
-<!-- capture pending: payment_plan.payment_method_updated delivery on stage, redacted (CHA-489, after deploy) -->
+```json
+{
+  "id": "evt_5d794910f569fb1f1381168f",
+  "account": {
+    "id": "acc_e9463ef9acce7c2561f97c4a",
+    "external_id": null,
+    "company": {
+      "id": "com_cda10775f5740cb97b1d0783",
+      "external_id": null
+    }
+  },
+  "created": 1795153792,
+  "createdAt": "2026-11-20T05:49:52.376Z",
+  "data": {
+    "id": "pp_c3ee2db5191dbe780427f5de",
+    "object": "payment_plan",
+    "external_id": null,
+    "customer": "cus_23165ff03b9b332bf4aa8eac",
+    "customer_external_id": null,
+    "description": "Orthodontic treatment, upper and lower braces",
+    "status": "active",
+    "currency": "USD",
+    "total_amount": 770,
+    "down_payment_amount": 110,
+    "installment_amount": 110,
+    "installment_count": 6,
+    "interval": "monthly",
+    "start_date": 1795305600,
+    "remainder_placement": "first",
+    "remaining_balance": 440,
+    "installments_paid": 2,
+    "installments_remaining": 4,
+    "next_due_date": 1800576000,
+    "payment_method": "46e728e2-8c85-4f50-bba0-c56b87ed5fe3",
+    "gateway": "dejavoo",
+    "reference": "K6VBICGA",
+    "deposit": {
+      "reference": "K6VBICGA",
+      "kind": "down_payment",
+      "amount": 110,
+      "status": "collected",
+      "transaction_reference": null,
+      "collected_at": 1795152669,
+      "attempt": null,
+      "external": true
+    },
+    "created": 1795152663,
+    "ended_at": null,
+    "canceled_at": null,
+    "previous_payment_method": "b68f2234-934f-44a8-917d-5a9e6d80b317"
+  },
+  "event": "payment_plan.payment_method_updated"
+}
+```
 
 ---
 
