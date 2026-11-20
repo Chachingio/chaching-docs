@@ -232,5 +232,5 @@ These changes came before the first integrations went live. The API has no versi
 | `PATCH /customers/{customer_id}` response | `200` with `1` | `200` with the Customer object |
 | `GET /customers` `search` with an `email` whose `+` is not encoded | matched only addresses containing a space there | also matches the address with the `+` |
 | `status` of a subscription paused through the API during its trial period | `trial` | `paused`, and `trial` again after it is resumed |
-| `POST /payment-plans/{id}/payments` with `external: true` on a plan in `awaiting_deposit` | `409 PAYMENT_PLAN_NOT_PAYABLE` | records the deposit collected outside ChaChing and activates the plan; `400 PAYMENT_PLAN_AMOUNT_BELOW_DEPOSIT` below the deposit, `409 PAYMENT_PLAN_PAYMENT_METHOD_REQUIRED` when the customer has a default payment method and `payment_method` is not sent |
+| `POST /payment-plans/{id}/payments` with `external: true` on a plan in `awaiting_deposit` | `409 PAYMENT_PLAN_NOT_PAYABLE` | records the deposit collected outside ChaChing and activates the plan; `400 PAYMENT_PLAN_AMOUNT_BELOW_DEPOSIT` below the deposit |
 | `DELETE /customers/{customer_id}` of a customer with a plan that is `awaiting_deposit`, `active`, `past_due` or `defaulted` | `200`; the plan was left without its customer | `409 CUSTOMER_HAS_OPEN_PAYMENT_PLANS`; nothing changes |

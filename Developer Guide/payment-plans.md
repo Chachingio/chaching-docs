@@ -97,7 +97,7 @@ What happens when a plan is created with `payment_method`:
 - Before charging anything, ChaChing checks the schedule it registered against the expected installment dates: every date for a plan of up to 12 installments, and, for a longer plan, the first installment dates (the exact set depends on the plan). A date that cannot be projected because the customer has another subscription that bills often, such as a daily one, is not checked, and the plan is still created. A date more than 36 months after the day the check runs (UTC) is not checked either, and the plan is still created. A mismatch answers `500` `PAYMENT_PLAN_SCHEDULE_MISMATCH`, and no plan is created.
 - When `down_payment_amount` is greater than `0`, ChaChing charges it immediately against `payment_method` and records it as installment sequence `0`, already paid. When the charge is declined, the request answers `402` `PAYMENT_PLAN_DOWN_PAYMENT_DECLINED` and no plan is created. When its outcome cannot be confirmed, the request answers `502` `PAYMENT_PLAN_DOWN_PAYMENT_UNCONFIRMED`, no plan is created, and the charge is not reversed because it can still settle. The response's `down_payment_invoice_id` is the id of that down-payment invoice; once its charge has settled, send the same request again, with the same `Idempotency-Key` or a new one, and ChaChing handles the invoice as the next item describes.
 - Before it charges a down payment, ChaChing looks for an earlier down-payment invoice of the same customer and the same amount that no plan uses, which is what a create that did not finish leaves behind. When that invoice was paid with the same `payment_method` and was not refunded, the new plan uses that payment: nothing is charged again, and installment `0` carries that earlier invoice in `invoice` and the time of that payment in `paid_at`. When its charge failed, ChaChing voids it and charges the down payment again. When that invoice is still open without a confirmed outcome, when it was settled with a different payment method or without a card payment, when more than one such invoice was paid, or when a failed invoice cannot be voided, the request answers `409` `PAYMENT_PLAN_DOWN_PAYMENT_PENDING`, no plan is created and nothing is charged. From the next UTC day, an earlier down-payment invoice that is still unpaid answers `409` `PAYMENT_PLAN_CUSTOMER_DELINQUENT` instead, until it is paid or voided. An earlier down-payment invoice of a different amount is not matched, so check the customer's invoices before you change `down_payment_amount` after a `502`.
-- `payment_method` becomes the customer's default payment method, and the installments are charged against it.
+- `payment_method` is the plan's card: every installment is charged to it, whatever the customer's default payment method is. It becomes the customer's default payment method only when the customer has none.
 - ChaChing sends `payment_plan.created` and `payment_plan.activated`, and, when there is a down payment, `payment_plan.installment_paid` for installment `0`.
 - When there is a down payment, ChaChing emails the customer a receipt for it. See **Emails Your Customer Receives**.
 
@@ -108,6 +108,101 @@ A plan with no down payment runs entirely on a card the customer saved earlier. 
 On a Dejavoo account, a card saved while the customer pays a hosted invoice cannot be charged again: create the plan with that card and the down payment is declined. Save the card through the subscribe checkout or collect the deposit on a terminal.
 
 Payment Plans run on accounts whose payment gateway is Dejavoo or NMI. On any other gateway the request answers `400` `PAYMENT_PLAN_GATEWAY_NOT_SUPPORTED`.
+
+### Change a plan's card
+
+`PATCH /payment-plans/{id}` replaces the card of a plan, or removes it, with the `payment_method` field.
+
+```bash
+curl -X PATCH https://stage-api.chaching.io/payment-plans/$PLAN_ID \
+  -H "cc-api-key: $CHACHING_SECRET_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "payment_method": "b68f2234-934f-44a8-917d-5a9e6d80b317"
+  }'
+```
+
+The response is the plan with the new card:
+
+```json
+{
+  "id": "pp_c3ee2db5191dbe780427f5de",
+  "object": "payment_plan",
+  "external_id": null,
+  "customer": "cus_23165ff03b9b332bf4aa8eac",
+  "customer_external_id": null,
+  "description": "Orthodontic treatment, upper and lower braces",
+  "status": "active",
+  "currency": "USD",
+  "total_amount": 770,
+  "down_payment_amount": 110,
+  "installment_amount": 110,
+  "installment_count": 6,
+  "interval": "monthly",
+  "start_date": 1795305600,
+  "remainder_placement": "first",
+  "remaining_balance": 660,
+  "installments_paid": 0,
+  "installments_remaining": 6,
+  "next_due_date": 1795305600,
+  "payment_method": "b68f2234-934f-44a8-917d-5a9e6d80b317",
+  "gateway": "dejavoo",
+  "reference": "K6VBICGA",
+  "deposit": {
+    "reference": "K6VBICGA",
+    "kind": "down_payment",
+    "amount": 110,
+    "status": "collected",
+    "transaction_reference": null,
+    "collected_at": 1795152669,
+    "attempt": null,
+    "external": true
+  },
+  "created": 1795152663,
+  "ended_at": null,
+  "canceled_at": null
+}
+```
+
+Returns the Payment Plan object.
+
+- `payment_method` is the id of a saved card of the plan's customer, saved with the payment gateway of the plan and set up for automatic payments, or `null` to remove the plan's card. It is the only field the request accepts; any other field answers `400`.
+- The plan must be `active`, `past_due` or `defaulted`. A plan in `awaiting_deposit` takes its card when its deposit is collected; a plan in `canceled` or `paid_off` no longer takes a card.
+- A request without `payment_method`, or with the card the plan already has, answers `200` with the plan unchanged: nothing is changed, charged or sent, so repeating a request is safe.
+- The customer's default payment method does not change, except that the new card becomes the default when the customer has none.
+- With `payment_method` `null`, the plan has no card: each installment is invoiced on its due date and nothing is charged automatically, as described in **A plan without a card** under **Failed Payments and Payment Plans**. On a deactivated account, `null` is the only value the request accepts.
+- ChaChing emits one `payment_plan.payment_method_updated` event per change.
+
+| **Status** | **Error code** | **When** | **What to do** |
+| --- | --- | --- | --- |
+| `400` | none | A field other than `payment_method` was sent, or `payment_method` is neither a payment method id nor `null`. The body has no `error` field; `message` describes the problem. | Send only `payment_method`. |
+| `403` | `PAYMENT_PLANS_NOT_ENABLED` | Payment Plans are not enabled for this account. | Contact Chaching to enable them. |
+| `404` | `PAYMENT_PLAN_NOT_FOUND` | The plan id does not resolve for this account. | Check the id. |
+| `404` | `PAYMENT_METHOD_NOT_FOUND` | The payment method does not resolve, or it does not belong to the plan's customer. | Send a payment method returned by the payment-methods endpoints for this customer. |
+| `409` | `PAYMENT_PLAN_PAYMENT_METHOD_NOT_CHANGEABLE` | The plan is `awaiting_deposit`, `canceled` or `paid_off`. | For a plan in `awaiting_deposit`, collect its deposit first. A closed plan keeps its card. |
+| `409` | `ACCOUNT_DEACTIVATED` | The account is deactivated and the request names a card. | Send `null`, or reactivate the account first. |
+| `409` | `PAYMENT_PLAN_PAYMENT_METHOD_NOT_SUPPORTED` | The card is not saved with the payment gateway of this plan. | Choose a card saved with the plan's gateway. |
+| `409` | `PAYMENT_PLAN_CREDENTIAL_NOT_ESTABLISHED` | The saved card was not set up for automatic payments. This includes a card that was used for a one-time payment and has no stored credential. | Save the card again through a terminal payment with `save_payment_method`, or keep the plan's current card. |
+| `409` | `PAYMENT_PLAN_BUSY` | Another operation on this plan is in progress. | Retry shortly. |
+| `409` | `PAYMENT_METHOD_CHANGE_IN_PROGRESS` | Another change to this customer's payment methods is in progress. | Try again. |
+| `500` | none | The change could not be completed. The plan's card is unchanged. | Read the plan, then send the request again. |
+| `502` | `PAYMENT_PLAN_BILLING_ENGINE_UNAVAILABLE` | The change could not be written to the billing engine, or the write could not be confirmed. The plan keeps the card that `GET /payment-plans/{id}` shows. | Read the plan to see its card. Send the request again when it is not the card you asked for. |
+
+### What is charged when you change the card
+
+Replacing the card charges each installment that is billed and not yet paid once on the new card. ChaChing reports each charge like an automatic installment payment: `invoice.payment_succeeded` and `payment_plan.installment_paid`, and the receipt email to the customer, when it is approved; `invoice.payment_failed` and `payment_plan.installment_failed`, and the failed-payment email to the customer, when it is declined. A declined charge is not retried automatically and the installment stays open. Collect it with a payment on the plan, on the hosted invoice page, or by giving the plan another card. A retry that was scheduled on the previous card does not run. The installments that are not billed yet are charged on the new card when they are billed.
+
+Three rules limit these charges:
+
+- An installment that already has a payment in progress is not charged again by the change. The result of that payment settles it.
+- If the plan's card is changed again while the charges are being made, the remaining installments are not charged on the replaced card.
+- An installment is attempted once per card. After a failed attempt on a card, choosing that same card again does not retry it. Charge it with `POST /payment-plans/{id}/payments`.
+
+The request answers `200` before those charges finish. Read their results from the events, from `GET /payment-plans/{id}/installments` and from `GET /invoices/{id}`. Removing the card charges nothing.
+
+A payment of a plan's installment invoice made directly in the billing engine, on a card that is not the plan's card, is refused: it is never moved to another card.
+
+A payment plan's installment is charged only to the plan's card. When automatic payments are turned back on for a customer, an installment that was waiting is not charged to another card: ChaChing's payment processors refuse it, and it stays open until it is paid on the hosted invoice page, recorded on the plan, or charged after you give the plan a card.
 
 ## When a Plan Cannot Be Created
 
@@ -165,12 +260,11 @@ When the customer pays the deposit of a plan in `awaiting_deposit` outside ChaCh
 | --- | --- |
 | `amount` | Integer cents, at least the plan's `deposit.amount` and at most its `remaining_balance`. The deposit is recorded whole; any amount above it is applied to the part of the plan not billed yet and shortens the plan from its end. The whole `remaining_balance` pays the plan off. |
 | `external` | `true`. A payment without it answers `409` `PAYMENT_PLAN_NOT_PAYABLE`. |
-| `payment_method` | No; required when the customer has a default payment method. A saved card of the plan's customer, saved with your account's Dejavoo gateway and set up for automatic payments. It becomes the plan's card and the customer's default payment method, and the remaining installments are charged to it automatically. Because it becomes the customer's default payment method, every later automatic charge of that customer uses it, its subscriptions and other payment plans included. |
+| `payment_method` | No. A saved card of the plan's customer, saved with your account's Dejavoo gateway and set up for automatic payments. It becomes the plan's card, and the remaining installments are charged to it automatically. It becomes the customer's default payment method only when the customer has none; the customer's subscriptions and other payment plans keep their own cards. |
 
 **Without `payment_method`:**
 
-- When the customer has a default payment method, the request answers `409` `PAYMENT_PLAN_PAYMENT_METHOD_REQUIRED` and records nothing, because that method would be charged for the remaining installments. Its `message` tells you to name a card in `payment_method`.
-- When the customer has no default payment method, the plan is activated without a card, and its `payment_method` reads `null` for the life of the plan. Each remaining installment is invoiced on its due date and nothing is charged automatically. Collect it with `POST /payment-plans/{id}/payments` (`external: true` for money you collected, or a terminal payment), on the hosted invoice page, or with `PUT /invoices/{id}`. An installment left unpaid moves the plan to `past_due` and `defaulted` on the schedule of your revenue recovery settings, and ChaChing sends no failed-payment notice for an automatic charge that was never attempted. A card that later becomes the customer's default payment method, for example through another plan or a subscription, pays the next installments automatically.
+- The plan is activated without a card, and its `payment_method` reads `null`, whether or not the customer has a default payment method. Each remaining installment is invoiced on its due date and nothing is charged automatically. A card that later becomes the customer's default payment method does not change that: the plan stays without a card until you give it one with `PATCH /payment-plans/{id}`. Collect each installment with `POST /payment-plans/{id}/payments` (`external: true` for money you collected, or a terminal payment), on the hosted invoice page, or with `PUT /invoices/{id}`. An installment left unpaid moves the plan to `past_due` and `defaulted` on the schedule of your revenue recovery settings, and ChaChing sends no failed-payment notice for an automatic charge that was never attempted.
 
 **Before you record it:**
 
@@ -184,8 +278,7 @@ When the customer pays the deposit of a plan in `awaiting_deposit` outside ChaCh
 | `400` | `PAYMENT_PLAN_AMOUNT_BELOW_DEPOSIT` | `amount` is below the deposit. |
 | `400` | `PAYMENT_PLAN_AMOUNT_EXCEEDS_BALANCE` | `amount` is above the remaining balance. |
 | `404` | `PAYMENT_METHOD_NOT_FOUND` | `payment_method` does not resolve, or does not belong to the customer. |
-| `409` | `PAYMENT_PLAN_PAYMENT_METHOD_REQUIRED` | `payment_method` was not sent and the customer has a default payment method. |
-| `409` | `ACCOUNT_DEACTIVATED` | The account is deactivated and the request names a card, or the customer has a default payment method. On a deactivated account the deposit is recorded only without a card. |
+| `409` | `ACCOUNT_DEACTIVATED` | The account is deactivated and the request names a card. On a deactivated account the deposit is recorded only without a card. |
 | `409` | `PAYMENT_PLAN_PAYMENT_METHOD_NOT_SUPPORTED` | `payment_method` is not a card saved with your account's Dejavoo gateway. |
 | `409` | `PAYMENT_PLAN_CREDENTIAL_NOT_ESTABLISHED` | The card named in `payment_method` was not set up for automatic payments. Ask the customer to enter the card again, or record the deposit without a card. |
 | `409` | `PAYMENT_PLAN_DEPOSIT_IN_FLIGHT` | A terminal deposit attempt on the plan is unresolved. |
@@ -290,7 +383,7 @@ ChaChing schedules each installment's charge at 10:00 UTC on its due date: 5:00 
 | **Field** | **Required** | **Rules** |
 | --- | --- | --- |
 | `amount` | yes | Integer cents, at least `1`, and at most the plan's `remaining_balance`. On a `canceled` plan, at most what is still owed on its billed installments. |
-| `payment_method` | no | The card to charge for this payment only; it must belong to the plan's customer. Default: the customer's default payment method. Ignored when `external` is `true`, except on a plan in `awaiting_deposit`, where it names the card for the remaining installments. Send `{ "type": "terminal", "terminal_id": "<terminal id>" }` instead to take the payment on one of your Dejavoo terminals; see **Take a Payment on a Terminal**. |
+| `payment_method` | no | The card to charge for this payment only; it must belong to the plan's customer. Default: the plan's card; a plan without a card answers `400` `PAYMENT_METHOD_REQUIRED`. Ignored when `external` is `true`, except on a plan in `awaiting_deposit`, where it names the card for the remaining installments. Send `{ "type": "terminal", "terminal_id": "<terminal id>" }` instead to take the payment on one of your Dejavoo terminals; see **Take a Payment on a Terminal**. |
 | `external` | no | `true` records money you collected outside ChaChing; nothing is charged. Default `false`. |
 
 The amount is applied first to the plan's billed installments that are not fully paid, oldest first — a smaller amount pays part of an installment — and then to the part of the plan not billed yet, the principal.
@@ -377,7 +470,7 @@ The late-payment warning and the failed-payment outcome are evaluated per custom
 - **Back to `active`.** When the customer's account clears, a `past_due` plan, and a `defaulted` plan under the `past-due` outcome, whose schedule is still running return to `active` and ChaChing sends `payment_plan.reactivated`. Under the `cancel` outcome, a `defaulted` plan whose schedule was cut stays `defaulted` until it is paid off, canceled, or a payment with a principal portion through `POST /payment-plans/{id}/payments` rebuilds its remaining schedule while the customer's account is clear.
 - **Settings for accounts with Payment Plans.** On an account with Payment Plans enabled, or holding a plan that has not ended, `payment_retries` must sum to at least 7 days and `subscription_state_on_payment_failure` cannot be `unpaid`; `PUT /revenue-recovery` rejects either with `400`. With these rules the outcome day is day 8 or later.
 - **The debt survives.** A `defaulted` plan and a `canceled` plan keep their outstanding balance. ChaChing never forgives a balance on its own: `uncollectible` is a reporting label, and you can still collect through `POST /payment-plans/{id}/payments`.
-- **A plan without a card.** A plan activated by a deposit recorded as collected outside ChaChing without a card is not charged automatically: each installment is invoiced on its due date. An unpaid installment moves the plan to `past_due` and `defaulted` on the same schedule as any other plan, and ChaChing sends no failed-payment notice for an installment on which no charge was attempted. See **Record a Deposit Collected Outside Chaching**.
+- **A plan without a card.** A plan has no card when it is activated by a deposit recorded as collected outside ChaChing without `payment_method`, and after its card is removed with `PATCH /payment-plans/{id}` and `payment_method` `null`. In both cases nothing is charged automatically: each installment is invoiced on its due date and paid manually. An unpaid installment moves the plan to `past_due` and `defaulted` on the same schedule as any other plan, and ChaChing sends no failed-payment notice for an installment on which no charge was attempted. See **Record a Deposit Collected Outside Chaching**.
 
 Do not confuse the plan status `past_due`, which means the late-payment warning, with the outcome value `past-due`. A customer who reaches the `past-due` outcome makes the plan `defaulted`, and ChaChing sends `payment_plan.defaulted`, not `payment_plan.past_due`.
 
@@ -451,7 +544,7 @@ Errors use the standard body `{ "statusCode", "message", "error", "timestamp", "
 | `400` | `PAYMENT_PLAN_GATEWAY_NOT_SUPPORTED` | The account's payment gateway does not support Payment Plans. |
 | `400` | `PAYMENT_PLAN_AMOUNT_EXCEEDS_BALANCE` | A payment is larger than what the plan accepts. Nothing is charged. |
 | `400` | `PAYMENT_PLAN_AMOUNT_BELOW_DEPOSIT` | On a plan in `awaiting_deposit`, a payment's `amount` is below the deposit. Nothing is recorded. |
-| `400` | `PAYMENT_METHOD_REQUIRED` | A payment was sent with no `payment_method`, it is not external, and the customer has no default payment method. |
+| `400` | `PAYMENT_METHOD_REQUIRED` | A payment was sent with no `payment_method`, it is not external, and the plan has no card. |
 | `400` | `PAYMENT_PLAN_TERMINAL_EXTERNAL_NOT_ALLOWED` | A payment named a terminal and `external: true` together. |
 | `400` | `IDEMPOTENCY_KEY_INVALID` | The `Idempotency-Key` header is malformed. |
 | `402` | `PAYMENT_PLAN_DOWN_PAYMENT_DECLINED` | The down payment was declined. No plan was created. |
@@ -465,8 +558,12 @@ Errors use the standard body `{ "statusCode", "message", "error", "timestamp", "
 | `404` | `PAYMENT_PLAN_PAYMENT_NOT_FOUND` | The payment id does not resolve to a payment of this plan. |
 | `404` | `PAYMENT_PLAN_TERMINAL_ATTEMPT_NOT_FOUND` | The terminal attempt id does not resolve for this account. |
 | `409` | `PAYMENT_PLAN_CREDENTIAL_NOT_ESTABLISHED` | The saved card was not established for automatic payments. Create the plan with a down payment, or ask the customer to enter the card again. On a deposit collected outside, the card named in `payment_method` was not set up for automatic payments: name another card, or record the deposit without a card. |
-| `409` | `PAYMENT_PLAN_PAYMENT_METHOD_NOT_SUPPORTED` | On a create, the payment method is not a card saved with the account's current payment gateway. On `POST /payment-plans/{id}/payments`, on `PUT /invoices/{id}` and on a payment from the hosted invoice page or the dashboard of an invoice that carries an unpaid installment, the card that would be charged — `payment_method`, or the customer's default payment method when it is omitted — is not a card saved with the payment gateway the plan was created on; a plan created before you changed your payment gateway keeps accepting its own cards. Nothing was created or charged. Send a payment method returned by the payment-methods endpoints, or record money you collected yourself with `external: true` on `POST /payment-plans/{id}/payments`. On a deposit collected outside, `payment_method` is not a card saved with your account's Dejavoo gateway. |
-| `409` | `PAYMENT_PLAN_PAYMENT_METHOD_REQUIRED` | A deposit collected outside was recorded without `payment_method` and the customer has a default payment method. Nothing is recorded; `message` tells you to name a card in `payment_method`. |
+| `409` | `PAYMENT_PLAN_PAYMENT_METHOD_NOT_SUPPORTED` | On a create, the payment method is not a card saved with the account's current payment gateway. On `POST /payment-plans/{id}/payments`, on `PUT /invoices/{id}` and on a payment from the hosted invoice page or the dashboard of any invoice that carries an unpaid installment, the card that would be charged — `payment_method`, or the plan's card when it is omitted — is not a card saved with the payment gateway the plan was created on; a plan created before you changed your payment gateway keeps accepting its own cards. Nothing was created or charged. Send a payment method returned by the payment-methods endpoints, or record money you collected yourself with `external: true` on `POST /payment-plans/{id}/payments`. On a deposit collected outside, `payment_method` is not a card saved with your account's Dejavoo gateway. |
+| `409` | `PAYMENT_PLAN_PAYMENT_METHOD_REQUIRED` | An invoice that is an installment of a payment plan without a card, or that holds installments of plans with different cards, was paid with `PUT /invoices/{id}` or from the hosted invoice page or the dashboard without a payment method. It is not charged to a saved card automatically. Nothing is charged; pay it on the hosted invoice page, or record the payment on the payment plan. |
+| `409` | `PAYMENT_PLAN_PAYMENT_METHOD_NOT_CHANGEABLE` | On `PATCH /payment-plans/{id}`, the plan is `awaiting_deposit`, `canceled` or `paid_off`. Nothing was changed. |
+| `409` | `PAYMENT_METHOD_IN_USE_BY_PAYMENT_PLAN` | The payment method is the card of an open payment plan (`active`, `past_due` or `defaulted`), so it cannot be detached. Nothing was deleted; give the plan another card, or remove its card, first. |
+| `409` | `PAYMENT_METHOD_CHANGE_IN_PROGRESS` | Another change to this customer's payment methods is in progress. Nothing was changed; try again. |
+| `409` | `ACCOUNT_DEACTIVATED` | On `PATCH /payment-plans/{id}`, the account is deactivated and the request names a card. Send `payment_method` `null`, or reactivate the account first. |
 | `409` | `PAYMENT_PLAN_UNPAID_OUTCOME_NOT_SUPPORTED` | Your failed-payment outcome is `unpaid`. |
 | `409` | `PAYMENT_PLAN_DUNNING_SCHEDULE_TOO_SHORT` | Your `payment_retries` sum to less than 7 days. |
 | `409` | `PAYMENT_PLAN_CUSTOMER_DELINQUENT` | The customer's account is in the late-payment warning or a failed-payment outcome, or carries an invoice unpaid for one day or more. |
@@ -520,7 +617,7 @@ Errors use the standard body `{ "statusCode", "message", "error", "timestamp", "
 
 # Payment Plan Events
 
-Payment Plans send ten webhook event types on the same endpoints, envelope, signature and retry policy as every other ChaChing event. Their payloads are described in [Webhooks](./webhook.md). To send your own receipts and notices from these events, see [Send Your Own Customer Notifications](./customer-notifications.md).
+Payment Plans send eleven webhook event types on the same endpoints, envelope, signature and retry policy as every other ChaChing event. Their payloads are described in [Webhooks](./webhook.md). To send your own receipts and notices from these events, see [Send Your Own Customer Notifications](./customer-notifications.md).
 
 | **Event** | **Sent when** | **`data`** |
 | --- | --- | --- |
@@ -534,6 +631,7 @@ Payment Plans send ten webhook event types on the same endpoints, envelope, sign
 | `payment_plan.completed` | The plan changes to `paid_off`. | Payment Plan |
 | `payment_plan.canceled` | The plan is canceled. | Payment Plan |
 | `payment_plan.payment_succeeded` | `POST /payment-plans/{id}/payments` records a payment. | Payment |
+| `payment_plan.payment_method_updated` | A plan's card is set, replaced or removed: with `PATCH /payment-plans/{id}`, or when a terminal payment sent with `save_payment_method: true` saves its card. It is not sent when the card does not change, nor when a plan is created, activated or has its deposit recorded. | Payment Plan, plus `previous_payment_method` |
 
 A deposit recorded as collected outside ChaChing emits, in this order (deliveries can arrive in any order): `invoice.payment_succeeded` for the deposit invoice, `invoice.payment_succeeded` for the invoice of the amount above the deposit when there is one, `payment_plan.activated`, `payment_plan.installment_paid` for the deposit, `payment_plan.payment_succeeded`, and `payment_plan.completed` when it paid the plan off. `payment_plan.activated` shows the deposit as paid; the amount above it is reported by the events that follow.
 
