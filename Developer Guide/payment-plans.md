@@ -131,7 +131,7 @@ The response is the plan with the new card:
   "external_id": null,
   "customer": "cus_23165ff03b9b332bf4aa8eac",
   "customer_external_id": null,
-  "description": "cha489-qa DJ1 P2 (no card)",
+  "description": "Orthodontic treatment, upper and lower braces",
   "status": "active",
   "currency": "USD",
   "total_amount": 770,
