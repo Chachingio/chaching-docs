@@ -118,11 +118,51 @@ curl -X PATCH https://stage-api.chaching.io/payment-plans/$PLAN_ID \
   -H "cc-api-key: $CHACHING_SECRET_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "payment_method": "9f3a1c2e-7b45-4d18-a6c0-2f8e5b7d1a94"
+    "payment_method": "b68f2234-934f-44a8-917d-5a9e6d80b317"
   }'
 ```
 
-<!-- capture pending: PATCH /payment-plans/{id} on stage, redacted (CHA-489, after deploy) -->
+The response is the plan with the new card:
+
+```json
+{
+  "id": "pp_c3ee2db5191dbe780427f5de",
+  "object": "payment_plan",
+  "external_id": null,
+  "customer": "cus_23165ff03b9b332bf4aa8eac",
+  "customer_external_id": null,
+  "description": "cha489-qa DJ1 P2 (no card)",
+  "status": "active",
+  "currency": "USD",
+  "total_amount": 770,
+  "down_payment_amount": 110,
+  "installment_amount": 110,
+  "installment_count": 6,
+  "interval": "monthly",
+  "start_date": 1795305600,
+  "remainder_placement": "first",
+  "remaining_balance": 660,
+  "installments_paid": 0,
+  "installments_remaining": 6,
+  "next_due_date": 1795305600,
+  "payment_method": "b68f2234-934f-44a8-917d-5a9e6d80b317",
+  "gateway": "dejavoo",
+  "reference": "K6VBICGA",
+  "deposit": {
+    "reference": "K6VBICGA",
+    "kind": "down_payment",
+    "amount": 110,
+    "status": "collected",
+    "transaction_reference": null,
+    "collected_at": 1795152669,
+    "attempt": null,
+    "external": true
+  },
+  "created": 1795152663,
+  "ended_at": null,
+  "canceled_at": null
+}
+```
 
 Returns the Payment Plan object.
 
