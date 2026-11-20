@@ -483,7 +483,7 @@ ChaChing waits up to 30 seconds for the whole response, and up to 10 seconds to 
 - If a delivery fails, the webhook is retried
 - If **max retries NOT reached,** retry continues
 - If **max retries reached,** the delivery status is set to `failure`
-- A delivery is `failure` when its latest attempt failed and no automatic attempt is scheduled: the last automatic attempt failed, a resend failed, or the endpoint was disabled, deleted or given a new URL before the next attempt was due
+- A delivery is `failure` when its latest attempt failed and no automatic attempt is scheduled: the last automatic attempt failed, a resend of a delivery that was not retrying failed, or the endpoint was disabled, deleted or given a new URL before the next attempt was due
 - Changing an endpoint's URL, disabling it or deleting it ends the retries still scheduled for it: those deliveries become `failure` when their next attempt comes due (re-enabling a disabled endpoint before then resumes them). If you change the URL during an outage, [resend](#resending-a-delivery) the failed deliveries
 - A retry already scheduled is sent even if the endpoint's `enabled_events` changes in the meantime
 - Each delivery's `next_attempt` (Unix seconds) shows when its next attempt is due; it is `null` once the delivery succeeded or failed
@@ -516,7 +516,7 @@ curl -X POST https://stage-api.chaching.io/webhook-deliveries/whd_0123456789abcd
 
 The answer is `202` with the delivery object, whose `status` is `pending`; ChaChing sends the request right after. A resend is signed with a fresh timestamp and carries the same body and the same `evt_…` id as the original, so deduplicate on that `id`.
 
-A resend that succeeds while the delivery is still retrying cancels its remaining automatic attempts. A delivery can be resent in any status and as often as you ask; a resend that fails leaves the delivery `failure`, also when it had succeeded before.
+A resend that succeeds while the delivery is still retrying cancels its remaining automatic attempts. A delivery can be resent in any status and as often as you ask. When a resend fails, a delivery that was still retrying goes back to `retry` and keeps its next automatic attempt; any other delivery, including one that had succeeded before, ends `failure`.
 
 A delivery can be resent for 30 days after its event. The refusals are:
 
@@ -596,7 +596,7 @@ Webhook delivery has the following internal states:
 - `pending` → waiting to be sent
 - `retry` → retry in progress
 - `success` → delivered successfully
-- `failure` → the delivery's latest attempt failed and no automatic attempt is scheduled: the last automatic attempt failed, a resend failed (also for a delivery that had succeeded), or the endpoint was disabled, deleted or given a new URL before the next attempt was due. A delivery from before the 72-hour retry window that was still open when this behavior began is set to `failure` without a new attempt. The delivery's attempts show what each attempt got; send the delivery again with a [resend](#resending-a-delivery)
+- `failure` → the delivery's latest attempt failed and no automatic attempt is scheduled: the last automatic attempt failed, a resend of a delivery that was not retrying failed (also for a delivery that had succeeded; a failed resend of a retrying delivery returns it to `retry`), or the endpoint was disabled, deleted or given a new URL before the next attempt was due. A delivery from before the 72-hour retry window that was still open when this behavior began is set to `failure` without a new attempt. The delivery's attempts show what each attempt got; send the delivery again with a [resend](#resending-a-delivery)
 
 ---
 
