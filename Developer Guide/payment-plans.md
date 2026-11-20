@@ -131,7 +131,7 @@ Returns the Payment Plan object.
 - A request without `payment_method`, or with the card the plan already has, answers `200` with the plan unchanged: nothing is changed, charged or sent, so repeating a request is safe.
 - The customer's default payment method does not change, except that the new card becomes the default when the customer has none.
 - With `payment_method` `null`, the plan has no card: each installment is invoiced on its due date and nothing is charged automatically, as described in **A plan without a card** under **Failed Payments and Payment Plans**. On a deactivated account, `null` is the only value the request accepts.
-- ChaChing sends `payment_plan.payment_method_updated` once per change.
+- ChaChing emits one `payment_plan.payment_method_updated` event per change.
 
 | **Status** | **Error code** | **When** | **What to do** |
 | --- | --- | --- | --- |
