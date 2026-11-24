@@ -510,7 +510,7 @@ These emails do not replace the webhooks: `payment_plan.installment_paid`, `paym
 
 # Cancel a Plan
 
-`POST /payment-plans/{id}/cancel` answers `200` with the plan in status `canceled` and `canceled_at` set, and ChaChing sends `payment_plan.canceled`. Installments not yet billed are removed at the end of the period already billed and are never charged. Cancellation is not a refund and does not forgive debt: amounts already invoiced stay collectible through `POST /payment-plans/{id}/payments`, and `remaining_balance` shows what is still owed.
+`POST /payment-plans/{id}/cancel` answers `200` with the plan in status `canceled` and `canceled_at` set, and ChaChing sends `payment_plan.canceled`. Installments not yet billed are removed at the end of the period already billed and are never charged. Cancellation is not a refund and does not forgive debt: amounts already invoiced stay collectible through `POST /payment-plans/{id}/payments`, and `remaining_balance` shows what is still owed. After the cancel, ChaChing makes no automatic charge for the plan: an installment invoice that is still open is collected only by an explicit payment, through `POST /payment-plans/{id}/payments` or the invoice payment routes. Voiding that invoice with `DELETE /invoices/{id}` writes it off, so its period is never billed again.
 
 This endpoint is the only way to end a plan early. A payment plan is not a subscription: the subscription endpoints answer `404` for it.
 
