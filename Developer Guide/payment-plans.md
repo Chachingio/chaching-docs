@@ -190,15 +190,17 @@ Returns the Payment Plan object.
 
 ### What is charged when you change the card
 
-Replacing the card makes one charge attempt on the new card for each installment that is billed and not yet paid, except in the cases the three rules below describe. ChaChing reports each charge like an automatic installment payment: `invoice.payment_succeeded` and `payment_plan.installment_paid`, and the receipt email to the customer, when it is approved; `invoice.payment_failed` and `payment_plan.installment_failed`, and the failed-payment email to the customer, when it is declined. A declined charge is not retried automatically and the installment stays open. Collect it with a payment on the plan, on the hosted invoice page, or by giving the plan another card. A retry that was scheduled on the previous card does not run. The installments that are not billed yet are charged on the new card when they are billed.
+Replacing the card makes ChaChing try to charge the new card once for each installment that is billed and not yet paid. It makes no attempt in the cases the rules below describe. ChaChing reports each charge like an automatic installment payment: `invoice.payment_succeeded` and `payment_plan.installment_paid`, and the receipt email to the customer, when it is approved; `invoice.payment_failed` and `payment_plan.installment_failed`, and the failed-payment email to the customer, when it is declined. A declined charge is not retried automatically and the installment stays open. Collect it with a payment on the plan, on the hosted invoice page, or by giving the plan another card. A retry that was scheduled on the previous card does not run. The installments that are not billed yet are charged on the new card when they are billed.
 
-Three rules limit these charges:
+These rules limit the charges:
 
 - An installment whose invoice already has a payment in progress gets no attempt from the change. The result of that payment settles it.
 - If the plan's card is changed again while the charges are being made, the remaining installments are not charged on the replaced card.
 - An installment is attempted once per card by these changes. When an earlier card change already made a failed attempt with a card, choosing that same card again makes no new attempt. Charge it with `POST /payment-plans/{id}/payments`.
+- An installment whose invoice is not open with a balance to collect gets no attempt.
+- When the checks ChaChing makes before a charge cannot be completed or do not allow it at that moment, no attempt is made and the installment stays open. Collect it with `POST /payment-plans/{id}/payments`.
 
-The charge attempts are made before the request answers `200`; their results are recorded and announced when the billing engine reports them, which can be after the request answers. Read them from the events, from `GET /payment-plans/{id}/installments` and from `GET /invoices/{id}`. Removing the card charges nothing.
+Any charge attempt is made before the request answers `200`, and the request answers `200` whether or not an attempt was made; the results are recorded and announced when the billing engine reports them, which can be after the request answers. Read them from the events, from `GET /payment-plans/{id}/installments` and from `GET /invoices/{id}`. Removing the card charges nothing.
 
 A payment of a plan's installment invoice made directly in the billing engine, on a card that is not the plan's card, is refused: it is never moved to another card.
 
