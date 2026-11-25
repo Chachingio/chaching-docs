@@ -80,7 +80,7 @@ The PDF file name keeps letters, digits, `_` and `-` of the invoice number.
 
 To charge an open invoice later, use `PUT /invoices/{id}`. It answers an `invoice_payment` object with the amount in cents and its `transactions`. A `502` with `error: PAYMENT_OUTCOME_UNCONFIRMED` means the charge may have succeeded. Check the invoice before you try again, or you can charge the customer twice.
 
-`PUT /invoices/{id}` outcomes: `402` the charge was declined; `409` `INVOICE_ALREADY_PAID`, `PAYMENT_NOT_ATTEMPTED` (the customer has no payment method, or the payment was not attempted), `PAYMENT_BLOCKED_PENDING_CONFIRMATION` (an earlier payment is still being confirmed), `PAYMENT_PLAN_INVOICE_NOT_PAYABLE` (a guarded payment plan invoice). `DELETE /invoices/{id}`: `409` `INVOICE_ALREADY_VOID`, `INVOICE_PAID_NOT_VOIDABLE`.
+`PUT /invoices/{id}` outcomes: `402` the charge was declined; `409` `INVOICE_ALREADY_PAID`, `PAYMENT_NOT_ATTEMPTED` (the customer has no payment method, or the payment was not attempted), `PAYMENT_BLOCKED_PENDING_CONFIRMATION` (an earlier payment is still being confirmed), `PAYMENT_PLAN_INVOICE_NOT_PAYABLE` (a guarded payment plan invoice), `PAYMENT_PLAN_PAYMENT_METHOD_REQUIRED` (an installment invoice of a payment plan without a card: pay it on the hosted invoice page, or record the payment on the payment plan). `DELETE /invoices/{id}`: `409` `INVOICE_ALREADY_VOID`, `INVOICE_PAID_NOT_VOIDABLE`.
 
 The invoice's `collection_method` is the one you created it with. An invoice created with `send_invoice` before this value was recorded reads `charge_automatically`.
 

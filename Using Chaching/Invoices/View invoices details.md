@@ -8,7 +8,7 @@ When you click **View Details** from the Invoices table, you are redirected to t
 | --- | --- |
 | **Invoice #** | The unique invoice number for this billing record (e.g., *Invoice #11927*). |
 | **Status** | Current invoice status (e.g., *open*, *paid*, *void*, *draft*). |
-| **Charge customer** | Button that triggers an immediate payment attempt using the customer’s default payment method. For an invoice of a payment plan installment, the payment plan’s card is charged instead; a plan without a card asks you to choose a payment method. |
+| **Charge customer** | Button that opens the **Charge Customer** form below. The payment method you select in the form is charged immediately; the form opens with the customer’s default payment method selected when the customer has one. For an invoice of a payment plan installment, the selected payment method is charged too, which can be a card other than the payment plan’s card. |
 
 ---
 ## Charge Customer

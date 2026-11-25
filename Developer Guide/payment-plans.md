@@ -190,15 +190,15 @@ Returns the Payment Plan object.
 
 ### What is charged when you change the card
 
-Replacing the card charges each installment that is billed and not yet paid once on the new card. ChaChing reports each charge like an automatic installment payment: `invoice.payment_succeeded` and `payment_plan.installment_paid`, and the receipt email to the customer, when it is approved; `invoice.payment_failed` and `payment_plan.installment_failed`, and the failed-payment email to the customer, when it is declined. A declined charge is not retried automatically and the installment stays open. Collect it with a payment on the plan, on the hosted invoice page, or by giving the plan another card. A retry that was scheduled on the previous card does not run. The installments that are not billed yet are charged on the new card when they are billed.
+Replacing the card makes one charge attempt on the new card for each installment that is billed and not yet paid, except in the cases the three rules below describe. ChaChing reports each charge like an automatic installment payment: `invoice.payment_succeeded` and `payment_plan.installment_paid`, and the receipt email to the customer, when it is approved; `invoice.payment_failed` and `payment_plan.installment_failed`, and the failed-payment email to the customer, when it is declined. A declined charge is not retried automatically and the installment stays open. Collect it with a payment on the plan, on the hosted invoice page, or by giving the plan another card. A retry that was scheduled on the previous card does not run. The installments that are not billed yet are charged on the new card when they are billed.
 
 Three rules limit these charges:
 
-- An installment that already has a payment in progress is not charged again by the change. The result of that payment settles it.
+- An installment whose invoice already has a payment in progress gets no attempt from the change. The result of that payment settles it.
 - If the plan's card is changed again while the charges are being made, the remaining installments are not charged on the replaced card.
-- An installment is attempted once per card. After a failed attempt on a card, choosing that same card again does not retry it. Charge it with `POST /payment-plans/{id}/payments`.
+- An installment is attempted once per card by these changes. When an earlier card change already made a failed attempt with a card, choosing that same card again makes no new attempt. Charge it with `POST /payment-plans/{id}/payments`.
 
-The request answers `200` before those charges finish. Read their results from the events, from `GET /payment-plans/{id}/installments` and from `GET /invoices/{id}`. Removing the card charges nothing.
+The charge attempts are made before the request answers `200`; their results are recorded and announced when the billing engine reports them, which can be after the request answers. Read them from the events, from `GET /payment-plans/{id}/installments` and from `GET /invoices/{id}`. Removing the card charges nothing.
 
 A payment of a plan's installment invoice made directly in the billing engine, on a card that is not the plan's card, is refused: it is never moved to another card.
 
@@ -264,7 +264,7 @@ When the customer pays the deposit of a plan in `awaiting_deposit` outside ChaCh
 
 **Without `payment_method`:**
 
-- The plan is activated without a card, and its `payment_method` reads `null`, whether or not the customer has a default payment method. Each remaining installment is invoiced on its due date and nothing is charged automatically. A card that later becomes the customer's default payment method does not change that: the plan stays without a card until you give it one with `PATCH /payment-plans/{id}`. Collect each installment with `POST /payment-plans/{id}/payments` (`external: true` for money you collected, or a terminal payment), on the hosted invoice page, or with `PUT /invoices/{id}`. An installment left unpaid moves the plan to `past_due` and `defaulted` on the schedule of your revenue recovery settings, and ChaChing sends no failed-payment notice for an automatic charge that was never attempted.
+- The plan is activated without a card, and its `payment_method` reads `null`, whether or not the customer has a default payment method. Each remaining installment is invoiced on its due date and nothing is charged automatically. A card that later becomes the customer's default payment method does not change that: the plan stays without a card until you give it one with `PATCH /payment-plans/{id}`. Collect each installment with `POST /payment-plans/{id}/payments` (`external: true` for money you collected, or a terminal payment), or on the hosted invoice page. `PUT /invoices/{id}` does not collect it: for an installment invoice of a plan without a card it answers `409` `PAYMENT_PLAN_PAYMENT_METHOD_REQUIRED`. An installment left unpaid moves the plan to `past_due` and `defaulted` on the schedule of your revenue recovery settings, and ChaChing sends no failed-payment notice for an automatic charge that was never attempted.
 
 **Before you record it:**
 
