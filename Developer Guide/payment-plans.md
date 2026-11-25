@@ -442,8 +442,8 @@ Any payment that collected money can be refunded, an automatic installment charg
 
 | **Field** | **Rules** |
 | --- | --- |
-| `amount` | No. Integer cents of the plan amount to refund, at least `1` and at most what is left to refund on the payment. Default: everything left to refund. |
-| `reason` | No. Your note, 1 to 500 characters with no control characters. |
+| `amount` | No. Integer cents of the plan amount to refund, at least `1`, below `100000000` and at most what is left to refund on the payment. Default: everything left to refund. |
+| `reason` | No. Your note, 1 to 500 characters with no control, line-separator, bidirectional or zero-width characters. |
 | `forgive` | No. `true` returns the money and leaves nothing owed. Default `false`: the refunded amount is owed again. |
 
 Void or refund: ChaChing sends a refund and your processor decides. On a Dejavoo account a payment not settled yet is voided, a settled payment is refunded; `kind` reads `void` or `refund`.
@@ -454,13 +454,15 @@ ChaChing has tested refunds on Dejavoo (iPOSpays) accounts. On another gateway t
 
 What is owed after a refund: the refunded amount is owed again. A refunded installment reads `refunded` with `amount_due`; a refunded down payment or deposit, the refunded principal part of a payment (an extra payment, or the unbilled part of a payoff), and a refund of a payment that paid only part of an installment not yet paid in full, are owed on the plan in the plan's `amount_due`; the part of a payment that paid an installment that is paid in full when you refund is owed on that installment. Nothing is charged automatically, no date changes, the plan keeps its status, and no reminder or late fee follows. Collect it with `POST /payment-plans/{id}/payments`, on a card of the customer or on a terminal: refunded amounts are paid first. A plan is not `paid_off` while a refunded amount is owed; a plan that was already `paid_off` stays `paid_off`.
 
-Forgive: send `forgive: true` to return the money without leaving anything owed. To forgive what is still owed from an earlier refund, call `POST /payment-plans/{id}/payments/{payment_id}/refunds/{refund_id}/forgive`. Forgiving cannot be undone. A refund that is still being confirmed cannot be forgiven yet: the call answers `409` `PAYMENT_PLAN_REFUND_PENDING` until the refund is final; retry shortly.
+Forgive: send `forgive: true` to return the money without leaving anything owed. To forgive what is still owed from an earlier refund, call `POST /payment-plans/{id}/payments/{payment_id}/refunds/{refund_id}/forgive`. Forgiving cannot be undone. A refund that is still being confirmed cannot be forgiven yet: the call answers `409` `PAYMENT_PLAN_REFUND_PENDING` until the refund is final; retry shortly. Confirming a refund with the processor usually takes up to 24 hours.
 
 Refunds made in your iPOSpays account: when the account's FEED notifications reach ChaChing (see [The Dejavoo FEED Webhook URL](./processor-credentials.md#the-dejavoo-feed-webhook-url)), ChaChing applies them the same way and sends `payment_plan.payment_refunded` with `source` `processor`; without FEED, ChaChing does not see them. Make refunds through ChaChing: a refund made in iPOSpays cannot carry `forgive`.
 
 Charge on the wrong card: refund the payment, then collect the owed amount on a terminal with `save_payment_method: true`. On a plan that is `active`, `past_due` or `defaulted`, the card tapped becomes the plan's card, unless that payment pays the plan off; a `paid_off` or `canceled` plan keeps its card.
 
 Chargebacks are not reported.
+
+If a refund was created but its result could not be read, the request answers `500` with the message `The refund was created but its result could not be read. Find it in the payment's refunds: <refund id>`; read the payment to find that refund before retrying.
 
 Through a platform key, a deactivated account cannot refund or forgive: both answer `409 ACCOUNT_DEACTIVATED`, like every other change outside the operations a deactivated account accepts. A refund made in your iPOSpays account is still applied to the plan when the account's FEED notifications reach ChaChing.
 
@@ -471,14 +473,14 @@ Through a platform key, a deactivated account cannot refund or forgive: both ans
 | `400` | `PAYMENT_PLAN_REFUND_AMOUNT_INVALID` | `amount` is not an integer of at least `1`. | Send the amount in integer cents. |
 | `400` | `PAYMENT_PLAN_REFUND_AMOUNT_EXCEEDS_REFUNDABLE` | `amount` is larger than what is left to refund on the payment. Nothing was refunded. | Send at most the payment's `amount` minus its `amount_refunded`. |
 | `400` | none | The body carries another field, `reason` is not 1 to 500 characters with no control characters, or `forgive` is not a boolean. The body has no `error` field; `message` describes the problem. | Fix the body. |
-| `402` | `PAYMENT_PLAN_REFUND_DECLINED` | The processor declined or refused the refund, or ChaChing could not authenticate with iPOSpays to send a terminal refund; `message` carries the processor's text when it gave one. Nothing was refunded. | Check the sale and the API credentials in your processor's account (iPOSpays on a Dejavoo account), then retry with a new `Idempotency-Key`. |
+| `402` | `PAYMENT_PLAN_REFUND_DECLINED` | The processor declined or refused the refund, or ChaChing could not send the refund to the processor, for example when it could not authenticate with iPOSpays for a terminal refund; `message` reads "The refund was not completed." and the refund's `failure_code` and `failure_message` give the reason. Nothing was refunded. | Check the sale and the API credentials in your processor's account (iPOSpays on a Dejavoo account), then retry with a new `Idempotency-Key`. |
 | `403` | `PAYMENT_PLANS_NOT_ENABLED` | Payment Plans are not enabled for this account. | Contact Chaching to enable them. |
 | `403` | `API_KEY_SCOPE_INSUFFICIENT` | The key's scopes include neither `*` nor the scope of the operation. | Create a key with the scope the message names. |
 | `404` | `PAYMENT_PLAN_NOT_FOUND` | The plan id does not resolve for this account. | Check the id. |
 | `404` | `PAYMENT_PLAN_PAYMENT_NOT_FOUND` | The payment id does not resolve to a payment of this plan. | Check the id. |
 | `409` | `ACCOUNT_DEACTIVATED` | The request uses a platform key and the account is deactivated. Nothing was refunded or forgiven. | Reactivate the account first. A refund made in your iPOSpays account is still applied to the plan when the account's FEED notifications reach ChaChing. |
 | `409` | `PAYMENT_PLAN_PAYMENT_NOT_REFUNDABLE` | The payment collected nothing for the plan or is still being recorded, it was collected outside ChaChing, nothing is left to refund on it, or its invoice no longer carries the amount to refund; `message` names which. Nothing was refunded. | Refund money collected outside ChaChing where it was collected. |
-| `409` | `PAYMENT_PLAN_REFUND_PENDING` | An earlier refund of this payment is still being confirmed. | Retry shortly. |
+| `409` | `PAYMENT_PLAN_REFUND_PENDING` | An earlier refund of this payment is still being confirmed. | Retry shortly. Confirming a refund with the processor usually takes up to 24 hours. |
 | `409` | `PAYMENT_PLAN_REFUND_SURCHARGE_UNCONFIRMED` | The surcharge of the charge could not be established, so ChaChing cannot refund it. Nothing was refunded. | Refund it in your iPOSpays account; with FEED notifications on, ChaChing applies that refund to the plan. |
 | `409` | `PAYMENT_PLAN_BUSY` | Another payment, a refund or a cancellation on this plan is in progress. | Retry shortly. |
 | `409` | `IDEMPOTENCY_KEY_IN_PROGRESS` | A request with this Idempotency-Key is still being processed. | Wait for it to finish, then repeat the request with the same key. |
@@ -510,7 +512,7 @@ Returns the Refund object with `forgiven: true`, with the updated Payment object
 | `404` | `PAYMENT_PLAN_REFUND_NOT_FOUND` | The refund id does not resolve to a refund of this payment. | Check the id. |
 | `409` | `ACCOUNT_DEACTIVATED` | The request uses a platform key and the account is deactivated. Nothing was refunded or forgiven. | Reactivate the account first. A refund made in your iPOSpays account is still applied to the plan when the account's FEED notifications reach ChaChing. |
 | `409` | `PAYMENT_PLAN_BUSY` | Another payment, a refund or a cancellation on this plan is in progress. | Retry shortly. |
-| `409` | `PAYMENT_PLAN_REFUND_PENDING` | This refund is still being confirmed. | Retry shortly. |
+| `409` | `PAYMENT_PLAN_REFUND_PENDING` | This refund is still being confirmed. | Retry shortly. Confirming a refund with the processor usually takes up to 24 hours. |
 | `409` | `PAYMENT_PLAN_PAYMENT_PENDING_CONFIRMATION` | A payment that collects what is still owed from this refund is still being confirmed. | Retry once that payment reads its final status. |
 | `409` | `PAYMENT_PLAN_REFUND_NOT_FORGIVABLE` | Nothing of this refund is still owed. | Nothing to do. |
 | `409` | `IDEMPOTENCY_KEY_IN_PROGRESS` | A request with this Idempotency-Key is still being processed. | Wait for it to finish, then repeat the request with the same key. |
@@ -652,7 +654,7 @@ Errors use the standard body `{ "statusCode", "message", "error", "timestamp", "
 | `400` | `PAYMENT_PLAN_REFUND_AMOUNT_EXCEEDS_REFUNDABLE` | `amount` is larger than what is left to refund on the payment. Nothing was refunded. |
 | `402` | `PAYMENT_PLAN_DOWN_PAYMENT_DECLINED` | The down payment was declined. No plan was created. |
 | `402` | `PAYMENT_DECLINED` | The first charge of a payment was declined. Nothing was applied. |
-| `402` | `PAYMENT_PLAN_REFUND_DECLINED` | The processor declined or refused the refund, or ChaChing could not authenticate with iPOSpays to send a terminal refund; `message` carries the processor's text when it gave one. Nothing was refunded. |
+| `402` | `PAYMENT_PLAN_REFUND_DECLINED` | The processor declined or refused the refund, or ChaChing could not send the refund to the processor, for example when it could not authenticate with iPOSpays for a terminal refund; `message` reads "The refund was not completed." and the refund's `failure_code` and `failure_message` give the reason. Nothing was refunded. |
 | `403` | `PAYMENT_PLANS_NOT_ENABLED` | Payment Plans are not enabled for this account. |
 | `403` | `SECRET_API_KEY_REQUIRED` | Any endpoint was called with a publishable (`pk_...`) API key. |
 | `404` | `PAYMENT_PLAN_NOT_FOUND` | The plan id does not resolve for this account. |
@@ -708,7 +710,7 @@ Errors use the standard body `{ "statusCode", "message", "error", "timestamp", "
 | `409` | `PAYMENT_PLAN_PAYMENT_NOT_REFUNDABLE` | The payment collected nothing for the plan or is still being recorded, it was collected outside ChaChing, nothing is left to refund on it, or its invoice no longer carries the amount to refund; `message` names which. Nothing was refunded. |
 | `409` | `PAYMENT_PLAN_REFUND_SURCHARGE_UNCONFIRMED` | The surcharge of the charge could not be established, so ChaChing cannot refund it. Nothing was refunded. |
 | `409` | `PAYMENT_PLAN_REFUND_NOT_FORGIVABLE` | Nothing of this refund is still owed. |
-| `409` | `PAYMENT_PLAN_REFUND_PENDING` | On a refund, an earlier refund of the payment is still being confirmed; on a forgive, the refund itself is. Retry shortly. |
+| `409` | `PAYMENT_PLAN_REFUND_PENDING` | On a refund, an earlier refund of the payment is still being confirmed; on a forgive, the refund itself is. Retry shortly. Confirming a refund with the processor usually takes up to 24 hours. |
 | `422` | `IDEMPOTENCY_KEY_REUSED` | The `Idempotency-Key` was already used with a different request. |
 | `422` | `SPIN_CREDENTIALS_REJECTED` | SPIn did not accept the terminal's TPN and Auth Key. |
 | `422` | `DEJAVOO_TERMINAL_ISV_ID_INVALID` | The terminal's `isv_id` is not 1 to 16 characters, as SPIn requires. Update it with `PATCH /dejavoo/terminals/{id}`. |
