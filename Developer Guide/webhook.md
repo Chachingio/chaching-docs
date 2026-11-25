@@ -1799,6 +1799,8 @@ The `terminal` object the event emits carries all 17 keys of the terminal object
     "due_date": 1763078400,
     "amount": 20000,
     "amount_paid": 0,
+    "amount_refunded": 0,
+    "amount_due": 0,
     "surcharge_amount": 0,
     "amount_charged": 0,
     "surcharge_status": "final",
@@ -1815,6 +1817,7 @@ The `terminal` object the event emits carries all 17 keys of the terminal object
     },
     "invoice": "c1f0d9aa-2b44-4d19-9d02-77b2aa4e1c30",
     "hosted_invoice_url": "https://acme.pay.example.com/checkout/c1f0d9aa-2b44-4d19-9d02-77b2aa4e1c30",
+    "payments": [],
     "payment_plan_summary": {
       "installment_count": 9,
       "currency": "USD",
@@ -1836,7 +1839,7 @@ The values shown are illustrative.
 
 ```json
 {
-  "id": "evt_3646c8c63a087e5b5770b2f2",
+  "id": "evt_a1a08d4744cc5d6872447685",
   "account": {
     "id": "acc_3c1f0a9e2b7d4c58a1e6f204",
     "external_id": null,
@@ -1845,8 +1848,8 @@ The values shown are illustrative.
       "external_id": null
     }
   },
-  "created": 1781395651,
-  "createdAt": "2026-06-14T00:07:31.000Z",
+  "created": 1795640232,
+  "createdAt": "2026-11-25T20:57:12.716Z",
   "data": {
     "id": "pp_5c1bb9d8d74f27c18e4a3629",
     "object": "payment_plan",
@@ -1856,23 +1859,25 @@ The values shown are illustrative.
     "description": "Orthodontic treatment, upper and lower braces",
     "status": "paid_off",
     "currency": "USD",
-    "total_amount": 210000,
-    "down_payment_amount": 30000,
-    "installment_amount": 20000,
-    "installment_count": 9,
+    "total_amount": 200,
+    "down_payment_amount": 0,
+    "installment_amount": 100,
+    "installment_count": 2,
     "interval": "monthly",
-    "start_date": 1760400000,
+    "start_date": 1796169600,
     "remainder_placement": "first",
     "remaining_balance": 0,
-    "installments_paid": 9,
+    "amount_refunded": 0,
+    "amount_due": 0,
+    "installments_paid": 0,
     "installments_remaining": 0,
     "next_due_date": null,
     "payment_method": "9f3a1c2e-7b45-4d18-a6c0-2f8e5b7d1a94",
     "gateway": "dejavoo",
     "reference": null,
     "deposit": null,
-    "created": 1757894400,
-    "ended_at": 1781395651,
+    "created": 1795640217,
+    "ended_at": 1795640230,
     "canceled_at": null
   },
   "event": "payment_plan.completed"
@@ -1883,7 +1888,7 @@ The values shown are illustrative.
 
 ```json
 {
-  "id": "evt_fb2db40ae8a86ce10424edfe",
+  "id": "evt_bbdc05ade2eb7037c4f31501",
   "account": {
     "id": "acc_3c1f0a9e2b7d4c58a1e6f204",
     "external_id": null,
@@ -1892,65 +1897,59 @@ The values shown are illustrative.
       "external_id": null
     }
   },
-  "created": 1763483200,
-  "createdAt": "2025-11-18T16:26:40.000Z",
+  "created": 1795639763,
+  "createdAt": "2026-11-25T20:49:23.991Z",
   "data": {
-    "id": "ppp_a6766968bdcb187da402e727",
+    "id": "ppp_Nm1WlzYgKe4IkbpH5qpvKyYw",
     "object": "payment_plan_payment",
     "payment_plan": "pp_5c1bb9d8d74f27c18e4a3629",
     "payment_plan_external_id": "PLAN-2026-0117",
     "customer": "cus_739c07713fd4b68565a969cd",
     "customer_external_id": "PAT-799601",
     "status": "applied",
-    "amount": 50000,
-    "surcharge_amount": 0,
-    "amount_charged": 50000,
+    "origin": "payment",
+    "failure_code": null,
+    "failure_message": null,
+    "amount": 100,
+    "surcharge_amount": 3,
+    "amount_charged": 103,
+    "amount_refunded": 0,
     "surcharge_status": "final",
     "external": false,
     "payment_method": "9f3a1c2e-7b45-4d18-a6c0-2f8e5b7d1a94",
     "card": {
-      "brand": "visa",
-      "last4": "4242"
+      "brand": "mastercard",
+      "last4": "0055"
     },
-    "invoice": "d5b9e2c1-8a41-4f36-9c17-3ad0b1e5f882",
-    "hosted_invoice_url": "https://acme.pay.example.com/checkout/d5b9e2c1-8a41-4f36-9c17-3ad0b1e5f882",
+    "invoice": "c743d072-2a1f-4dd2-bba9-0ef56af0caa8",
+    "hosted_invoice_url": "https://acme.pay.example.com/checkout/c743d072-2a1f-4dd2-bba9-0ef56af0caa8",
     "payoff": false,
-    "created": 1763483200,
+    "created": 1795639752,
     "payment_plan_status": "active",
-    "remaining_balance": 130000,
-    "installments_remaining": 7,
+    "remaining_balance": 900,
+    "installments_remaining": 9,
     "allocations": [
-      {
-        "installment": "ppi_9d078490b235b24e80eb92cc",
-        "sequence": 2,
-        "kind": "installment",
-        "amount": 20000,
-        "surcharge_amount": 0,
-        "amount_charged": 20000,
-        "surcharge_status": "final",
-        "invoice": "c1f0d9aa-2b44-4d19-9d02-77b2aa4e1c30",
-        "hosted_invoice_url": "https://acme.pay.example.com/checkout/c1f0d9aa-2b44-4d19-9d02-77b2aa4e1c30"
-      },
       {
         "installment": null,
         "sequence": null,
         "kind": "principal",
-        "amount": 30000,
-        "surcharge_amount": 0,
-        "amount_charged": 30000,
+        "amount": 100,
+        "surcharge_amount": 3,
+        "amount_charged": 103,
         "surcharge_status": "final",
-        "invoice": "d5b9e2c1-8a41-4f36-9c17-3ad0b1e5f882",
-        "hosted_invoice_url": "https://acme.pay.example.com/checkout/d5b9e2c1-8a41-4f36-9c17-3ad0b1e5f882"
+        "invoice": "c743d072-2a1f-4dd2-bba9-0ef56af0caa8",
+        "hosted_invoice_url": "https://acme.pay.example.com/checkout/c743d072-2a1f-4dd2-bba9-0ef56af0caa8"
       }
     ],
+    "refunds": [],
     "payment_plan_summary": {
-      "installment_count": 9,
+      "installment_count": 10,
       "currency": "USD",
       "description": "Orthodontic treatment, upper and lower braces",
-      "remaining_balance": 130000,
-      "installments_paid": 2,
-      "installments_remaining": 7,
-      "next_due_date": 1765670400,
+      "remaining_balance": 900,
+      "installments_paid": 0,
+      "installments_remaining": 9,
+      "next_due_date": 1796169600,
       "status": "active"
     },
     "terminal": null
@@ -1963,7 +1962,7 @@ The values shown are illustrative.
 
 ```json
 {
-  "id": "evt_5d794910f569fb1f1381168f",
+  "id": "evt_8651502d222c5a5569c0cc9f",
   "account": {
     "id": "acc_e9463ef9acce7c2561f97c4a",
     "external_id": null,
@@ -1972,45 +1971,38 @@ The values shown are illustrative.
       "external_id": null
     }
   },
-  "created": 1795153792,
-  "createdAt": "2026-11-20T05:49:52.376Z",
+  "created": 1795643588,
+  "createdAt": "2026-11-25T21:53:08.875Z",
   "data": {
-    "id": "pp_c3ee2db5191dbe780427f5de",
+    "id": "pp_sZoJQteM01TAGaOSFN1z35re",
     "object": "payment_plan",
     "external_id": null,
-    "customer": "cus_23165ff03b9b332bf4aa8eac",
+    "customer": "cus_0377afcde4bc99362f542b4a",
     "customer_external_id": null,
     "description": "Orthodontic treatment, upper and lower braces",
     "status": "active",
     "currency": "USD",
-    "total_amount": 770,
-    "down_payment_amount": 110,
+    "total_amount": 660,
+    "down_payment_amount": 0,
     "installment_amount": 110,
     "installment_count": 6,
     "interval": "monthly",
-    "start_date": 1795305600,
+    "start_date": 1796169600,
     "remainder_placement": "first",
-    "remaining_balance": 440,
-    "installments_paid": 2,
-    "installments_remaining": 4,
-    "next_due_date": 1800576000,
-    "payment_method": "46e728e2-8c85-4f50-bba0-c56b87ed5fe3",
+    "remaining_balance": 660,
+    "amount_refunded": 0,
+    "amount_due": 0,
+    "installments_paid": 0,
+    "installments_remaining": 6,
+    "next_due_date": 1796169600,
+    "payment_method": "628423f5-980e-45f0-97e0-f11b4f732d38",
     "gateway": "dejavoo",
-    "reference": "K6VBICGA",
-    "deposit": {
-      "reference": "K6VBICGA",
-      "kind": "down_payment",
-      "amount": 110,
-      "status": "collected",
-      "transaction_reference": null,
-      "collected_at": 1795152669,
-      "attempt": null,
-      "external": true
-    },
-    "created": 1795152663,
+    "reference": null,
+    "deposit": null,
+    "created": 1795643587,
     "ended_at": null,
     "canceled_at": null,
-    "previous_payment_method": "b68f2234-934f-44a8-917d-5a9e6d80b317"
+    "previous_payment_method": "f748483c-0fce-4f74-aa7f-ece3a2fe4f9f"
   },
   "event": "payment_plan.payment_method_updated"
 }
