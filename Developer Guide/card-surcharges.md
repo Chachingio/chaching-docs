@@ -21,14 +21,14 @@ Two fields report the surcharge, always present and in integer cents, on the Tra
 | **Field** | **Meaning** |
 | --- | --- |
 | `surcharge_amount` | The credit card surcharge added to the charge, or to the successful payments of an invoice. `0` when none was added, which is always the case for a debit card charge. |
-| `amount_charged` | The total charged to the card. It equals `amount` on a transaction and `amount_paid` on an invoice when nothing was added. |
+| `amount_charged` | The total charged to the card. It equals `amount` on a transaction and `amount_paid` on an invoice when nothing was added and nothing was refunded. |
 
-For example, a $25.00 credit card charge that carried a 75 cent surcharge reads `amount: 2500`, `surcharge_amount: 75`, `amount_charged: 2575` on the Transaction object, and the invoice it paid reads `amount_paid: 2500`, `surcharge_amount: 75`, `amount_charged: 2575`.
+For example, a $25.00 credit card charge that carried a 75 cent surcharge reads `amount: 2500`, `surcharge_amount: 75`, `amount_charged: 2575` on the Transaction object, and the invoice it paid reads `amount_paid: 2500`, `surcharge_amount: 75`, `amount_charged: 2575`. A refund lowers the invoice's `amount_paid` by the refunded amount.
 
 - `amount_charged` can exceed the amount plus `surcharge_amount` when the gateway adds another S.T.E.A.M amount for your account. That difference is included in `amount_charged` and is not itemised.
 - A payment that did not succeed never shows a surcharge.
-- `invoice.payment_succeeded` for a payment made through ChaChing describes the invoice after that payment, so its `amount_paid`, `surcharge_amount` and `amount_charged` include it.
-- ChaChing does not refund a surcharge.
+- `invoice.payment_succeeded` for a payment made through ChaChing describes the invoice after that payment, so its `amount_paid`, `surcharge_amount` and `amount_charged` include it. A refund of a payment lowers `amount_paid`.
+- A refund of a payment plan charge returns the surcharge in proportion to the refunded amount; see [Refund a Payment](./payment-plans.md#refund-a-payment).
 
 ---
 
@@ -56,7 +56,7 @@ These notices do not state your rate: ChaChing cannot read the fee configured in
 
 - The payment page of a paid invoice shows **Credit card surcharge** and **Total charged** under **Amount paid** when the payments carried a surcharge.
 - The payment page of an open invoice that was partly paid shows **Credit card surcharge** and **Total charged** under **Total** when those payments carried a surcharge.
-- The invoice email and the invoice PDF show **Credit card surcharge** and **Total charged** under **Amount paid** when the invoice's payments carried a surcharge. On an invoice that is still open, **Amount paid** is then the amount already paid, and **Amount remaining** in the email and **Amount due** in the PDF are what is left to pay.
+- The invoice email and the invoice PDF show **Credit card surcharge** and **Total charged** under **Amount paid** when the invoice's payments carried a surcharge. On an invoice that is still open, **Amount paid** is then the amount already paid, and **Amount remaining** in the email and **Amount due** in the PDF are what is left to pay. After a refund, **Amount paid** is net of the refund and **Total charged** still shows the original charge.
 - The hosted checkout's confirmation shows **Total charged** when the total charged differs from the amount, and **Credit card surcharge** when a surcharge above zero was added. A payment that carried nothing extra shows neither line.
 - When an automatic charge fails, the failed-payment email says: `If the card is a credit card, <your account name> can add a credit card surcharge to this amount. Debit cards are not surcharged.`
 
@@ -64,7 +64,7 @@ These notices do not state your rate: ChaChing cannot read the fee configured in
 
 ## In the dashboard
 
-The transactions list, the transaction details, the column picker of the transactions export and the invoice details show the surcharge and the total charged for a charge that carried one, under the label **Credit card surcharge**; in the exported file the columns are `surcharge` and `amountCharged`. The **Pricing** table of the invoice details and the downloaded invoice show **Credit card surcharge** and **Total charged** under **Total** when the invoice's payments carried a surcharge. The dashboard's Total revenue and a customer's total spend include the surcharge of the card charges ChaChing sends to iPOSpays; the surcharge of a payment taken on your terminal is not included in them yet.
+The transactions list, the transaction details, the column picker of the transactions export and the invoice details show the surcharge and the total charged for a charge that carried one, under the label **Credit card surcharge**; in the exported file the columns are `surcharge` and `amountCharged`. The **Pricing** table of the invoice details and the downloaded invoice show **Credit card surcharge** and **Total charged** under **Total** when the invoice's payments carried a surcharge. The dashboard's Total revenue and a customer's total spend include the surcharge of the card charges ChaChing sends to iPOSpays; the surcharge of a payment taken on your terminal is not included in them yet. A refund lowers both by the refunded amount and, for a card charge ChaChing sent to iPOSpays, the surcharge returned with it.
 
 ---
 

@@ -63,11 +63,11 @@ From `payment_plan.payment_succeeded`:
 
 `amount_charged` can exceed `amount` plus `surcharge_amount`; the difference is not itemized.
 
-Send one receipt for each `payment_plan.payment_succeeded`: its `allocations` list every installment and principal amount the payment paid, each with its own `hosted_invoice_url`. Send one receipt for each `payment_plan.installment_paid` whose installment `id` is not listed in the `allocations` of a `payment_plan.payment_succeeded` of the same plan. ChaChing sends the `payment_plan.installment_paid` events of a payment before its `payment_plan.payment_succeeded`.
+Send one receipt for each `payment_plan.payment_succeeded`: its `allocations` list every installment, principal and refunded amount the payment paid, each with its own `hosted_invoice_url`. Send one receipt for each `payment_plan.installment_paid` whose installment `id` is not listed in the `allocations` of a `payment_plan.payment_succeeded` of the same plan. For a payment recorded with `POST /payment-plans/{id}/payments`, ChaChing sends its `payment_plan.installment_paid` events before its `payment_plan.payment_succeeded`; for every other payment (an automatic charge, a down payment, a terminal deposit, an invoice payment, a charge of a new card) the two can be sent in either order.
 
 Deliveries can arrive out of order after retries, so an `installment_paid` can reach you before the `payment_succeeded` that lists it. Choose one rule for the whole integration:
 
-- **One receipt per payment.** Send the receipt on `payment_plan.payment_succeeded`, and do not send a separate receipt for an `installment_paid` whose installment is listed in that payment's `allocations`. Before you treat an `installment_paid` as standalone, wait for a `payment_succeeded` of the same plan that lists it. Wait up to 70 minutes plus the retry window (about 2 hours in total), or until `payment_plan.payment_succeeded` arrives. Send the standalone receipt when none arrives.
+- **One receipt per payment.** Send the receipt on `payment_plan.payment_succeeded`, and do not send a separate receipt for an `installment_paid` whose installment is listed in that payment's `allocations`. Before you treat an `installment_paid` as standalone, check whether a `payment_succeeded` of the same plan that lists it has already arrived, and otherwise wait for one. Wait up to 70 minutes plus the retry window (about 2 hours in total), or until `payment_plan.payment_succeeded` arrives. Send the standalone receipt when none arrives.
 - **One receipt per installment.** Send one receipt for each `payment_plan.installment_paid` and ignore `payment_plan.payment_succeeded` for receipts.
 
 The card networks set what a receipt for an installment must carry. The receipt ChaChing sends meets these obligations, and a receipt you send in its place has to meet them too, as set out in the Visa Core Rules and Visa Product and Service Rules (Table 5-33 and Table 5-34 on receipt content, and the electronic receipt rules of section 5.9.1.2) and in Visa Business News AI09536:
@@ -86,7 +86,7 @@ The card networks set what a receipt for an installment must carry. The receipt 
 
 ## Failed Installment Notice
 
-`payment_plan.installment_failed` is sent for each declined automatic attempt, retries included. Fill the notice from the Installment object:
+`payment_plan.installment_failed` is sent for each declined automatic attempt, retries included. Each declined attempt also sends `payment_plan.payment_failed` with the Payment object (`status` `declined`, `failure_code`, `failure_message`), which carries no installment number, pay link or retry date: fill the notice from `payment_plan.installment_failed` and send one notice per attempt. A `payment_plan.payment_failed` whose `status` is `not_attempted` reports an attempt your processor was never reached for, or a terminal sale that collected nothing for the plan without a decline: it is not a decline, and ChaChing sends the customer no failed-payment notice for it. Fill the notice from the Installment object:
 
 | Notice line | Field |
 | --- | --- |
@@ -115,7 +115,7 @@ Card network rules give the customer at least 7 calendar days from the first dec
 
 ## Plan Paid in Full
 
-`payment_plan.completed` carries the Payment Plan object with `status` `paid_off` and is sent after the `payment_plan.installment_paid` and `payment_plan.payment_succeeded` that completed the plan. Use it to send the paid-in-full notice, and the receipt events above for the last payment's receipt.
+`payment_plan.completed` carries the Payment Plan object with `status` `paid_off`. For a payment recorded with `POST /payment-plans/{id}/payments` it is sent after that payment's `payment_plan.installment_paid` and `payment_plan.payment_succeeded`; for any other payment it and the payment's `payment_plan.payment_succeeded` can be sent in either order, and a plan completed by forgiving its last refunded amount sends it with no payment event. Use it to send the paid-in-full notice, and the receipt events above for the last payment's receipt.
 
 ---
 

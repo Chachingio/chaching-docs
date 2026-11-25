@@ -17,7 +17,7 @@ Every endpoint on this page authenticates with the account API key in the `cc-ap
 | Payment plan | An agreement to collect `total_amount` from one customer in a fixed number of installments. Its id starts with `pp_`. |
 | Installment | One scheduled payment of a plan. Its id starts with `ppi_`. Each installment has a sequence number, a due date, an amount and a status, and it produces its own invoice when it is billed. |
 | Down payment | An amount paid before any installment: charged when a plan is created with `payment_method`, or collected on one of your Dejavoo terminals for a plan created without one. It is recorded as installment sequence `0`, and it is not counted in `installment_count`. |
-| Payment | A payment you record on a plan with `POST /payment-plans/{id}/payments`. Its id starts with `ppp_`. |
+| Payment | One attempt to collect money on a plan, successful or not: a payment you record with `POST /payment-plans/{id}/payments`, an automatic installment charge or retry, a down payment, a terminal deposit, an invoice payment or a charge of a new card. Its id starts with `ppp_`, its `origin` says where it came from and its `status` whether it collected money. |
 
 The amounts always add up: `down_payment_amount` plus the sum of the scheduled installment amounts equals `total_amount`. When the amount left after the down payment does not divide evenly, one installment carries the odd amount: installment 1 with `remainder_placement: "first"` (the default), or the last installment with `"last"`. Every other installment carries exactly `installment_amount`.
 
@@ -32,23 +32,23 @@ For example, $2,100.00 at $200.00 a month with no down payment and the remainder
 | `active` | The plan is running. Installments are billed and charged on their due dates. |
 | `past_due` | The customer's account is in the late-payment warning. Automatic charging continues. |
 | `defaulted` | The customer's account reached your failed-payment outcome. What still runs depends on that outcome; see **Failed Payments and Payment Plans** below. |
-| `paid_off` | The plan is paid in full. Nothing more is charged. |
+| `paid_off` | The plan is paid in full. Nothing more is charged. A refund made after that leaves it `paid_off`, with the refunded amount still owed in `amount_due`. |
 | `canceled` | You canceled the plan. Installments not yet billed are removed; amounts already invoiced stay collectible. |
 | `awaiting_deposit` | The plan was created without a payment method and waits for its deposit — the down payment when the plan has one, else its first installment. The customer pays it on one of your Dejavoo terminals (see **Collect the First Installment on a Terminal**), or you record it as collected outside ChaChing (see **Record a Deposit Collected Outside Chaching**). |
 
-`paid_off` and `canceled` are final. The status value is `canceled`, with one `l`. A plan in `awaiting_deposit` accepts only a payment with `external: true` of at least the deposit through `POST /payment-plans/{id}/payments`: it records the deposit collected outside ChaChing and activates the plan (see **Record a Deposit Collected Outside Chaching**). A payment without `external: true` answers `409` `PAYMENT_PLAN_NOT_PAYABLE`, and an external payment below the deposit answers `400` `PAYMENT_PLAN_AMOUNT_BELOW_DEPOSIT`.
+`paid_off` and `canceled` are final. A refund does not change a plan's status: a `paid_off` or `canceled` plan stays in its status and shows the refunded amount still owed in `amount_due`, which `POST /payment-plans/{id}/payments` collects. The status value is `canceled`, with one `l`. A plan in `awaiting_deposit` accepts only a payment with `external: true` of at least the deposit through `POST /payment-plans/{id}/payments`: it records the deposit collected outside ChaChing and activates the plan (see **Record a Deposit Collected Outside Chaching**). A payment without `external: true` answers `409` `PAYMENT_PLAN_NOT_PAYABLE`, and an external payment below the deposit answers `400` `PAYMENT_PLAN_AMOUNT_BELOW_DEPOSIT`.
 
 | **From** | **To** | **When** | **Event** |
 | --- | --- | --- | --- |
 | — | `active` | You create the plan with `payment_method`. | `payment_plan.created`, then `payment_plan.activated` |
 | — | `awaiting_deposit` | You create the plan without `payment_method`. | `payment_plan.created` |
-| `awaiting_deposit` | `active` | The deposit collected on your terminal is confirmed and its card is saved. A plan with one installment and no down payment goes to `paid_off` instead. | `payment_plan.activated` and `payment_plan.installment_paid`, plus `payment_plan.completed` for `paid_off` |
+| `awaiting_deposit` | `active` | The deposit collected on your terminal is confirmed and its card is saved. A plan with one installment and no down payment goes to `paid_off` instead. | `payment_plan.activated`, `payment_plan.installment_paid` and `payment_plan.payment_succeeded`, plus `payment_plan.completed` for `paid_off` |
 | `awaiting_deposit` | `active` | You record the deposit collected outside with `external: true`. A payment of the whole remaining balance goes to `paid_off` instead. | `payment_plan.activated`, `payment_plan.installment_paid` and `payment_plan.payment_succeeded`, plus `payment_plan.completed` for `paid_off` |
 | `active` | `past_due` | The customer's account enters the late-payment warning. | `payment_plan.past_due` |
 | `active`, `past_due` | `defaulted` | The customer's account reaches your failed-payment outcome. | `payment_plan.defaulted` |
 | `defaulted` | `past_due` | Under the `past-due` outcome, the customer's account falls back from the outcome to the late-payment warning. | `payment_plan.past_due` |
 | `past_due`, `defaulted` | `active` | The customer's account clears, or a payment with a principal portion rebuilds the remaining schedule while the account is clear. See **Failed Payments and Payment Plans** for the `cancel` outcome. | `payment_plan.reactivated` |
-| `active`, `past_due`, `defaulted` | `paid_off` | The schedule ends with every installment paid, a payoff payment is recorded, or the last unpaid installment is paid through the hosted invoice page, the dashboard or `PUT /invoices/{id}`, or settled by credit on the customer's account. An `active`, `past_due` or `defaulted` plan whose schedule ends while an installment is still unpaid keeps its status until that installment is paid, and is never `paid_off` before then: it changes as soon as the payment goes through ChaChing, credit settles it, or the customer's automatic charge or a retry collects it. | `payment_plan.completed` |
+| `active`, `past_due`, `defaulted` | `paid_off` | The schedule ends with every installment paid, a payoff payment is recorded, or the last unpaid installment is paid through the hosted invoice page, the dashboard or `PUT /invoices/{id}`, or settled by credit on the customer's account. An `active`, `past_due` or `defaulted` plan whose schedule ends while an installment is still unpaid keeps its status until that installment is paid, and is never `paid_off` before then: it changes as soon as the payment goes through ChaChing, credit settles it, or the customer's automatic charge or a retry collects it. A plan that owes a refunded amount (`amount_due` above `0`) is not `paid_off` either: it changes when that amount is collected with `POST /payment-plans/{id}/payments` or forgiven. | `payment_plan.completed` |
 | `active`, `past_due`, `defaulted`, `awaiting_deposit` | `canceled` | You call `POST /payment-plans/{id}/cancel`. | `payment_plan.canceled` |
 
 ---
@@ -98,7 +98,7 @@ What happens when a plan is created with `payment_method`:
 - When `down_payment_amount` is greater than `0`, ChaChing charges it immediately against `payment_method` and records it as installment sequence `0`, already paid. When the charge is declined, the request answers `402` `PAYMENT_PLAN_DOWN_PAYMENT_DECLINED` and no plan is created. When its outcome cannot be confirmed, the request answers `502` `PAYMENT_PLAN_DOWN_PAYMENT_UNCONFIRMED`, no plan is created, and the charge is not reversed because it can still settle. The response's `down_payment_invoice_id` is the id of that down-payment invoice; once its charge has settled, send the same request again, with the same `Idempotency-Key` or a new one, and ChaChing handles the invoice as the next item describes.
 - Before it charges a down payment, ChaChing looks for an earlier down-payment invoice of the same customer and the same amount that no plan uses, which is what a create that did not finish leaves behind. When that invoice was paid with the same `payment_method` and was not refunded, the new plan uses that payment: nothing is charged again, and installment `0` carries that earlier invoice in `invoice` and the time of that payment in `paid_at`. When its charge failed, ChaChing voids it and charges the down payment again. When that invoice is still open without a confirmed outcome, when it was settled with a different payment method or without a card payment, when more than one such invoice was paid, or when a failed invoice cannot be voided, the request answers `409` `PAYMENT_PLAN_DOWN_PAYMENT_PENDING`, no plan is created and nothing is charged. From the next UTC day, an earlier down-payment invoice that is still unpaid answers `409` `PAYMENT_PLAN_CUSTOMER_DELINQUENT` instead, until it is paid or voided. An earlier down-payment invoice of a different amount is not matched, so check the customer's invoices before you change `down_payment_amount` after a `502`.
 - `payment_method` is the plan's card: every installment is charged to it, whatever the customer's default payment method is. It becomes the customer's default payment method only when the customer has none.
-- ChaChing sends `payment_plan.created` and `payment_plan.activated`, and, when there is a down payment, `payment_plan.installment_paid` for installment `0`.
+- ChaChing sends `payment_plan.created` and `payment_plan.activated`, and, when there is a down payment, `payment_plan.installment_paid` for installment `0` and `payment_plan.payment_succeeded` for its payment.
 - When there is a down payment, ChaChing emails the customer a receipt for it. See **Emails Your Customer Receives**.
 
 ## The Card on File
@@ -190,7 +190,7 @@ Returns the Payment Plan object.
 
 ### What is charged when you change the card
 
-Replacing the card charges each installment that is billed and not yet paid once on the new card. ChaChing reports each charge like an automatic installment payment: `invoice.payment_succeeded` and `payment_plan.installment_paid`, and the receipt email to the customer, when it is approved; `invoice.payment_failed` and `payment_plan.installment_failed`, and the failed-payment email to the customer, when it is declined. A declined charge is not retried automatically and the installment stays open. Collect it with a payment on the plan, on the hosted invoice page, or by giving the plan another card. A retry that was scheduled on the previous card does not run. The installments that are not billed yet are charged on the new card when they are billed.
+Replacing the card charges each installment that is billed and not yet paid once on the new card. ChaChing reports each charge like an automatic installment payment: `invoice.payment_succeeded`, `payment_plan.installment_paid` and `payment_plan.payment_succeeded`, and the receipt email to the customer, when it is approved; `invoice.payment_failed`, `payment_plan.installment_failed` and `payment_plan.payment_failed`, and the failed-payment email to the customer, when it is declined. A declined charge is not retried automatically and the installment stays open. Collect it with a payment on the plan, on the hosted invoice page, or by giving the plan another card. A retry that was scheduled on the previous card does not run. The installments that are not billed yet are charged on the new card when they are billed.
 
 Three rules limit these charges:
 
@@ -217,7 +217,7 @@ Change the first two through `PUT /revenue-recovery`; see [Configure Failed-Paym
 
 ## Duplicate Requests
 
-`POST /payment-plans` and `POST /payment-plans/{id}/payments` accept an `Idempotency-Key` header of 1 to 255 printable ASCII characters with no spaces; any other value answers `400` `IDEMPOTENCY_KEY_INVALID`. A key is scoped to your account and to the endpoint, and it is kept for 24 hours.
+`POST /payment-plans` and `POST /payment-plans/{id}/payments` accept an `Idempotency-Key` header of 1 to 255 printable ASCII characters with no spaces, and the two refund operations require one (see **Refund a Payment**); any other value answers `400` `IDEMPOTENCY_KEY_INVALID`. A key is scoped to your account and to the endpoint, and it is kept for 24 hours.
 
 - The same key with the same request returns the stored result — the same status code and body — with the response header `Idempotent-Replayed: true`. Nothing is created or charged again, and no webhook is sent again.
 - The same key with a different request answers `422` `IDEMPOTENCY_KEY_REUSED`.
@@ -304,9 +304,9 @@ An installment's `surcharge_amount` and `amount_charged` report the credit card 
 
 An installment's `invoice` is the invoice of its charge. For a deposit collected on a terminal (the down payment, or the first installment), it is the invoice ChaChing raises when the plan is activated; a deposit collected on a terminal before ChaChing raised these invoices reads `null`.
 
-An installment's `status` is `scheduled`, `paid`, `failed` or `canceled`. It reads `failed` after a declined automatic attempt and stays `failed` until it is paid. `attempt_count` counts the automatic charge attempts, retries included, and `next_payment_attempt` is the date of the next retry, or `null` when none is scheduled. An installment not yet billed reads `canceled` when the plan was canceled or paid off, or when a payment that reached the principal shortened the schedule and removed it.
+An installment's `status` is `scheduled`, `paid`, `failed`, `canceled` or `refunded`. It reads `failed` after a declined automatic attempt and stays `failed` until it is paid. `attempt_count` counts the automatic charge attempts, retries included, and `next_payment_attempt` is the date of the next retry, or `null` when none is scheduled. An installment not yet billed reads `canceled` when the plan was canceled or paid off, or when a payment that reached the principal shortened the schedule and removed it. An installment reads `refunded` after a refund of a payment that paid it, while the refunded part is still owed on it: `amount_due` is that part and `amount_refunded` the total refunded of what was paid toward its `amount_paid` (a refund of a refunded amount collected again raises only `amount_due`). A refund of the down payment or the deposit, and of a payment that paid only part of an installment not yet paid in full, leaves the installment's `status` and `amount_due` unchanged and is owed on the plan (the plan's `amount_due`); the installment's `amount_refunded` still counts it. It returns to `paid` when the owed part is collected or forgiven. `payments` lists the payments that paid it.
 
-The Invoice object, on the invoice endpoints and in every `invoice.*` webhook, carries `payment_plan`, `installment` and `payment_plan_charge`. All three are `null` on an invoice that belongs to no payment plan, and an invoice raised for a payment plan reports `subscription: null`. `payment_plan_charge` describes the plan charge the invoice records: `{ "id": "pp_1ef17ace4b4d96ff32461285", "installment": "ppi_9c1a3d0e2f4b8756a1c0d3ef", "sequence": 3, "payment": "ppp_5d2c8e1f0a3b4c6d7e8f9a0b", "kind": "installment" }`. `id` is the plan; `installment` and `sequence` are the installment the charge pays, both `null` for an extra payment and a payoff; `payment` is the Payment object that paid the invoice, `null` for the down payment charged when the plan is created, for a deposit collected on a terminal and for an installment paid by its automatic charge; `kind` is `down_payment`, `deposit` (the first installment collected on a terminal), `installment`, `extra_payment` or `payoff`. `payment_plan_charge` is also `null` on a plan invoice not matched to an installment yet. An invoice that records the principal part of a payment reports `installment: null`.
+The Invoice object, on the invoice endpoints and in every `invoice.*` webhook, carries `payment_plan`, `installment` and `payment_plan_charge`. All three are `null` on an invoice that belongs to no payment plan, and an invoice raised for a payment plan reports `subscription: null`. `payment_plan_charge` describes the plan charge the invoice records: `{ "id": "pp_1ef17ace4b4d96ff32461285", "installment": "ppi_9c1a3d0e2f4b8756a1c0d3ef", "sequence": 3, "payment": "ppp_5d2c8e1f0a3b4c6d7e8f9a0b", "kind": "installment" }`. `id` is the plan; `installment` and `sequence` are the installment the charge pays, both `null` for an extra payment, a payoff and a refunded amount owed on the plan collected again; `payment` is the Payment that paid the invoice — the most recent payment that collected money on it, whatever its `origin` — and is `null` for an invoice settled entirely by account credit, and on the `invoice.*` events sent for a charge before its payment is recorded (read the payment id from `payment_plan.payment_succeeded` or by reading the invoice again); `kind` is `down_payment`, `deposit` (the first installment collected on a terminal), `installment`, `extra_payment`, `payoff` or `refunded_amount` (a refunded amount collected again). `payment_plan_charge` is also `null` on a plan invoice not matched to an installment yet. An invoice that records the principal part of a payment reports `installment: null`.
 
 ## Preview a Schedule
 
@@ -350,7 +350,7 @@ The preview checks the customer, your payment gateway, the interval, `start_date
 
 `GET /payment-plans/{id}/payments` lists the plan's payments, newest first, with the page parameters `page` and `take` (`take` at most `50`). Each entry is the Payment object that `GET /payment-plans/{id}/payments/{payment_id}` returns. Filter by status with `search`, a URL-encoded JSON object holding one status: `{"status": "declined"}`. `status` is `processing`, `applied`, `partially_applied`, `declined`, `not_attempted` or `unconfirmed`; any other value, or a `search` value that is not a JSON object, answers `400`.
 
-`payment_plan_status`, `remaining_balance` and `installments_remaining` describe the plan at the time of the request, not at the time of each payment. A down payment collected on a terminal is not a payment: read it as installment `0` of `GET /payment-plans/{id}/installments` and in the plan's `deposit`.
+`payment_plan_status`, `remaining_balance` and `installments_remaining` describe the plan at the time of the request, not at the time of each payment. Every attempt to collect money on the plan is a payment: the payments you record, each automatic installment charge and retry — declined ones included — the down payment, the terminal deposit, a payment of an installment invoice through its hosted page, the dashboard or `PUT /invoices/{id}`, also when it pays only part of the invoice, a charge of a new card, and any other payment of an installment invoice recorded directly in the billing engine (`origin` `automatic`). `origin` tells them apart: `payment`, `automatic`, `plan_card_charge`, `down_payment`, `deposit` or `invoice_payment`. A failed attempt reads `status` `declined` or `not_attempted` with `amount` `0` and its reason in `failure_code` and `failure_message`; `unconfirmed` means the outcome could not be confirmed: a payment you record keeps that status, so read the plan before retrying; any other payment changes to its final status when its outcome becomes known. Use `search={"status":"declined"}` to list declined attempts. An installment settled entirely by account credit has no payment; an automatic charge that was never started (a plan without a card, automatic payment switched off) and an automatic attempt that ChaChing's payment plan safeguards or a restart of ChaChing's connection to your processor refused before sending it (for example a card that does not belong to the plan) are not listed; a terminal deposit attempt that did not collect the deposit of a plan in `awaiting_deposit` is not a payment either: read it in the plan's `deposit.attempt` and with `GET /dejavoo/terminal-attempts`; a payment you record that those safeguards refuse, and an attempt your processor could not be reached for, are listed as `not_attempted`. Each payment lists its refunds in `refunds`, newest first, and `amount_refunded` is the plan amount refunded from it.
 
 This endpoint requires the account secret API key (`sk_`), or a platform key with `Chaching-Account`.
 
@@ -370,7 +370,7 @@ ChaChing schedules each installment's charge at 10:00 UTC on its due date: 5:00 
 
 # Record Payments, Extra Payments and a Payoff
 
-`POST /payment-plans/{id}/payments` records every payment made outside the automatic schedule and answers `201` with the Payment object.
+`POST /payment-plans/{id}/payments` records a payment you make on the plan, outside its automatic schedule, and answers `201` with the Payment object.
 
 ```json
 {
@@ -382,16 +382,16 @@ ChaChing schedules each installment's charge at 10:00 UTC on its due date: 5:00 
 
 | **Field** | **Required** | **Rules** |
 | --- | --- | --- |
-| `amount` | yes | Integer cents, at least `1`, and at most the plan's `remaining_balance`. On a `canceled` plan, at most what is still owed on its billed installments. |
+| `amount` | yes | Integer cents, at least `1`, and at most the plan's `remaining_balance`. On a `canceled` plan, at most what is still owed on its billed installments that are not paid, plus `amount_due`. On a `paid_off` plan, at most `amount_due`. |
 | `payment_method` | no | The card to charge for this payment only; it must belong to the plan's customer. Default: the plan's card; a plan without a card answers `400` `PAYMENT_METHOD_REQUIRED`. Ignored when `external` is `true`, except on a plan in `awaiting_deposit`, where it names the card for the remaining installments. Send `{ "type": "terminal", "terminal_id": "<terminal id>" }` instead to take the payment on one of your Dejavoo terminals; see **Take a Payment on a Terminal**. |
 | `external` | no | `true` records money you collected outside ChaChing; nothing is charged. Default `false`. |
 
-The amount is applied first to the plan's billed installments that are not fully paid, oldest first — a smaller amount pays part of an installment — and then to the part of the plan not billed yet, the principal.
+The amount is applied first to refunded amounts still owed — refunded installments oldest first, then the refunded amount owed on the plan — then to the plan's billed installments that are not fully paid, oldest first — a smaller amount pays part of an installment — and then to the part of the plan not billed yet, the principal.
 
 - **Extra payment.** An amount below `remaining_balance`. When it reaches the principal, the installment amount and the due dates do not change: the plan ends sooner, and its last installment is reduced to what is left.
 - **Payoff.** An amount equal to `remaining_balance`. It pays every open installment, closes the rest of the schedule, and moves the plan to `paid_off`.
 - **Several charges.** A payment spanning several billed installments, or billed installments and the principal, is charged as one charge per installment invoice plus one charge for the principal, in that order. When the first charge is declined the request answers `402` `PAYMENT_DECLINED` and nothing is applied. When a later charge is declined, the charges already approved stay applied and the request answers `201` with the `amount` actually applied. When a later charge's outcome cannot be confirmed, the request still answers `201`, with `status` `processing` and `amount` `0` even when earlier charges of the same payment were approved: the payment is recorded only once every one of its charges is resolved. Do not retry with a new `Idempotency-Key`. Wait for `payment_plan.payment_succeeded`, which ChaChing sends with the amount actually applied once it finishes recording the payment, and read the plan's installments when the event does not arrive.
-- **The principal has its own invoice.** The principal part of a payment is recorded on its own invoice, returned by `GET /invoices` and `GET /invoices/{id}` with `installment: null` and `payment_plan_charge.kind` `extra_payment`, or `payoff` for a payoff. When the principal is recorded, ChaChing sends `invoice.payment_succeeded` for that invoice, and `invoice.payment_failed` when its card charge is declined. `payment_plan.payment_succeeded` reports the same money: count each payment once, and use `payment_plan_charge.kind` to recognize the invoice events of a plan payment. A principal recorded before ChaChing raised these invoices has no invoice. A principal recorded while the account holds credit, while automatic or manual payment is switched off for the account, or while invoicing was unavailable at that moment is recorded without an invoice and raises no `invoice.*` event; `payment_plan.payment_succeeded` still reports it. Send the invoice by email with `POST /invoices/{id}/send`, create its hosted payment link with `GET /invoices/{id}/hosted-link` and download its PDF with `GET /invoices/{id}/pdf`.
+- **The principal has its own invoice.** The principal part of a payment is recorded on its own invoice, returned by `GET /invoices` and `GET /invoices/{id}` with `installment: null` and `payment_plan_charge.kind` `extra_payment`, or `payoff` for a payoff. When the principal is recorded, ChaChing sends `invoice.payment_succeeded` for that invoice, and `invoice.payment_failed` when its card charge is declined. `payment_plan.payment_succeeded` reports the same money as the invoice and installment events: count money from one event family only, and use `payment_plan_charge.kind` and `payment_plan_charge.payment` to recognize the invoice events of a plan payment. A principal recorded before ChaChing raised these invoices has no invoice. A principal recorded while the account holds credit, while automatic or manual payment is switched off for the account, or while invoicing was unavailable at that moment is recorded without an invoice and raises no `invoice.*` event; `payment_plan.payment_succeeded` still reports it. Send the invoice by email with `POST /invoices/{id}/send`, create its hosted payment link with `GET /invoices/{id}/hosted-link` and download its PDF with `GET /invoices/{id}/pdf`.
 - A payment on a `past_due` or `defaulted` plan is never refused because of its status. While an earlier payment's schedule rebuild is still being completed, a further payment answers `409` `PAYMENT_PLAN_REPLAN_PENDING`; retry it later.
 
 The Payment object's `status` tells you how far the recording went:
@@ -400,14 +400,14 @@ The Payment object's `status` tells you how far the recording went:
 | --- | --- |
 | `applied` | Every charge was approved and the whole amount was applied. |
 | `partially_applied` | A later charge was declined or not attempted, or the terminal approved less than the amount sent. `amount` is the part that was applied. |
-| `processing` | At least one charge has no confirmed outcome yet. Nothing is recorded yet and `amount` reads `0`. ChaChing finishes recording the payment and then sends `payment_plan.payment_succeeded` with the final `status` and `amount`. |
+| `processing` | At least one charge has no confirmed outcome yet. Nothing is recorded yet and `amount` reads `0`. ChaChing finishes recording the payment and then sends `payment_plan.payment_succeeded` with the final `status` and `amount`, or `payment_plan.payment_failed` when it ends `declined` or `not_attempted`, except a payment not taken on a terminal whose charge the payment plan safeguards or a restart of ChaChing's connection to your processor refused, or that ChaChing could not send to the billing engine, which ends `not_attempted` without an event. |
 | `declined` | The first charge was declined, or the terminal sale was declined. Nothing was applied. |
 | `not_attempted` | The first charge was not attempted, or the terminal sale did not take place: it was cancelled, the terminal confirmed that nothing was charged, the terminal refused the request, or ChaChing staff closed it. Nothing was applied. A payment also reads `not_attempted` when the terminal approved and charged the card but the plan could absorb none of the amount: `terminal.state` is then `approved` or `partial_approval`, `terminal.amount_charged` carries the collected amount and the payment's own `amount_charged` is `0`, so do not ask the customer to pay again. |
-| `unconfirmed` | The outcome of the first charge could not be confirmed. Nothing was recorded; read the plan before retrying. |
+| `unconfirmed` | The outcome of the first charge could not be confirmed. Nothing was applied. For a payment you record, read the plan before retrying; any other payment (an automatic charge, an invoice payment) changes to its final status when its outcome becomes known. |
 
-The `201` of `POST /payment-plans/{id}/payments` and `payment_plan.payment_succeeded` carry only `processing`, `applied` and `partially_applied`. `GET /payment-plans/{id}/payments/{payment_id}` returns any payment of the plan with its `status` as recorded, so it can also read `declined`, `not_attempted` or `unconfirmed`.
+The `201` of `POST /payment-plans/{id}/payments` and `payment_plan.payment_succeeded` carry only `processing`, `applied` and `partially_applied`. `GET /payment-plans/{id}/payments/{payment_id}` returns any payment of the plan with its `status` as recorded, so it can also read `declined`, `not_attempted` or `unconfirmed`. `payment_plan.payment_failed` carries a payment that reads `declined` or `not_attempted`.
 
-Each recorded payment sends `payment_plan.payment_succeeded`, one `payment_plan.installment_paid` for every installment it paid in full, and `payment_plan.completed` when it is a payoff. For one payment they are emitted in this order (deliveries can arrive in any order): `payment_plan.installment_paid` for each installment it paid in full, then `payment_plan.payment_succeeded`, then `payment_plan.completed`. A declined or refused payment sends none of them. When a request ends before its payment is fully recorded (for example a `502` `PAYMENT_PLAN_PAYMENT_UNCONFIRMED`, or a `201` whose later charge could not be confirmed), ChaChing finishes recording the payment later and sends these events then.
+Each recorded payment sends `payment_plan.payment_succeeded`, one `payment_plan.installment_paid` for every installment it paid in full, and `payment_plan.completed` when it is a payoff. For one payment recorded with `POST /payment-plans/{id}/payments` they are emitted in this order (deliveries can arrive in any order): `payment_plan.installment_paid` for each installment it paid in full, then `payment_plan.payment_succeeded`, then `payment_plan.completed`. A declined or refused payment sends none of them. When a request ends before its payment is fully recorded (for example a `502` `PAYMENT_PLAN_PAYMENT_UNCONFIRMED`, or a `201` whose later charge could not be confirmed), ChaChing finishes recording the payment later and sends these events then. Every other payment that collects money sends `payment_plan.payment_succeeded` too: an automatic charge, a down payment and a terminal deposit each send both `payment_plan.installment_paid` and `payment_plan.payment_succeeded`. A payment that ends `declined` or `not_attempted` sends `payment_plan.payment_failed` (except a payment you record, not on a terminal, that the payment plan safeguards or a restart of ChaChing's connection to your processor refused, or that ChaChing could not send to the billing engine: it is listed as `not_attempted` without an event) — a payment you record that is declined (the request still answers `402`, or `201` for a payment taken on a terminal, which sends it when the sale ends), and each failed automatic attempt: a declined one together with its `payment_plan.installment_failed`, and one your processor was never reached for (`not_attempted`, for example while your iPOSpays credentials are rejected) alone, because such an attempt does not count against the installment. A declined payment of an installment invoice through its hosted page, the dashboard or `PUT /invoices/{id}` sends `payment_plan.payment_failed` alone, and a declined charge of a new card sends it together with its `payment_plan.installment_failed`. The installment events (`payment_plan.installment_paid`, `payment_plan.installment_failed`, `payment_plan.completed`) and the payment events (`payment_plan.payment_succeeded`, `payment_plan.payment_failed`) of one charge can arrive in any order, as webhook delivery order is never guaranteed: match a succeeded payment to its installments by its `allocations[].installment`, never by arrival order; a failed payment carries no installment (its `allocations` is empty), so its `payment_plan.payment_failed` and the attempt's `payment_plan.installment_failed` share only the plan and customer ids. Each automatic retry is its own payment and sends its own event. A payment whose outcome is not known yet (`unconfirmed`) sends nothing. Payments of attempts made before these events were extended to them are added to the list without an event; around that one-time switch-over, an attempt made shortly before it can still send its event, and one made while a plan's earlier payments are being added can send none.
 
 ## Take a Payment on a Terminal
 
@@ -418,6 +418,104 @@ Moved to [Payment Plans on a Terminal](./payment-plans-terminal.md#take-a-paymen
 # Find and Force-Close a Stuck Terminal Attempt
 
 Moved to [Payment Plans on a Terminal](./payment-plans-terminal.md#find-and-force-close-a-stuck-terminal-attempt).
+
+---
+
+# Refund a Payment
+
+`POST /payment-plans/{id}/payments/{payment_id}/refunds` returns all or part of a payment to the card that paid it and answers `201` with the Refund object.
+
+```bash
+curl -X POST https://stage-api.chaching.io/payment-plans/$PLAN_ID/payments/$PAYMENT_ID/refunds \
+  -H "cc-api-key: $CHACHING_SECRET_KEY" \
+  -H "Idempotency-Key: refund-wrong-card-1" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "amount": 40,
+    "reason": "Charged to the wrong card"
+  }'
+```
+
+Returns the Refund object, with the updated Payment object in `payment`.
+
+Any payment that collected money can be refunded, an automatic installment charge and a terminal deposit included; a payment taken on a terminal is refunded without the terminal. Money collected outside ChaChing (a payment recorded with `external: true`, or any payment ChaChing holds no processor reference for), a payment that collected nothing for the plan (`declined`, `not_attempted`, `unconfirmed`; a terminal sale the plan could absorb none of reads `not_attempted` although the card was charged, and ChaChing's team refunds it), and a payment still being recorded (`processing`), cannot be refunded. The request needs an `Idempotency-Key`.
+
+| **Field** | **Rules** |
+| --- | --- |
+| `amount` | No. Integer cents of the plan amount to refund, at least `1` and at most what is left to refund on the payment. Default: everything left to refund. |
+| `reason` | No. Your note, 1 to 500 characters with no control characters. |
+| `forgive` | No. `true` returns the money and leaves nothing owed. Default `false`: the refunded amount is owed again. |
+
+Void or refund: ChaChing sends a refund and your processor decides. On a Dejavoo account a payment not settled yet is voided, a settled payment is refunded; `kind` reads `void` or `refund`.
+
+Surcharge: the card gets back the refunded amount plus the same share of the payment's surcharge. `surcharge_amount` is the surcharge returned and `amount_returned` the total returned to the card. The last refund of a payment returns the rest of its surcharge.
+
+ChaChing has tested refunds on Dejavoo (iPOSpays) accounts. On another gateway the processor's own void and refund rules apply, `kind` reads `refund`, no surcharge is returned, and a refusal of the processor answers `402`.
+
+What is owed after a refund: the refunded amount is owed again. A refunded installment reads `refunded` with `amount_due`; a refunded down payment or deposit, the refunded principal part of a payment (an extra payment, or the unbilled part of a payoff), and a refund of a payment that paid only part of an installment not yet paid in full, are owed on the plan in the plan's `amount_due`; the part of a payment that paid an installment that is paid in full when you refund is owed on that installment. Nothing is charged automatically, no date changes, the plan keeps its status, and no reminder or late fee follows. Collect it with `POST /payment-plans/{id}/payments`, on a card of the customer or on a terminal: refunded amounts are paid first. A plan is not `paid_off` while a refunded amount is owed; a plan that was already `paid_off` stays `paid_off`.
+
+Forgive: send `forgive: true` to return the money without leaving anything owed. To forgive what is still owed from an earlier refund, call `POST /payment-plans/{id}/payments/{payment_id}/refunds/{refund_id}/forgive`. Forgiving cannot be undone. A refund that is still being confirmed cannot be forgiven yet: the call answers `409` `PAYMENT_PLAN_REFUND_PENDING` until the refund is final; retry shortly.
+
+Refunds made in your iPOSpays account: when the account's FEED notifications reach ChaChing (see [The Dejavoo FEED Webhook URL](./processor-credentials.md#the-dejavoo-feed-webhook-url)), ChaChing applies them the same way and sends `payment_plan.payment_refunded` with `source` `processor`; without FEED, ChaChing does not see them. Make refunds through ChaChing: a refund made in iPOSpays cannot carry `forgive`.
+
+Charge on the wrong card: refund the payment, then collect the owed amount on a terminal with `save_payment_method: true`. On a plan that is `active`, `past_due` or `defaulted`, the card tapped becomes the plan's card, unless that payment pays the plan off; a `paid_off` or `canceled` plan keeps its card.
+
+Chargebacks are not reported.
+
+Through a platform key, a deactivated account cannot refund or forgive: both answer `409 ACCOUNT_DEACTIVATED`, like every other change outside the operations a deactivated account accepts. A refund made in your iPOSpays account is still applied to the plan when the account's FEED notifications reach ChaChing.
+
+| **Status** | **Error code** | **When** | **What to do** |
+| --- | --- | --- | --- |
+| `400` | `IDEMPOTENCY_KEY_REQUIRED` | The request has no `Idempotency-Key` header. Nothing was refunded or forgiven. | Send the request again with an `Idempotency-Key`. |
+| `400` | `IDEMPOTENCY_KEY_INVALID` | The `Idempotency-Key` header is malformed. | Send 1 to 255 printable ASCII characters with no spaces. |
+| `400` | `PAYMENT_PLAN_REFUND_AMOUNT_INVALID` | `amount` is not an integer of at least `1`. | Send the amount in integer cents. |
+| `400` | `PAYMENT_PLAN_REFUND_AMOUNT_EXCEEDS_REFUNDABLE` | `amount` is larger than what is left to refund on the payment. Nothing was refunded. | Send at most the payment's `amount` minus its `amount_refunded`. |
+| `400` | none | The body carries another field, `reason` is not 1 to 500 characters with no control characters, or `forgive` is not a boolean. The body has no `error` field; `message` describes the problem. | Fix the body. |
+| `402` | `PAYMENT_PLAN_REFUND_DECLINED` | The processor declined or refused the refund, or ChaChing could not authenticate with iPOSpays to send a terminal refund; `message` carries the processor's text when it gave one. Nothing was refunded. | Check the sale and the API credentials in your processor's account (iPOSpays on a Dejavoo account), then retry with a new `Idempotency-Key`. |
+| `403` | `PAYMENT_PLANS_NOT_ENABLED` | Payment Plans are not enabled for this account. | Contact Chaching to enable them. |
+| `403` | `API_KEY_SCOPE_INSUFFICIENT` | The key's scopes include neither `*` nor the scope of the operation. | Create a key with the scope the message names. |
+| `404` | `PAYMENT_PLAN_NOT_FOUND` | The plan id does not resolve for this account. | Check the id. |
+| `404` | `PAYMENT_PLAN_PAYMENT_NOT_FOUND` | The payment id does not resolve to a payment of this plan. | Check the id. |
+| `409` | `ACCOUNT_DEACTIVATED` | The request uses a platform key and the account is deactivated. Nothing was refunded or forgiven. | Reactivate the account first. A refund made in your iPOSpays account is still applied to the plan when the account's FEED notifications reach ChaChing. |
+| `409` | `PAYMENT_PLAN_PAYMENT_NOT_REFUNDABLE` | The payment collected nothing for the plan or is still being recorded, it was collected outside ChaChing, nothing is left to refund on it, or its invoice no longer carries the amount to refund; `message` names which. Nothing was refunded. | Refund money collected outside ChaChing where it was collected. |
+| `409` | `PAYMENT_PLAN_REFUND_PENDING` | An earlier refund of this payment is still being confirmed. | Retry shortly. |
+| `409` | `PAYMENT_PLAN_REFUND_SURCHARGE_UNCONFIRMED` | The surcharge of the charge could not be established, so ChaChing cannot refund it. Nothing was refunded. | Refund it in your iPOSpays account; with FEED notifications on, ChaChing applies that refund to the plan. |
+| `409` | `PAYMENT_PLAN_BUSY` | Another payment, a refund or a cancellation on this plan is in progress. | Retry shortly. |
+| `409` | `IDEMPOTENCY_KEY_IN_PROGRESS` | A request with this Idempotency-Key is still being processed. | Wait for it to finish, then repeat the request with the same key. |
+| `422` | `IDEMPOTENCY_KEY_REUSED` | The `Idempotency-Key` was already used with a different request. | Use a new key for a different request. |
+| `502` | `PAYMENT_PLAN_BILLING_ENGINE_UNAVAILABLE` | Billing data could not be read before the refund was sent, or the processor refunded nothing and the billing engine did not record the refund. Nothing was refunded. | Retry later with a new `Idempotency-Key`. |
+| `502` | `IDEMPOTENCY_REQUEST_INCOMPLETE` | The first request with this `Idempotency-Key` never completed. | Read the payment's `refunds`, then retry with a new key. |
+
+## Forgive a Refund
+
+`POST /payment-plans/{id}/payments/{payment_id}/refunds/{refund_id}/forgive`, with an empty body and an `Idempotency-Key`, forgives what is still owed from the refund and answers `200` with the Refund object.
+
+```bash
+curl -X POST https://stage-api.chaching.io/payment-plans/$PLAN_ID/payments/$PAYMENT_ID/refunds/$REFUND_ID/forgive \
+  -H "cc-api-key: $CHACHING_SECRET_KEY" \
+  -H "Idempotency-Key: forgive-refund-1"
+```
+
+Returns the Refund object with `forgiven: true`, with the updated Payment object in `payment`.
+
+| **Status** | **Error code** | **When** | **What to do** |
+| --- | --- | --- | --- |
+| `400` | `IDEMPOTENCY_KEY_REQUIRED` | The request has no `Idempotency-Key` header. Nothing was refunded or forgiven. | Send the request again with an `Idempotency-Key`. |
+| `400` | `IDEMPOTENCY_KEY_INVALID` | The `Idempotency-Key` header is malformed. | Send 1 to 255 printable ASCII characters with no spaces. |
+| `400` | none | The body carries a field. The body has no `error` field; `message` describes the problem. | Send an empty body. |
+| `403` | `PAYMENT_PLANS_NOT_ENABLED` | Payment Plans are not enabled for this account. | Contact Chaching to enable them. |
+| `403` | `API_KEY_SCOPE_INSUFFICIENT` | The key's scopes include neither `*` nor the scope of the operation. | Create a key with the scope the message names. |
+| `404` | `PAYMENT_PLAN_NOT_FOUND` | The plan id does not resolve for this account. | Check the id. |
+| `404` | `PAYMENT_PLAN_PAYMENT_NOT_FOUND` | The payment id does not resolve to a payment of this plan. | Check the id. |
+| `404` | `PAYMENT_PLAN_REFUND_NOT_FOUND` | The refund id does not resolve to a refund of this payment. | Check the id. |
+| `409` | `ACCOUNT_DEACTIVATED` | The request uses a platform key and the account is deactivated. Nothing was refunded or forgiven. | Reactivate the account first. A refund made in your iPOSpays account is still applied to the plan when the account's FEED notifications reach ChaChing. |
+| `409` | `PAYMENT_PLAN_BUSY` | Another payment, a refund or a cancellation on this plan is in progress. | Retry shortly. |
+| `409` | `PAYMENT_PLAN_REFUND_PENDING` | This refund is still being confirmed. | Retry shortly. |
+| `409` | `PAYMENT_PLAN_PAYMENT_PENDING_CONFIRMATION` | A payment that collects what is still owed from this refund is still being confirmed. | Retry once that payment reads its final status. |
+| `409` | `PAYMENT_PLAN_REFUND_NOT_FORGIVABLE` | Nothing of this refund is still owed. | Nothing to do. |
+| `409` | `IDEMPOTENCY_KEY_IN_PROGRESS` | A request with this Idempotency-Key is still being processed. | Wait for it to finish, then repeat the request with the same key. |
+| `422` | `IDEMPOTENCY_KEY_REUSED` | The `Idempotency-Key` was already used with a different request. | Use a new key for a different request. |
+| `502` | `IDEMPOTENCY_REQUEST_INCOMPLETE` | The first request with this `Idempotency-Key` never completed. | Read the payment's `refunds`, then retry with a new key. |
 
 ---
 
@@ -443,7 +541,7 @@ Two fields report it, always present and in integer cents, on the Installment, P
 | **Field** | **Meaning** |
 | --- | --- |
 | `surcharge_amount` | The credit card surcharge added to the charge or charges. `0` when none was added, which is always the case for a debit card charge. |
-| `amount_charged` | The total charged to the card. It equals `amount_paid` on an installment, `amount` on a payment and on a transaction, and `amount_paid` on an invoice, when nothing was added. |
+| `amount_charged` | The total charged to the card. It equals `amount_paid` on an installment, `amount` on a payment and on a transaction, and `amount_paid` on an invoice, when nothing was added and nothing was refunded. |
 
 For example, a $1.00 payment that carried a 3 cent surcharge reads `amount: 100`, `surcharge_amount: 3`, `amount_charged: 103`; the installment that payment paid reads `amount_paid: 100`, `surcharge_amount: 3`, `amount_charged: 103`.
 
@@ -451,11 +549,11 @@ For example, a $1.00 payment that carried a 3 cent surcharge reads `amount: 100`
 - A payment that did not succeed never shows a surcharge.
 - ChaChing reads the surcharge from the gateway after the charge. While it cannot be read yet, `surcharge_amount` is `0` and `amount_charged` equals the amount paid. ChaChing keeps trying for up to 7 days, and the objects show the real values as soon as the read succeeds. When the surcharge of a charge still cannot be read after those 7 days, or at once when the charge cannot be matched, the installment and payment objects keep `surcharge_amount` at `0` and `amount_charged` equal to the amount paid, and that does not change later. The exact amount charged to the card is then the one shown for that transaction in your Dejavoo (iPOSpays) account.
 - `surcharge_status` on the Installment and Payment objects and on each payment allocation is `final` once the surcharge is read, and `unavailable` while it cannot be read; `surcharge_amount` then reads `0` and `amount_charged` the amount paid. `payment_plan.installment_paid` and `payment_plan.payment_succeeded` are sent once it is read, or after an hour with `surcharge_status` `unavailable`.
-- ChaChing does not refund a surcharge: there is no refund operation for payment plan charges.
+- A refund returns the surcharge in proportion to the refunded amount; see **Refund a Payment**.
 
 Before the payer pays, the payment page of an open invoice and the dashboard's `Charge customer` sheet tell them that a credit card surcharge can be added and that debit cards are not surcharged; [Credit Card Surcharges](./card-surcharges.md#what-your-customer-sees-before-paying) lists every notice and its exact wording.
 
-In the dashboard, the transactions list, the transaction details and the invoice details show the surcharge and the total charged for a charge that carried one. The dashboard's Total revenue and a customer's total spend include the surcharge for accounts that charge through Dejavoo.
+In the dashboard, the transactions list, the transaction details and the invoice details show the surcharge and the total charged for a charge that carried one. The dashboard's Total revenue and a customer's total spend include the surcharge for accounts that charge through Dejavoo. A refund lowers both by the refunded amount and, for a card charge ChaChing sent to iPOSpays, the surcharge returned with it.
 
 ---
 
@@ -496,6 +594,8 @@ The subject is `Receipt from <your account name>: payment 3 of 9` for an install
 
 A payment recorded with `external: true` is not a card charge. The customer receives a `Payment recorded` email with the amount and the remaining balance, and no card details. When that payment pays the plan off, the email's subject says the plan is paid in full and its text says so instead of giving a remaining balance.
 
+A refund sends the customer no email; `payment_plan.payment_refunded` reports it to your integration.
+
 **Failed payments.** Each declined automatic attempt on an installment, retries included, sends the customer a notice with the invoice number and amount, the line `Installment 3 of 9 of your payment plan.`, the plan's `description`, the date of the next automatic retry when one is scheduled, a button to pay the invoice with another payment method, and this sentence: `You have at least 7 calendar days from the first failed attempt on this installment to pay it with another payment method.` For accounts that charge through iPOSpays, the notice also says: `If the card is a credit card, <your account name> can add a credit card surcharge to this amount. Debit cards are not surcharged.` Your account owner is copied on these notices.
 
 A declined down payment sends the customer no email: the request answers `402` `PAYMENT_PLAN_DOWN_PAYMENT_DECLINED`, and no plan exists.
@@ -504,7 +604,7 @@ A declined down payment sends the customer no email: the request answers `402` `
 
 **Copies of receipts.** Receipts go to the customer. A copy of a receipt goes to your account owner only when both the ChaChing-enabled receipt copy and the account's owner copies (`owner_email_copies_enabled`) are on; contact ChaChing to enable the receipt copy. Failed-payment and overdue notices copy the owner while `owner_email_copies_enabled` is `true`.
 
-These emails do not replace the webhooks: `payment_plan.installment_paid`, `payment_plan.installment_failed` and `payment_plan.payment_succeeded` report the same payments to your integration.
+These emails do not replace the webhooks: `payment_plan.installment_paid`, `payment_plan.installment_failed` and `payment_plan.payment_succeeded` report the same payments to your integration. Count money from one event family only: `payment_plan.payment_succeeded` reports each payment, `payment_plan.installment_paid` each installment paid in full.
 
 ---
 
@@ -523,7 +623,7 @@ Customers and payment plans accept an optional `external_id` when you create the
 - **Scope.** A customer's `external_id` is unique among the active customers of your account, and a plan's among all payment plans of your account, whatever their status. A customer and a plan can carry the same value, and another account can use the same value.
 - **Set once.** The value is set when the object is created and never changes. `PATCH /customers/{id}` with `external_id` in the body answers `400` `CUSTOMER_EXTERNAL_ID_IMMUTABLE`; payment plans have no update endpoint. Customers and plans created before external ids existed have `external_id: null`.
 - **Duplicates.** `POST /customers` with a value an active customer of your account already carries answers `409` `CUSTOMER_EXTERNAL_ID_EXISTS`; `POST /payment-plans` with a value a plan of your account already carries answers `409` `PAYMENT_PLAN_EXTERNAL_ID_EXISTS`. The message names the existing `cus_…` or `pp_…` id and does not repeat the external id. A deleted customer frees its value. `POST /customers` and `POST /payment-plans` with an `external_id` that is not 1 to 255 characters or contains a control character answer `400` with no `error` field.
-- **Retries.** Send an `Idempotency-Key` header on every `POST /payment-plans` that carries an `external_id`. A retry with the same key replays the first answer instead of creating, or refusing, a second plan. Two concurrent creates with the same `external_id` and different keys can leave a charged down payment without a plan. Contact Chaching support with the invoice id of the down payment: there is no refund operation for payment plan charges.
+- **Retries.** Send an `Idempotency-Key` header on every `POST /payment-plans` that carries an `external_id`. A retry with the same key replays the first answer instead of creating, or refusing, a second plan. Two concurrent creates with the same `external_id` and different keys can leave a charged down payment without a plan. Contact Chaching support with the invoice id of the down payment: a down payment charged without a plan has no payment that `POST /payment-plans/{id}/payments/{payment_id}/refunds` can refund.
 - **Lookup.** `GET /customers?external_id=…` and `GET /payment-plans?external_id=…` return the normal page, filtered by an exact, case-sensitive match. Leading and trailing spaces, tabs and line breaks of the value are removed first, then it must equal the stored value exactly (case-sensitive). A value that matches nothing returns an empty page; a value that is empty, blank, longer than 255 characters, contains a control character, or is sent twice answers `400`.
 - **Echo.** The Customer and Payment Plan objects carry `external_id`. The Payment Plan object also carries `customer_external_id`; the Installment and Payment objects carry `customer`, `customer_external_id` and `payment_plan_external_id`; the Invoice object carries `customer_external_id` and `payment_plan_external_id`. Webhooks carry the same objects.
 
@@ -547,8 +647,12 @@ Errors use the standard body `{ "statusCode", "message", "error", "timestamp", "
 | `400` | `PAYMENT_METHOD_REQUIRED` | A payment was sent with no `payment_method`, it is not external, and the plan has no card. |
 | `400` | `PAYMENT_PLAN_TERMINAL_EXTERNAL_NOT_ALLOWED` | A payment named a terminal and `external: true` together. |
 | `400` | `IDEMPOTENCY_KEY_INVALID` | The `Idempotency-Key` header is malformed. |
+| `400` | `IDEMPOTENCY_KEY_REQUIRED` | The request has no `Idempotency-Key` header. Nothing was refunded or forgiven. |
+| `400` | `PAYMENT_PLAN_REFUND_AMOUNT_INVALID` | `amount` is not an integer of at least `1`. |
+| `400` | `PAYMENT_PLAN_REFUND_AMOUNT_EXCEEDS_REFUNDABLE` | `amount` is larger than what is left to refund on the payment. Nothing was refunded. |
 | `402` | `PAYMENT_PLAN_DOWN_PAYMENT_DECLINED` | The down payment was declined. No plan was created. |
 | `402` | `PAYMENT_DECLINED` | The first charge of a payment was declined. Nothing was applied. |
+| `402` | `PAYMENT_PLAN_REFUND_DECLINED` | The processor declined or refused the refund, or ChaChing could not authenticate with iPOSpays to send a terminal refund; `message` carries the processor's text when it gave one. Nothing was refunded. |
 | `403` | `PAYMENT_PLANS_NOT_ENABLED` | Payment Plans are not enabled for this account. |
 | `403` | `SECRET_API_KEY_REQUIRED` | Any endpoint was called with a publishable (`pk_...`) API key. |
 | `404` | `PAYMENT_PLAN_NOT_FOUND` | The plan id does not resolve for this account. |
@@ -557,13 +661,14 @@ Errors use the standard body `{ "statusCode", "message", "error", "timestamp", "
 | `404` | `DEJAVOO_TERMINAL_NOT_FOUND` | The `terminal_id` does not resolve to a terminal of this account. |
 | `404` | `PAYMENT_PLAN_PAYMENT_NOT_FOUND` | The payment id does not resolve to a payment of this plan. |
 | `404` | `PAYMENT_PLAN_TERMINAL_ATTEMPT_NOT_FOUND` | The terminal attempt id does not resolve for this account. |
+| `404` | `PAYMENT_PLAN_REFUND_NOT_FOUND` | The refund id does not resolve to a refund of this payment. |
 | `409` | `PAYMENT_PLAN_CREDENTIAL_NOT_ESTABLISHED` | The saved card was not established for automatic payments. Create the plan with a down payment, or ask the customer to enter the card again. On a deposit collected outside, the card named in `payment_method` was not set up for automatic payments: name another card, or record the deposit without a card. |
 | `409` | `PAYMENT_PLAN_PAYMENT_METHOD_NOT_SUPPORTED` | On a create, the payment method is not a card saved with the account's current payment gateway. On `POST /payment-plans/{id}/payments`, on `PUT /invoices/{id}` and on a payment from the hosted invoice page or the dashboard of any invoice that carries an unpaid installment, the card that would be charged — `payment_method`, or the plan's card when it is omitted — is not a card saved with the payment gateway the plan was created on; a plan created before you changed your payment gateway keeps accepting its own cards. Nothing was created or charged. Send a payment method returned by the payment-methods endpoints, or record money you collected yourself with `external: true` on `POST /payment-plans/{id}/payments`. On a deposit collected outside, `payment_method` is not a card saved with your account's Dejavoo gateway. |
 | `409` | `PAYMENT_PLAN_PAYMENT_METHOD_REQUIRED` | An invoice that is an installment of a payment plan without a card, or that holds installments of plans with different cards, was paid with `PUT /invoices/{id}` or from the hosted invoice page or the dashboard without a payment method. It is not charged to a saved card automatically. Nothing is charged; pay it on the hosted invoice page, or record the payment on the payment plan. |
 | `409` | `PAYMENT_PLAN_PAYMENT_METHOD_NOT_CHANGEABLE` | On `PATCH /payment-plans/{id}`, the plan is `awaiting_deposit`, `canceled` or `paid_off`. Nothing was changed. |
 | `409` | `PAYMENT_METHOD_IN_USE_BY_PAYMENT_PLAN` | The payment method is the card of an open payment plan (`active`, `past_due` or `defaulted`), so it cannot be detached. Nothing was deleted; give the plan another card, or remove its card, first. |
 | `409` | `PAYMENT_METHOD_CHANGE_IN_PROGRESS` | Another change to this customer's payment methods is in progress. Nothing was changed; try again. |
-| `409` | `ACCOUNT_DEACTIVATED` | On `PATCH /payment-plans/{id}`, the account is deactivated and the request names a card. Send `payment_method` `null`, or reactivate the account first. |
+| `409` | `ACCOUNT_DEACTIVATED` | On `PATCH /payment-plans/{id}`, the account is deactivated and the request names a card. Send `payment_method` `null`, or reactivate the account first. On a refund or a forgive sent with a platform key, the account is deactivated. |
 | `409` | `PAYMENT_PLAN_UNPAID_OUTCOME_NOT_SUPPORTED` | Your failed-payment outcome is `unpaid`. |
 | `409` | `PAYMENT_PLAN_DUNNING_SCHEDULE_TOO_SHORT` | Your `payment_retries` sum to less than 7 days. |
 | `409` | `PAYMENT_PLAN_CUSTOMER_DELINQUENT` | The customer's account is in the late-payment warning or a failed-payment outcome, or carries an invoice unpaid for one day or more. |
@@ -572,10 +677,10 @@ Errors use the standard body `{ "statusCode", "message", "error", "timestamp", "
 | `409` | `PAYMENT_PLAN_DOWN_PAYMENT_NOT_ATTEMPTED` | The down payment was not attempted because the payment processor was restarting. Nothing was charged and no plan was created; retry later. |
 | `409` | `PAYMENT_PLAN_DOWN_PAYMENT_PENDING` | An earlier down-payment invoice of the same amount for this customer is still open, or was settled in a way this request cannot use (a different payment method, no card payment, or more than one such invoice). Nothing was created or charged by this request. Check the customer's invoices and transactions: wait for an open charge to finish, send the `payment_method` that paid, or refund or void the invoices that should not count, then send the request again. |
 | `409` | `PAYMENT_PLAN_EXTERNAL_ID_EXISTS` | A payment plan of your account already carries this `external_id`. The message names that plan's `pp_…` id. Nothing was created or charged by this request. |
-| `409` | `PAYMENT_PLAN_NOT_PAYABLE` | The plan is `paid_off`, or it is `awaiting_deposit` and the payment is not `external: true`. |
+| `409` | `PAYMENT_PLAN_NOT_PAYABLE` | The plan is `paid_off` and owes no refunded amount (`amount_due` `0`), or it is `awaiting_deposit` and the payment is not `external: true`. |
 | `409` | `PAYMENT_PLAN_NOT_CANCELABLE` | The plan is already `paid_off` or `canceled`. |
 | `409` | `CUSTOMER_HAS_OPEN_PAYMENT_PLANS` | On `DELETE /customers/{customer_id}`: the customer has a plan that is `awaiting_deposit`, `active`, `past_due` or `defaulted`. Nothing is deleted; cancel the plan, or collect its remaining balance, first. |
-| `409` | `PAYMENT_PLAN_BUSY` | Another payment or a cancellation on this plan is in progress. Retry shortly. |
+| `409` | `PAYMENT_PLAN_BUSY` | Another payment, a refund or a cancellation on this plan is in progress. Retry shortly. |
 | `409` | `PAYMENT_PLAN_NOT_AWAITING_DEPOSIT` | A deposit was started or confirmed on a plan that is not `awaiting_deposit`. It also answers when the plan stopped being `awaiting_deposit` while a deposit collected outside was being recorded. |
 | `409` | `PAYMENT_PLAN_DEPOSIT_IN_FLIGHT` | The plan has a deposit attempt that is not resolved yet; for the confirm endpoint, one that is still `in_flight`. A deposit collected outside is refused while an attempt is unresolved. |
 | `409` | `PAYMENT_PLAN_DEPOSIT_NO_ATTEMPT` | The plan has no deposit attempt to confirm. |
@@ -587,7 +692,7 @@ Errors use the standard body `{ "statusCode", "message", "error", "timestamp", "
 | `409` | `SPIN_AUTH_KEY_UNREADABLE` | The terminal's stored Auth Key cannot be read. Re-enter it with `PATCH /dejavoo/terminals/{id}`. |
 | `409` | `PAYMENT_PLAN_START_DATE_TOO_SOON` | The first installment charged after the deposit is due within 1 hour, so the terminal deposit cannot start, or the deposit collected outside cannot be recorded. Cancel the plan and create it again with a later start date. |
 | `409` | `PAYMENT_PLAN_INSTALLMENT_BILLING_IN_PROGRESS` | The payment reaches the principal and the next installment is being billed or is about to bill: for a `daily` plan, its billing time is less than 1 hour away; for every other cadence, it is due within 24 hours. It can also answer for a `daily` plan whose billing time cannot be determined. Nothing is charged. |
-| `409` | `PAYMENT_PLAN_PAYMENT_PENDING_CONFIRMATION` | An earlier payment on this plan is still being confirmed, a terminal payment that reads `processing` included. Nothing is charged; retry later. On `POST /payment-plans/{id}/cancel`, a terminal payment of the plan is unresolved. |
+| `409` | `PAYMENT_PLAN_PAYMENT_PENDING_CONFIRMATION` | An earlier payment on this plan is still being confirmed, a terminal payment that reads `processing` included. Nothing is charged; retry later. On `POST /payment-plans/{id}/cancel`, a terminal payment of the plan is unresolved. On a forgive, a payment that collects what is still owed from the refund is still being confirmed. |
 | `409` | `PAYMENT_PLAN_REPLAN_PENDING` | An earlier payment's schedule rebuild is still being completed. Nothing is charged; retry later. |
 | `409` | `PAYMENT_PLAN_PAYMENT_NOT_ATTEMPTED` | The first charge was not attempted. Nothing is charged. |
 | `409` | `PAYMENT_PLAN_TERMINAL_NOT_SUPPORTED` | A terminal payment was sent for a plan that is not on the Dejavoo gateway. |
@@ -600,6 +705,10 @@ Errors use the standard body `{ "statusCode", "message", "error", "timestamp", "
 | `409` | `PAYMENT_PLAN_TERMINAL_ATTEMPT_FINAL` | A force-close of a terminal attempt that is already final. Nothing was changed. |
 | `409` | `PAYMENT_PLAN_TERMINAL_ATTEMPT_RESOLVED` | The status read of a force-close found an outcome; it was recorded and nothing was closed. `message` names the attempt's state. |
 | `409` | `IDEMPOTENCY_KEY_IN_PROGRESS` | A request with the same `Idempotency-Key` is still running. |
+| `409` | `PAYMENT_PLAN_PAYMENT_NOT_REFUNDABLE` | The payment collected nothing for the plan or is still being recorded, it was collected outside ChaChing, nothing is left to refund on it, or its invoice no longer carries the amount to refund; `message` names which. Nothing was refunded. |
+| `409` | `PAYMENT_PLAN_REFUND_SURCHARGE_UNCONFIRMED` | The surcharge of the charge could not be established, so ChaChing cannot refund it. Nothing was refunded. |
+| `409` | `PAYMENT_PLAN_REFUND_NOT_FORGIVABLE` | Nothing of this refund is still owed. |
+| `409` | `PAYMENT_PLAN_REFUND_PENDING` | On a refund, an earlier refund of the payment is still being confirmed; on a forgive, the refund itself is. Retry shortly. |
 | `422` | `IDEMPOTENCY_KEY_REUSED` | The `Idempotency-Key` was already used with a different request. |
 | `422` | `SPIN_CREDENTIALS_REJECTED` | SPIn did not accept the terminal's TPN and Auth Key. |
 | `422` | `DEJAVOO_TERMINAL_ISV_ID_INVALID` | The terminal's `isv_id` is not 1 to 16 characters, as SPIn requires. Update it with `PATCH /dejavoo/terminals/{id}`. |
@@ -607,7 +716,7 @@ Errors use the standard body `{ "statusCode", "message", "error", "timestamp", "
 | `502` | `PAYMENT_PLAN_DOWN_PAYMENT_UNCONFIRMED` | The down payment's outcome could not be confirmed. No plan was created and the charge is not reversed. `down_payment_invoice_id` is the id of the down-payment invoice to check. Once its charge has settled, send the same request again; this answer is not stored, so the same `Idempotency-Key` is accepted. A retry that itself answers a stored `502`, for example `PAYMENT_PLAN_BILLING_ENGINE_UNAVAILABLE`, needs a new key. A charge paid with the same `payment_method` is used for the new plan and is not taken again. From the next UTC day, the request answers `409` `PAYMENT_PLAN_CUSTOMER_DELINQUENT` instead until that invoice is paid or voided. Check the customer's invoices before you change the amount. |
 | `502` | `PAYMENT_PLAN_PAYMENT_UNCONFIRMED` | The first charge's outcome could not be confirmed. It is not reversed; read the plan before retrying. |
 | `502` | `PAYMENT_PLAN_DEPOSIT_INVOICE_NOT_RECORDED` | A terminal deposit, or a deposit collected outside, could not be recorded on its invoice. For a deposit collected outside the plan was not activated, and its invoice payment can already be recorded: send the request again with a new `Idempotency-Key`, which reuses that invoice. For a terminal deposit, resolve it again. |
-| `502` | `PAYMENT_PLAN_BILLING_ENGINE_UNAVAILABLE` | Billing data could not be read, including the billing account of the customer when `start_date` is checked (create, preview, terminal deposit and deposit collected outside). Nothing was created or charged; safe to retry with a new `Idempotency-Key`. |
+| `502` | `PAYMENT_PLAN_BILLING_ENGINE_UNAVAILABLE` | Billing data could not be read, including the billing account of the customer when `start_date` is checked (create, preview, terminal deposit and deposit collected outside). Nothing was created or charged; safe to retry with a new `Idempotency-Key`. On a refund, the billing data could not be read before the refund was sent, or the processor refunded nothing and the billing engine did not record the refund; nothing was refunded. |
 | `502` | `PAYMENT_PLAN_EXTERNAL_ID_CHECK_FAILED` | The duplicate check of `external_id` right before the down payment could not be read. Nothing was created or charged; the same `Idempotency-Key` is evaluated again on the next request. |
 | `502` | `PAYMENT_PLAN_CANCEL_INCOMPLETE` | The cancellation did not complete. The plan keeps its status and installments, but part of its schedule can already be stopped. Repeat the request: a repeat completes the rest. |
 | `502` | `IDEMPOTENCY_REQUEST_INCOMPLETE` | The first request with this `Idempotency-Key` never completed. |
@@ -617,26 +726,29 @@ Errors use the standard body `{ "statusCode", "message", "error", "timestamp", "
 
 # Payment Plan Events
 
-Payment Plans send eleven webhook event types on the same endpoints, envelope, signature and retry policy as every other ChaChing event. Their payloads are described in [Webhooks](./webhook.md). To send your own receipts and notices from these events, see [Send Your Own Customer Notifications](./customer-notifications.md).
+Payment Plans send fourteen webhook event types on the same endpoints, envelope, signature and retry policy as every other ChaChing event. Their payloads are described in [Webhooks](./webhook.md). To send your own receipts and notices from these events, see [Send Your Own Customer Notifications](./customer-notifications.md).
 
 | **Event** | **Sent when** | **`data`** |
 | --- | --- | --- |
 | `payment_plan.created` | A plan is created. | Payment Plan |
 | `payment_plan.activated` | A plan starts running. A plan created with `payment_method` sends it right after `payment_plan.created`; a plan created without it sends it when its deposit, collected on a terminal, is confirmed, or when you record its deposit collected outside ChaChing. | Payment Plan |
-| `payment_plan.installment_paid` | An installment is paid by its automatic charge or a retry, by a payment through `POST /payment-plans/{id}/payments`, by a payment of its invoice made through ChaChing (the hosted invoice page, the dashboard or `PUT /invoices/{id}`), by credit on the customer's account that settles its invoice, as the down payment, charged at creation, collected on a terminal or recorded as collected outside ChaChing (sequence `0`), or as the first installment collected on a terminal or recorded as collected outside ChaChing (sequence `1`). | Installment |
+| `payment_plan.installment_paid` | An installment is paid by its automatic charge or a retry, by a payment through `POST /payment-plans/{id}/payments`, by a payment of its invoice made through ChaChing (the hosted invoice page, the dashboard or `PUT /invoices/{id}`), by credit on the customer's account that settles its invoice, as the down payment, charged at creation, collected on a terminal or recorded as collected outside ChaChing (sequence `0`), or as the first installment collected on a terminal or recorded as collected outside ChaChing (sequence `1`). An installment that was refunded and is `paid` again, because its owed part is collected or forgiven, sends no second `payment_plan.installment_paid`. | Installment |
 | `payment_plan.installment_failed` | An automatic charge attempt on an installment is declined, once per attempt, retries included. | Installment |
 | `payment_plan.past_due` | The plan changes to `past_due`. | Payment Plan |
 | `payment_plan.defaulted` | The plan changes to `defaulted`. | Payment Plan |
 | `payment_plan.reactivated` | The plan returns to `active` from `past_due` or `defaulted`. | Payment Plan |
 | `payment_plan.completed` | The plan changes to `paid_off`. | Payment Plan |
 | `payment_plan.canceled` | The plan is canceled. | Payment Plan |
-| `payment_plan.payment_succeeded` | `POST /payment-plans/{id}/payments` records a payment. | Payment |
+| `payment_plan.payment_succeeded` | A payment of the plan collected money: a payment you record, an automatic charge, a down payment, a terminal deposit, an invoice payment or a charge of a new card. | Payment |
 | `payment_plan.payment_method_updated` | A plan's card is set, replaced or removed: with `PATCH /payment-plans/{id}`, or when a terminal payment sent with `save_payment_method: true` saves its card. It is not sent when the card does not change, nor when a plan is created, activated or has its deposit recorded. | Payment Plan, plus `previous_payment_method` |
+| `payment_plan.payment_failed` | A payment of the plan is declined or could not be processed: a payment you record, an automatic attempt, an invoice payment or a charge of a new card. | Payment |
+| `payment_plan.payment_refunded` | A payment of the plan is refunded or voided, through ChaChing (the API or the dashboard), or in your iPOSpays account when the account's FEED notifications reach ChaChing. | Refund |
+| `payment_plan.refund_forgiven` | The amount still owed from a refund is forgiven with `POST …/refunds/{refund_id}/forgive`. A refund sent with `forgive: true` sends only `payment_plan.payment_refunded`, with `forgiven: true`. | Refund |
 
 A deposit recorded as collected outside ChaChing emits, in this order (deliveries can arrive in any order): `invoice.payment_succeeded` for the deposit invoice, `invoice.payment_succeeded` for the invoice of the amount above the deposit when there is one, `payment_plan.activated`, `payment_plan.installment_paid` for the deposit, `payment_plan.payment_succeeded`, and `payment_plan.completed` when it paid the plan off. `payment_plan.activated` shows the deposit as paid; the amount above it is reported by the events that follow.
 
 An installment whose invoice is settled by credit on the customer's account, with no card charge, becomes `paid` with `amount_paid` equal to the amount the credit covered and `surcharge_amount` `0`. `paid_at` is the moment ChaChing recorded it, which can be up to about 10 minutes after the credit was applied. `payment_plan.installment_paid` is sent once and no receipt email is sent.
 
-When an installment's invoice is reduced by an adjustment and the rest is paid, the installment becomes `paid` and `amount_paid` is the amount actually collected; the adjusted part is not counted as paid.
+When an installment's invoice is reduced by an adjustment and the rest is paid, the installment becomes `paid` and `amount_paid` is the amount actually collected; the adjusted part is not counted as paid. The item adjustment ChaChing makes for a refund is not such a reduction: the installment keeps its `amount_paid`; the refunded part is owed on the installment, which then reads `refunded`, or on the plan, as **Refund a Payment** describes.
 
 Read the plan with `GET /payment-plans/{id}` whenever you need its current state: the plan and installment endpoints are the source of truth, and deliveries can arrive in a different order than the changes happened.

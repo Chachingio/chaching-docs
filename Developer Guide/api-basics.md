@@ -81,7 +81,7 @@ Every error body has `statusCode`, `message`, `timestamp` and `path`, and `error
 | --- | --- |
 | `400` | The request is invalid. |
 | `401` | The key is not valid. |
-| `402` | A charge was declined. |
+| `402` | A charge or a refund was declined. |
 | `403` | The key cannot use this route. |
 | `404` | The object does not exist for this account. |
 | `409` | The request conflicts with the object's state. |
@@ -114,7 +114,7 @@ Every field, query parameter and path parameter of the [API Reference](/develope
 | **Object** | **Id** |
 | --- | --- |
 | Customer | `cus_` and 24 letters and digits |
-| Payment plan, installment, payment | `pp_`, `ppi_`, `ppp_` and 24 letters and digits |
+| Payment plan, installment, payment, refund | `pp_`, `ppi_`, `ppp_`, `pprf_` and 24 letters and digits |
 | Terminal attempt | `ppda_` and 24 letters and digits |
 | Account, company | `acc_`, `com_` and 24 letters and digits |
 | Event | `evt_` and 24 hexadecimal digits |
