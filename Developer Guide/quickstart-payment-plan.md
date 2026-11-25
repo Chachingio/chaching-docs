@@ -211,14 +211,14 @@ curl -X POST https://stage-api.chaching.io/customers \
 <!-- captured: POST /customers on stage, redacted -->
 ```json
 {
-  "id": "cus_06dc7b45aabd042f600aec0c",
+  "id": "cus_e999db9eb0b5943fb383149c",
   "object": "customer",
   "name": "Jenny Rosen",
   "email": "jenny.rosen@example.com",
   "external_id": "patient-55821",
   "phone": null,
   "description": null,
-  "created": 1794269591,
+  "created": 1795643593,
   "currency": "usd",
   "address": {
     "line1": null,
@@ -273,7 +273,7 @@ curl -X POST https://stage-api.chaching.io/payment-plans/preview \
 {
   "object": "payment_plan_preview",
   "mode": "terminal_deposit",
-  "customer": "cus_06dc7b45aabd042f600aec0c",
+  "customer": "cus_e999db9eb0b5943fb383149c",
   "total_amount": 1200,
   "down_payment_amount": 100,
   "financed_amount": 1100,
@@ -369,7 +369,7 @@ curl -X POST https://stage-api.chaching.io/payment-plans \
 <!-- captured: POST /payment-plans on stage, redacted -->
 ```json
 {
-  "id": "pp_3f61265e0d99dc2f94af336c",
+  "id": "pp_e867794d06e63d02c7e306f7",
   "object": "payment_plan",
   "external_id": "treatment-1",
   "customer": "cus_e999db9eb0b5943fb383149c",
@@ -392,9 +392,9 @@ curl -X POST https://stage-api.chaching.io/payment-plans \
   "next_due_date": 1795564800,
   "payment_method": null,
   "gateway": null,
-  "reference": "AGHZDD6V",
+  "reference": "TTLKM8CB",
   "deposit": {
-    "reference": "AGHZDD6V",
+    "reference": "TTLKM8CB",
     "kind": "down_payment",
     "amount": 100,
     "status": "pending",
@@ -403,7 +403,7 @@ curl -X POST https://stage-api.chaching.io/payment-plans \
     "attempt": null,
     "external": false
   },
-  "created": 1795643593,
+  "created": 1795647577,
   "ended_at": null,
   "canceled_at": null
 }
@@ -436,7 +436,7 @@ curl -X POST https://stage-api.chaching.io/payment-plans/$PLAN_ID/deposit/termin
 <!-- captured: POST /payment-plans/{id}/deposit/terminal on stage, redacted -->
 ```json
 {
-  "id": "pp_3f61265e0d99dc2f94af336c",
+  "id": "pp_e867794d06e63d02c7e306f7",
   "object": "payment_plan",
   "external_id": "treatment-1",
   "customer": "cus_e999db9eb0b5943fb383149c",
@@ -459,21 +459,21 @@ curl -X POST https://stage-api.chaching.io/payment-plans/$PLAN_ID/deposit/termin
   "next_due_date": 1795564800,
   "payment_method": null,
   "gateway": null,
-  "reference": "AGHZDD6V",
+  "reference": "TTLKM8CB",
   "deposit": {
-    "reference": "AGHZDD6V",
+    "reference": "TTLKM8CB",
     "kind": "down_payment",
     "amount": 100,
     "status": "pending",
     "transaction_reference": null,
     "collected_at": null,
     "attempt": {
-      "id": "ppda_b477077ea254c4469b4c1bb0",
+      "id": "ppda_2a92bbe5797e3dfd96ccc798",
       "object": "payment_plan_deposit_attempt",
       "terminal": "393c386a-6c4c-41af-8645-8a1b2b262473",
-      "reference_id": "AGHZDD6V01",
+      "reference_id": "TTLKM8CB01",
       "state": "in_flight",
-      "started": 1795643594,
+      "started": 1795647577,
       "resolved": null,
       "decline_code": null,
       "decline_message": null,
@@ -482,7 +482,7 @@ curl -X POST https://stage-api.chaching.io/payment-plans/$PLAN_ID/deposit/termin
     },
     "external": false
   },
-  "created": 1795643593,
+  "created": 1795647577,
   "ended_at": null,
   "canceled_at": null
 }
@@ -501,10 +501,10 @@ curl https://stage-api.chaching.io/payment-plans/$PLAN_ID \
 <!-- captured: GET /payment-plans/{id} on stage, redacted -->
 ```json
 {
-  "id": "pp_dfb674a07acfc1882b7e046e",
+  "id": "pp_e867794d06e63d02c7e306f7",
   "object": "payment_plan",
   "external_id": "treatment-1",
-  "customer": "cus_848bff42aa106cf8815dcb4f",
+  "customer": "cus_e999db9eb0b5943fb383149c",
   "customer_external_id": "patient-55821",
   "description": "Orthodontic treatment",
   "status": "active",
@@ -517,27 +517,29 @@ curl https://stage-api.chaching.io/payment-plans/$PLAN_ID \
   "start_date": 1811808000,
   "remainder_placement": "first",
   "remaining_balance": 1100,
+  "amount_refunded": 0,
+  "amount_due": 0,
   "installments_paid": 0,
   "installments_remaining": 11,
   "next_due_date": 1811808000,
-  "payment_method": "35e7da7e-e108-4530-923f-cd8fe38ff107",
+  "payment_method": "74e7d656-96ab-4763-9459-5844244b562c",
   "gateway": "dejavoo",
-  "reference": "9DRT5BKW",
+  "reference": "TTLKM8CB",
   "deposit": {
-    "reference": "9DRT5BKW",
+    "reference": "TTLKM8CB",
     "kind": "down_payment",
     "amount": 100,
     "status": "collected",
-    "transaction_reference": "00006212345678901320261110174200",
-    "collected_at": 1794350522,
+    "transaction_reference": "00007511812636285020261125175944",
+    "collected_at": 1795647587,
     "attempt": {
-      "id": "ppda_72e785c65610da55a48bb496",
+      "id": "ppda_2a92bbe5797e3dfd96ccc798",
       "object": "payment_plan_deposit_attempt",
       "terminal": "393c386a-6c4c-41af-8645-8a1b2b262473",
-      "reference_id": "9DRT5BKW02",
+      "reference_id": "TTLKM8CB01",
       "state": "approved",
-      "started": 1794350505,
-      "resolved": 1794350522,
+      "started": 1795647577,
+      "resolved": 1795647587,
       "decline_code": null,
       "decline_message": null,
       "surcharge_amount": 3,
@@ -545,7 +547,7 @@ curl https://stage-api.chaching.io/payment-plans/$PLAN_ID \
     },
     "external": false
   },
-  "created": 1794269623,
+  "created": 1795647577,
   "ended_at": null,
   "canceled_at": null
 }
@@ -621,8 +623,8 @@ curl https://stage-api.chaching.io/webhook-deliveries/$DELIVERY_ID \
   "status": "success",
   "response_status_code": 200,
   "next_attempt": null,
-  "created": 1795643593,
-  "updated": 1795643594,
+  "created": 1795647577,
+  "updated": 1795647578,
   "payload": {
     "id": "evt_3b12bdf0ed369e47f07b3e8d",
     "account": {
@@ -633,20 +635,20 @@ curl https://stage-api.chaching.io/webhook-deliveries/$DELIVERY_ID \
         "external_id": null
       }
     },
-    "created": 1795643593,
-    "createdAt": "2026-11-25T21:53:13.991Z",
+    "created": 1795647577,
+    "createdAt": "2026-11-25T22:59:37.638Z",
     "data": {
-      "id": "pp_3f61265e0d99dc2f94af336c",
+      "id": "pp_e867794d06e63d02c7e306f7",
       "object": "payment_plan",
       "status": "awaiting_deposit",
-      "created": 1795643593,
+      "created": 1795647577,
       "deposit": {
         "kind": "down_payment",
         "amount": 100,
         "status": "pending",
         "attempt": null,
         "external": false,
-        "reference": "AGHZDD6V",
+        "reference": "TTLKM8CB",
         "collected_at": null,
         "transaction_reference": null
       },
@@ -655,7 +657,7 @@ curl https://stage-api.chaching.io/webhook-deliveries/$DELIVERY_ID \
       "customer": "cus_e999db9eb0b5943fb383149c",
       "ended_at": null,
       "interval": "monthly",
-      "reference": "AGHZDD6V",
+      "reference": "TTLKM8CB",
       "amount_due": 0,
       "start_date": 1811808000,
       "canceled_at": null,
@@ -679,7 +681,7 @@ curl https://stage-api.chaching.io/webhook-deliveries/$DELIVERY_ID \
   "attempts": [
     {
       "attempt": 1,
-      "created": 1795643594,
+      "created": 1795647578,
       "response_status_code": 200,
       "response_body": "{\"ok\":true}",
       "response_body_truncated": false,
