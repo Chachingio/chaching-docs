@@ -98,6 +98,7 @@ ChaChing sends emails to the customer, with a copy to the account's first super 
 | The customer paid | `invoice.payment_succeeded`; after a short delay, re-read the subscription to learn whether a hold ended. `subscription.resumed` with `reason: "dunning"` is not sent for every hold that ends; see **Events for Failed-Payment Outcomes** |
 | Late-payment warning | For a customer who holds a payment plan, `payment_plan.past_due` for each plan that changes to `past_due`, whose `status` then reads `past_due`. The subscription API and the subscription webhooks do not expose it |
 | Invoice labeled uncollectible | Not exposed by the API or webhooks |
+| Invoice written off | `invoice.written_off`; the Invoice object reads `collection_status: written_off` |
 
 ---
 
