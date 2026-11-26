@@ -58,7 +58,7 @@ Events a request causes, which you can provoke on staging:
 | `POST /subscriptions/{id}/pause`, `/resume`, `DELETE /subscriptions/{id}` | `subscription.paused`, `subscription.resumed`, `subscription.canceled` |
 | `POST /payment-plans`, the terminal deposit, `POST /payment-plans/{id}/payments`, `POST /payment-plans/{id}/payments/{payment_id}/refunds` and its `/forgive`, `POST /payment-plans/{id}/cancel` | `payment_plan.created`, `payment_plan.activated`, `payment_plan.installment_paid`, `payment_plan.payment_succeeded`, `payment_plan.payment_failed`, `payment_plan.payment_refunded`, `payment_plan.refund_forgiven`, `payment_plan.completed`, `payment_plan.canceled` |
 
-Events of the billing run, which need the daily run and the passing days: renewal invoices and their payments, the `payment_plan.payment_failed` of a failed automatic attempt, and `subscription.expired`. The payment plan failure path has test helpers, described below.
+Events of the billing run, which need the daily run and the passing days: renewal invoices and their payments, and `subscription.expired`. The payment plan failure path has test helpers, described below.
 
 ## Payment plan test helpers
 
