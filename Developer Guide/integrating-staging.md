@@ -52,11 +52,11 @@ Events a request causes, which you can provoke on staging:
 | Customer, payment method, product, price and tax rate writes | `customer.*`, `payment_method.*`, `product.*`, `price.*`, `tax.*` |
 | `POST /invoices` | `invoice.created`, `invoice.finalized` |
 | `POST /invoices/{id}/send` | `invoice.sent` |
-| `PUT /invoices/{id}` | `invoice.payment_succeeded` or `invoice.payment_failed` |
+| `PUT /invoices/{id}` | `invoice.payment_succeeded` or `invoice.payment_failed`; on a payment plan installment invoice also `payment_plan.payment_succeeded` or `payment_plan.payment_failed`, and `payment_plan.installment_paid` when it settles the installment |
 | `DELETE /invoices/{id}` | `invoice.deleted` for a voided invoice; `invoice.written_off` when an open invoice that bills a subscription or payment plan period is written off |
 | `POST /subscriptions`, `PATCH /subscriptions/{id}` | `subscription.created`, `subscription.updated` |
 | `POST /subscriptions/{id}/pause`, `/resume`, `DELETE /subscriptions/{id}` | `subscription.paused`, `subscription.resumed`, `subscription.canceled` |
-| `POST /payment-plans`, the terminal deposit, `POST /payment-plans/{id}/payments`, `POST /payment-plans/{id}/cancel` | `payment_plan.created`, `payment_plan.activated`, `payment_plan.installment_paid`, `payment_plan.payment_succeeded`, `payment_plan.completed`, `payment_plan.canceled` |
+| `POST /payment-plans`, the terminal deposit, `POST /payment-plans/{id}/payments`, `POST /payment-plans/{id}/payments/{payment_id}/refunds` and its `/forgive`, `POST /payment-plans/{id}/cancel` | `payment_plan.created`, `payment_plan.activated`, `payment_plan.installment_paid`, `payment_plan.payment_succeeded`, `payment_plan.payment_failed`, `payment_plan.payment_refunded`, `payment_plan.refund_forgiven`, `payment_plan.completed`, `payment_plan.canceled` |
 
 Events of the billing run, which need the daily run and the passing days: renewal invoices and their payments, and `subscription.expired`. The payment plan failure path has test helpers, described below.
 
@@ -109,7 +109,7 @@ To watch the billing engine itself, create a `daily` plan whose installment is `
 
 ## Idempotency
 
-`POST /payment-plans`, `POST /payment-plans/{id}/payments` and `POST /platform/accounts` accept an `Idempotency-Key` header: 1 to 255 printable ASCII characters with no spaces (`400 IDEMPOTENCY_KEY_INVALID` otherwise). A key is kept for 24 hours.
+`POST /payment-plans`, `POST /payment-plans/{id}/payments` and `POST /platform/accounts` accept an `Idempotency-Key` header, and `POST /payment-plans/{id}/payments/{payment_id}/refunds` and `POST /payment-plans/{id}/payments/{payment_id}/refunds/{refund_id}/forgive` require one (`400 IDEMPOTENCY_KEY_REQUIRED` without it): 1 to 255 printable ASCII characters with no spaces (`400 IDEMPOTENCY_KEY_INVALID` otherwise). A key is kept for 24 hours.
 
 - The same key with the same request returns the stored status and body with the header `Idempotent-Replayed: true`; nothing runs again.
 - The same key with a different request answers `422 IDEMPOTENCY_KEY_REUSED`.
@@ -148,7 +148,7 @@ On a Dejavoo account a card is saved by the terminal deposit of a payment plan (
 
 ## What production does not have yet
 
-These operation groups exist only on staging today; the [API Reference](./api.json) marks each operation with **Staging only**: Payment Plans (21), Platform (14), Webhook Endpoints (11), Processor Credentials (6), Dejavoo Terminals (5), Invoices (3), Email Settings (2), Revenue Recovery (2), Payment Methods (1). Production also answers some shared objects with older field names; build against staging and move to production after Chaching promotes the release. On production, `daily` plan intervals are refused and webhook URLs must be `https`. The four payment plan test helpers are staging-only by design: production answers them `403 TEST_HELPERS_NOT_AVAILABLE`.
+These operation groups exist only on staging today; the [API Reference](./api.json) marks each operation with **Staging only**: Payment Plans (21), Platform (19), Webhook Endpoints (14), Processor Credentials (6), Dejavoo Terminals (5), Invoices (3), Email Settings (2), Revenue Recovery (2), Payment Methods (1). Production also answers some shared objects with older field names; build against staging and move to production after Chaching promotes the release. On production, `daily` plan intervals are refused and webhook URLs must be `https`. The four payment plan test helpers are staging-only by design: production answers them `403 TEST_HELPERS_NOT_AVAILABLE`.
 
 ## The API Reference
 

@@ -82,18 +82,18 @@ curl -X POST https://stage-api.chaching.io/platform/accounts \
 ```json
 {
   "object": "account",
-  "id": "acc_ac3a743a00d0db71b2332f78",
+  "id": "acc_52f3ca849c5021b4504c63e5",
   "external_id": "location-7",
-  "name": "Rosen Family Dental",
+  "name": "Rosen Family Dental - Main Street",
   "company": {
-    "id": "com_8d2abb56a643c585514c5aa1",
+    "id": "com_b08861ac3b5790f5f6882ed3",
     "external_id": "office-1042",
     "name": "Rosen Family Dental"
   },
   "time_zone": "America/New_York",
   "status": "active",
   "deactivated_at": null,
-  "created": 1794269584
+  "created": 1795657223
 }
 ```
 
@@ -136,7 +136,7 @@ curl -X PUT https://stage-api.chaching.io/dejavoo/credentials \
   "ecom_token_set": true,
   "feed_signing_key_set": false,
   "google_pay_merchant_id_set": false,
-  "updated_at": 1794269586
+  "updated_at": 1795657225
 }
 ```
 
@@ -167,21 +167,21 @@ curl -X POST https://stage-api.chaching.io/dejavoo/terminals \
 <!-- captured: GET /dejavoo/terminals on stage, redacted -->
 ```json
 {
-  "id": "393c386a-6c4c-41af-8645-8a1b2b262473",
+  "id": "f9fb0123-89b1-4e5e-ac98-98b7eb1a94bb",
   "object": "dejavoo_terminal",
   "tpn": "123456789013",
-  "label": "UAT P1",
+  "label": "Front desk",
   "enabled": true,
   "register_id": null,
   "isv_id": null,
   "spin_auth_key_set": true,
-  "credential_rotated_at": 1791760446,
-  "last_probe_at": 1794009709,
+  "credential_rotated_at": null,
+  "last_probe_at": 1795657234,
   "last_probe_status": "Online",
   "build": null,
-  "serial": "P1260428000529",
-  "feed_enable_requested_at": 1791760425,
-  "created": 1791760425
+  "serial": null,
+  "feed_enable_requested_at": null,
+  "created": 1795657234
 }
 ```
 
@@ -211,14 +211,14 @@ curl -X POST https://stage-api.chaching.io/customers \
 <!-- captured: POST /customers on stage, redacted -->
 ```json
 {
-  "id": "cus_06dc7b45aabd042f600aec0c",
+  "id": "cus_e858445ae329019c9e385ea5",
   "object": "customer",
   "name": "Jenny Rosen",
   "email": "jenny.rosen@example.com",
   "external_id": "patient-55821",
   "phone": null,
   "description": null,
-  "created": 1794269591,
+  "created": 1795657235,
   "currency": "usd",
   "address": {
     "line1": null,
@@ -273,7 +273,7 @@ curl -X POST https://stage-api.chaching.io/payment-plans/preview \
 {
   "object": "payment_plan_preview",
   "mode": "terminal_deposit",
-  "customer": "cus_06dc7b45aabd042f600aec0c",
+  "customer": "cus_e858445ae329019c9e385ea5",
   "total_amount": 1200,
   "down_payment_amount": 100,
   "financed_amount": 1100,
@@ -369,10 +369,10 @@ curl -X POST https://stage-api.chaching.io/payment-plans \
 <!-- captured: POST /payment-plans on stage, redacted -->
 ```json
 {
-  "id": "pp_fb761610ab8be59e112221d7",
+  "id": "pp_849639436a2cee4e5818694f",
   "object": "payment_plan",
   "external_id": "treatment-1",
-  "customer": "cus_06dc7b45aabd042f600aec0c",
+  "customer": "cus_e858445ae329019c9e385ea5",
   "customer_external_id": "patient-55821",
   "description": "Orthodontic treatment",
   "status": "awaiting_deposit",
@@ -385,14 +385,16 @@ curl -X POST https://stage-api.chaching.io/payment-plans \
   "start_date": 1811808000,
   "remainder_placement": "first",
   "remaining_balance": 1200,
+  "amount_refunded": 0,
+  "amount_due": 0,
   "installments_paid": 0,
   "installments_remaining": 12,
-  "next_due_date": 1794182400,
+  "next_due_date": 1795564800,
   "payment_method": null,
   "gateway": null,
-  "reference": "EZS0S6S8",
+  "reference": "G80DISXZ",
   "deposit": {
-    "reference": "EZS0S6S8",
+    "reference": "G80DISXZ",
     "kind": "down_payment",
     "amount": 100,
     "status": "pending",
@@ -401,7 +403,7 @@ curl -X POST https://stage-api.chaching.io/payment-plans \
     "attempt": null,
     "external": false
   },
-  "created": 1794269592,
+  "created": 1795657236,
   "ended_at": null,
   "canceled_at": null
 }
@@ -434,10 +436,10 @@ curl -X POST https://stage-api.chaching.io/payment-plans/$PLAN_ID/deposit/termin
 <!-- captured: POST /payment-plans/{id}/deposit/terminal on stage, redacted -->
 ```json
 {
-  "id": "pp_dfb674a07acfc1882b7e046e",
+  "id": "pp_849639436a2cee4e5818694f",
   "object": "payment_plan",
   "external_id": "treatment-1",
-  "customer": "cus_848bff42aa106cf8815dcb4f",
+  "customer": "cus_e858445ae329019c9e385ea5",
   "customer_external_id": "patient-55821",
   "description": "Orthodontic treatment",
   "status": "awaiting_deposit",
@@ -450,26 +452,28 @@ curl -X POST https://stage-api.chaching.io/payment-plans/$PLAN_ID/deposit/termin
   "start_date": 1811808000,
   "remainder_placement": "first",
   "remaining_balance": 1200,
+  "amount_refunded": 0,
+  "amount_due": 0,
   "installments_paid": 0,
   "installments_remaining": 12,
-  "next_due_date": 1794182400,
+  "next_due_date": 1795564800,
   "payment_method": null,
   "gateway": null,
-  "reference": "9DRT5BKW",
+  "reference": "G80DISXZ",
   "deposit": {
-    "reference": "9DRT5BKW",
+    "reference": "G80DISXZ",
     "kind": "down_payment",
     "amount": 100,
     "status": "pending",
     "transaction_reference": null,
     "collected_at": null,
     "attempt": {
-      "id": "ppda_72e785c65610da55a48bb496",
+      "id": "ppda_c8708021cc8a715f7b8781c2",
       "object": "payment_plan_deposit_attempt",
-      "terminal": "393c386a-6c4c-41af-8645-8a1b2b262473",
-      "reference_id": "9DRT5BKW02",
+      "terminal": "f9fb0123-89b1-4e5e-ac98-98b7eb1a94bb",
+      "reference_id": "G80DISXZ01",
       "state": "in_flight",
-      "started": 1794350505,
+      "started": 1795657239,
       "resolved": null,
       "decline_code": null,
       "decline_message": null,
@@ -478,7 +482,7 @@ curl -X POST https://stage-api.chaching.io/payment-plans/$PLAN_ID/deposit/termin
     },
     "external": false
   },
-  "created": 1794269623,
+  "created": 1795657236,
   "ended_at": null,
   "canceled_at": null
 }
@@ -497,10 +501,10 @@ curl https://stage-api.chaching.io/payment-plans/$PLAN_ID \
 <!-- captured: GET /payment-plans/{id} on stage, redacted -->
 ```json
 {
-  "id": "pp_dfb674a07acfc1882b7e046e",
+  "id": "pp_849639436a2cee4e5818694f",
   "object": "payment_plan",
   "external_id": "treatment-1",
-  "customer": "cus_848bff42aa106cf8815dcb4f",
+  "customer": "cus_e858445ae329019c9e385ea5",
   "customer_external_id": "patient-55821",
   "description": "Orthodontic treatment",
   "status": "active",
@@ -513,27 +517,29 @@ curl https://stage-api.chaching.io/payment-plans/$PLAN_ID \
   "start_date": 1811808000,
   "remainder_placement": "first",
   "remaining_balance": 1100,
+  "amount_refunded": 0,
+  "amount_due": 0,
   "installments_paid": 0,
   "installments_remaining": 11,
   "next_due_date": 1811808000,
-  "payment_method": "35e7da7e-e108-4530-923f-cd8fe38ff107",
+  "payment_method": "6c48dee7-fc1b-4e07-8ecc-0864fe7e1e46",
   "gateway": "dejavoo",
-  "reference": "9DRT5BKW",
+  "reference": "G80DISXZ",
   "deposit": {
-    "reference": "9DRT5BKW",
+    "reference": "G80DISXZ",
     "kind": "down_payment",
     "amount": 100,
     "status": "collected",
-    "transaction_reference": "00006212345678901320261110174200",
-    "collected_at": 1794350522,
+    "transaction_reference": "00000411812636285020261125204047",
+    "collected_at": 1795657252,
     "attempt": {
-      "id": "ppda_72e785c65610da55a48bb496",
+      "id": "ppda_c8708021cc8a715f7b8781c2",
       "object": "payment_plan_deposit_attempt",
-      "terminal": "393c386a-6c4c-41af-8645-8a1b2b262473",
-      "reference_id": "9DRT5BKW02",
+      "terminal": "f9fb0123-89b1-4e5e-ac98-98b7eb1a94bb",
+      "reference_id": "G80DISXZ01",
       "state": "approved",
-      "started": 1794350505,
-      "resolved": 1794350522,
+      "started": 1795657239,
+      "resolved": 1795657252,
       "decline_code": null,
       "decline_message": null,
       "surcharge_amount": 3,
@@ -541,7 +547,7 @@ curl https://stage-api.chaching.io/payment-plans/$PLAN_ID \
     },
     "external": false
   },
-  "created": 1794269623,
+  "created": 1795657236,
   "ended_at": null,
   "canceled_at": null
 }
@@ -563,34 +569,24 @@ curl -G https://stage-api.chaching.io/webhook-deliveries \
 {
   "data": [
     {
-      "id": "whd_8ed91230db0f6eca61fe73b5",
+      "id": "whd_f49e584e879fea1d93599349",
       "object": "webhook_delivery",
-      "event": "evt_3b12bdf0ed369e47f07b3e8d",
+      "account": "acc_52f3ca849c5021b4504c63e5",
+      "event": "evt_fbf6a18e5d0d43754c5341aa",
       "event_type": "payment_plan.created",
       "webhook_endpoint": "4a19c6f9-c4c8-4b79-b9a1-379260670c3d",
       "endpoint": "https://doctor-cycling-likewise-brother.trycloudflare.com/chaching/webhooks",
-      "status": "pending",
-      "response_status_code": null,
-      "created": 1794269592,
-      "updated": 1794269592
-    },
-    {
-      "id": "whd_ab34f5ced45354becd9a304e",
-      "object": "webhook_delivery",
-      "event": "evt_3b12bdf0ed369e47f07b3e8d",
-      "event_type": "payment_plan.created",
-      "webhook_endpoint": "535c6441-e0b3-49c2-b51a-04d771d87ea4",
-      "endpoint": "https://doctor-cycling-likewise-brother.trycloudflare.com/chaching/webhooks",
-      "status": "pending",
-      "response_status_code": null,
-      "created": 1794269592,
-      "updated": 1794269592
+      "status": "success",
+      "response_status_code": 200,
+      "next_attempt": null,
+      "created": 1795657236,
+      "updated": 1795657236
     }
   ],
   "meta": {
     "page": 1,
     "take": 10,
-    "items_total": 2,
+    "items_total": 1,
     "pages_total": 1
   }
 }
@@ -607,56 +603,60 @@ curl https://stage-api.chaching.io/webhook-deliveries/$DELIVERY_ID \
 <!-- captured: GET /webhook-deliveries/{id} on stage, redacted -->
 ```json
 {
-  "id": "whd_8ed91230db0f6eca61fe73b5",
+  "id": "whd_f49e584e879fea1d93599349",
   "object": "webhook_delivery",
-  "event": "evt_3b12bdf0ed369e47f07b3e8d",
+  "account": "acc_52f3ca849c5021b4504c63e5",
+  "event": "evt_fbf6a18e5d0d43754c5341aa",
   "event_type": "payment_plan.created",
   "webhook_endpoint": "4a19c6f9-c4c8-4b79-b9a1-379260670c3d",
   "endpoint": "https://doctor-cycling-likewise-brother.trycloudflare.com/chaching/webhooks",
   "status": "success",
   "response_status_code": 200,
-  "created": 1794269592,
-  "updated": 1794269593,
+  "next_attempt": null,
+  "created": 1795657236,
+  "updated": 1795657236,
   "payload": {
-    "id": "evt_3b12bdf0ed369e47f07b3e8d",
+    "id": "evt_fbf6a18e5d0d43754c5341aa",
     "account": {
-      "id": "acc_ac3a743a00d0db71b2332f78",
+      "id": "acc_52f3ca849c5021b4504c63e5",
       "external_id": "location-7",
       "company": {
-        "id": "com_8d2abb56a643c585514c5aa1",
+        "id": "com_b08861ac3b5790f5f6882ed3",
         "external_id": "office-1042"
       }
     },
-    "created": 1794269592,
-    "createdAt": "2026-11-10T00:13:12.918Z",
+    "created": 1795657236,
+    "createdAt": "2026-11-26T01:40:36.128Z",
     "data": {
-      "id": "pp_fb761610ab8be59e112221d7",
+      "id": "pp_849639436a2cee4e5818694f",
       "object": "payment_plan",
       "status": "awaiting_deposit",
-      "created": 1794269592,
+      "created": 1795657236,
       "deposit": {
         "kind": "down_payment",
         "amount": 100,
         "status": "pending",
         "attempt": null,
         "external": false,
-        "reference": "EZS0S6S8",
+        "reference": "G80DISXZ",
         "collected_at": null,
         "transaction_reference": null
       },
       "gateway": null,
       "currency": "USD",
-      "customer": "cus_06dc7b45aabd042f600aec0c",
+      "customer": "cus_e858445ae329019c9e385ea5",
       "ended_at": null,
       "interval": "monthly",
-      "reference": "EZS0S6S8",
+      "reference": "G80DISXZ",
+      "amount_due": 0,
       "start_date": 1811808000,
       "canceled_at": null,
       "description": "Orthodontic treatment",
       "external_id": "treatment-1",
       "total_amount": 1200,
-      "next_due_date": 1794182400,
+      "next_due_date": 1795564800,
       "payment_method": null,
+      "amount_refunded": 0,
       "installment_count": 11,
       "installments_paid": 0,
       "remaining_balance": 1200,
@@ -671,7 +671,7 @@ curl https://stage-api.chaching.io/webhook-deliveries/$DELIVERY_ID \
   "attempts": [
     {
       "attempt": 1,
-      "created": 1794269593,
+      "created": 1795657236,
       "response_status_code": 200,
       "response_body": "{\"ok\":true}",
       "response_body_truncated": false,
@@ -697,32 +697,37 @@ curl -G https://stage-api.chaching.io/payment-plans/$PLAN_ID/installments \
 {
   "data": [
     {
-      "id": "ppi_9cc4eaba578f5bfb64d1504c",
+      "id": "ppi_b5e46aec2b3b5238cc648cca",
       "object": "payment_plan_installment",
-      "payment_plan": "pp_dfb674a07acfc1882b7e046e",
+      "payment_plan": "pp_849639436a2cee4e5818694f",
       "payment_plan_external_id": "treatment-1",
-      "customer": "cus_848bff42aa106cf8815dcb4f",
+      "customer": "cus_e858445ae329019c9e385ea5",
       "customer_external_id": "patient-55821",
       "sequence": 0,
-      "due_date": 1794182400,
+      "due_date": 1795564800,
       "amount": 100,
       "amount_paid": 100,
+      "amount_refunded": 0,
+      "amount_due": 0,
       "surcharge_amount": 3,
       "amount_charged": 103,
       "surcharge_status": "final",
       "status": "paid",
       "attempt_count": 1,
       "next_payment_attempt": null,
-      "paid_at": 1794350522,
+      "paid_at": 1795657252,
       "first_failed_at": null,
       "failure_code": null,
       "failure_message": null,
       "card": {
-        "brand": "visa",
-        "last4": "3165"
+        "brand": "mastercard",
+        "last4": "2805"
       },
-      "invoice": "9d23261f-698d-4fd9-8e4e-7c49064a0e12",
-      "hosted_invoice_url": "https://stage.chaching.io/checkout/9d23261f-698d-4fd9-8e4e-7c49064a0e12",
+      "invoice": "62e2f332-b588-46d3-bc9a-4b416e3efb46",
+      "hosted_invoice_url": "https://stage.chaching.io/checkout/62e2f332-b588-46d3-bc9a-4b416e3efb46",
+      "payments": [
+        "ppp_b9d87d012cd18603ed3e3ab8"
+      ],
       "payment_plan_summary": {
         "installment_count": 11,
         "currency": "USD",
@@ -735,16 +740,18 @@ curl -G https://stage-api.chaching.io/payment-plans/$PLAN_ID/installments \
       }
     },
     {
-      "id": "ppi_bc5124a70b4056e9b719923f",
+      "id": "ppi_aac5e5f672c45c33aba759d2",
       "object": "payment_plan_installment",
-      "payment_plan": "pp_dfb674a07acfc1882b7e046e",
+      "payment_plan": "pp_849639436a2cee4e5818694f",
       "payment_plan_external_id": "treatment-1",
-      "customer": "cus_848bff42aa106cf8815dcb4f",
+      "customer": "cus_e858445ae329019c9e385ea5",
       "customer_external_id": "patient-55821",
       "sequence": 1,
       "due_date": 1811808000,
       "amount": 100,
       "amount_paid": 0,
+      "amount_refunded": 0,
+      "amount_due": 0,
       "surcharge_amount": 0,
       "amount_charged": 0,
       "surcharge_status": "final",
@@ -758,6 +765,7 @@ curl -G https://stage-api.chaching.io/payment-plans/$PLAN_ID/installments \
       "card": null,
       "invoice": null,
       "hosted_invoice_url": null,
+      "payments": [],
       "payment_plan_summary": {
         "installment_count": 11,
         "currency": "USD",
@@ -770,16 +778,18 @@ curl -G https://stage-api.chaching.io/payment-plans/$PLAN_ID/installments \
       }
     },
     {
-      "id": "ppi_91bfa0a42c488cc5e5705c95",
+      "id": "ppi_a70191311fd7ac1330dd6046",
       "object": "payment_plan_installment",
-      "payment_plan": "pp_dfb674a07acfc1882b7e046e",
+      "payment_plan": "pp_849639436a2cee4e5818694f",
       "payment_plan_external_id": "treatment-1",
-      "customer": "cus_848bff42aa106cf8815dcb4f",
+      "customer": "cus_e858445ae329019c9e385ea5",
       "customer_external_id": "patient-55821",
       "sequence": 2,
       "due_date": 1814400000,
       "amount": 100,
       "amount_paid": 0,
+      "amount_refunded": 0,
+      "amount_due": 0,
       "surcharge_amount": 0,
       "amount_charged": 0,
       "surcharge_status": "final",
@@ -793,6 +803,7 @@ curl -G https://stage-api.chaching.io/payment-plans/$PLAN_ID/installments \
       "card": null,
       "invoice": null,
       "hosted_invoice_url": null,
+      "payments": [],
       "payment_plan_summary": {
         "installment_count": 11,
         "currency": "USD",
@@ -805,16 +816,18 @@ curl -G https://stage-api.chaching.io/payment-plans/$PLAN_ID/installments \
       }
     },
     {
-      "id": "ppi_6000c0ae6e9bfec2c0ffda24",
+      "id": "ppi_208cb8ccc47e8378983ddb95",
       "object": "payment_plan_installment",
-      "payment_plan": "pp_dfb674a07acfc1882b7e046e",
+      "payment_plan": "pp_849639436a2cee4e5818694f",
       "payment_plan_external_id": "treatment-1",
-      "customer": "cus_848bff42aa106cf8815dcb4f",
+      "customer": "cus_e858445ae329019c9e385ea5",
       "customer_external_id": "patient-55821",
       "sequence": 3,
       "due_date": 1817078400,
       "amount": 100,
       "amount_paid": 0,
+      "amount_refunded": 0,
+      "amount_due": 0,
       "surcharge_amount": 0,
       "amount_charged": 0,
       "surcharge_status": "final",
@@ -828,6 +841,7 @@ curl -G https://stage-api.chaching.io/payment-plans/$PLAN_ID/installments \
       "card": null,
       "invoice": null,
       "hosted_invoice_url": null,
+      "payments": [],
       "payment_plan_summary": {
         "installment_count": 11,
         "currency": "USD",
@@ -840,16 +854,18 @@ curl -G https://stage-api.chaching.io/payment-plans/$PLAN_ID/installments \
       }
     },
     {
-      "id": "ppi_4e3dc46e021b52c8e1dc7596",
+      "id": "ppi_4b7c86f38cab3172d4f5985e",
       "object": "payment_plan_installment",
-      "payment_plan": "pp_dfb674a07acfc1882b7e046e",
+      "payment_plan": "pp_849639436a2cee4e5818694f",
       "payment_plan_external_id": "treatment-1",
-      "customer": "cus_848bff42aa106cf8815dcb4f",
+      "customer": "cus_e858445ae329019c9e385ea5",
       "customer_external_id": "patient-55821",
       "sequence": 4,
       "due_date": 1819756800,
       "amount": 100,
       "amount_paid": 0,
+      "amount_refunded": 0,
+      "amount_due": 0,
       "surcharge_amount": 0,
       "amount_charged": 0,
       "surcharge_status": "final",
@@ -863,6 +879,7 @@ curl -G https://stage-api.chaching.io/payment-plans/$PLAN_ID/installments \
       "card": null,
       "invoice": null,
       "hosted_invoice_url": null,
+      "payments": [],
       "payment_plan_summary": {
         "installment_count": 11,
         "currency": "USD",
@@ -875,16 +892,18 @@ curl -G https://stage-api.chaching.io/payment-plans/$PLAN_ID/installments \
       }
     },
     {
-      "id": "ppi_78d853845c0fdf4beecd8e1c",
+      "id": "ppi_b282bc93185a06f769514502",
       "object": "payment_plan_installment",
-      "payment_plan": "pp_dfb674a07acfc1882b7e046e",
+      "payment_plan": "pp_849639436a2cee4e5818694f",
       "payment_plan_external_id": "treatment-1",
-      "customer": "cus_848bff42aa106cf8815dcb4f",
+      "customer": "cus_e858445ae329019c9e385ea5",
       "customer_external_id": "patient-55821",
       "sequence": 5,
       "due_date": 1822348800,
       "amount": 100,
       "amount_paid": 0,
+      "amount_refunded": 0,
+      "amount_due": 0,
       "surcharge_amount": 0,
       "amount_charged": 0,
       "surcharge_status": "final",
@@ -898,6 +917,7 @@ curl -G https://stage-api.chaching.io/payment-plans/$PLAN_ID/installments \
       "card": null,
       "invoice": null,
       "hosted_invoice_url": null,
+      "payments": [],
       "payment_plan_summary": {
         "installment_count": 11,
         "currency": "USD",
@@ -910,16 +930,18 @@ curl -G https://stage-api.chaching.io/payment-plans/$PLAN_ID/installments \
       }
     },
     {
-      "id": "ppi_947f2747fc18efbfecfbc30d",
+      "id": "ppi_92e631b986c2e0cb9e5dae2d",
       "object": "payment_plan_installment",
-      "payment_plan": "pp_dfb674a07acfc1882b7e046e",
+      "payment_plan": "pp_849639436a2cee4e5818694f",
       "payment_plan_external_id": "treatment-1",
-      "customer": "cus_848bff42aa106cf8815dcb4f",
+      "customer": "cus_e858445ae329019c9e385ea5",
       "customer_external_id": "patient-55821",
       "sequence": 6,
       "due_date": 1825027200,
       "amount": 100,
       "amount_paid": 0,
+      "amount_refunded": 0,
+      "amount_due": 0,
       "surcharge_amount": 0,
       "amount_charged": 0,
       "surcharge_status": "final",
@@ -933,6 +955,7 @@ curl -G https://stage-api.chaching.io/payment-plans/$PLAN_ID/installments \
       "card": null,
       "invoice": null,
       "hosted_invoice_url": null,
+      "payments": [],
       "payment_plan_summary": {
         "installment_count": 11,
         "currency": "USD",
@@ -945,16 +968,18 @@ curl -G https://stage-api.chaching.io/payment-plans/$PLAN_ID/installments \
       }
     },
     {
-      "id": "ppi_104d73a72eb16a5f742d8c5f",
+      "id": "ppi_05172b499c4bb4b45b0a9ff1",
       "object": "payment_plan_installment",
-      "payment_plan": "pp_dfb674a07acfc1882b7e046e",
+      "payment_plan": "pp_849639436a2cee4e5818694f",
       "payment_plan_external_id": "treatment-1",
-      "customer": "cus_848bff42aa106cf8815dcb4f",
+      "customer": "cus_e858445ae329019c9e385ea5",
       "customer_external_id": "patient-55821",
       "sequence": 7,
       "due_date": 1827619200,
       "amount": 100,
       "amount_paid": 0,
+      "amount_refunded": 0,
+      "amount_due": 0,
       "surcharge_amount": 0,
       "amount_charged": 0,
       "surcharge_status": "final",
@@ -968,6 +993,7 @@ curl -G https://stage-api.chaching.io/payment-plans/$PLAN_ID/installments \
       "card": null,
       "invoice": null,
       "hosted_invoice_url": null,
+      "payments": [],
       "payment_plan_summary": {
         "installment_count": 11,
         "currency": "USD",
@@ -980,16 +1006,18 @@ curl -G https://stage-api.chaching.io/payment-plans/$PLAN_ID/installments \
       }
     },
     {
-      "id": "ppi_7027045468e7f7b00d0682b1",
+      "id": "ppi_b2153bd5bb9b6037d8ab0368",
       "object": "payment_plan_installment",
-      "payment_plan": "pp_dfb674a07acfc1882b7e046e",
+      "payment_plan": "pp_849639436a2cee4e5818694f",
       "payment_plan_external_id": "treatment-1",
-      "customer": "cus_848bff42aa106cf8815dcb4f",
+      "customer": "cus_e858445ae329019c9e385ea5",
       "customer_external_id": "patient-55821",
       "sequence": 8,
       "due_date": 1830297600,
       "amount": 100,
       "amount_paid": 0,
+      "amount_refunded": 0,
+      "amount_due": 0,
       "surcharge_amount": 0,
       "amount_charged": 0,
       "surcharge_status": "final",
@@ -1003,6 +1031,7 @@ curl -G https://stage-api.chaching.io/payment-plans/$PLAN_ID/installments \
       "card": null,
       "invoice": null,
       "hosted_invoice_url": null,
+      "payments": [],
       "payment_plan_summary": {
         "installment_count": 11,
         "currency": "USD",
@@ -1015,16 +1044,18 @@ curl -G https://stage-api.chaching.io/payment-plans/$PLAN_ID/installments \
       }
     },
     {
-      "id": "ppi_f214d8b0894db50e0cd75215",
+      "id": "ppi_6d3907f484907e6fa1b1b942",
       "object": "payment_plan_installment",
-      "payment_plan": "pp_dfb674a07acfc1882b7e046e",
+      "payment_plan": "pp_849639436a2cee4e5818694f",
       "payment_plan_external_id": "treatment-1",
-      "customer": "cus_848bff42aa106cf8815dcb4f",
+      "customer": "cus_e858445ae329019c9e385ea5",
       "customer_external_id": "patient-55821",
       "sequence": 9,
       "due_date": 1832976000,
       "amount": 100,
       "amount_paid": 0,
+      "amount_refunded": 0,
+      "amount_due": 0,
       "surcharge_amount": 0,
       "amount_charged": 0,
       "surcharge_status": "final",
@@ -1038,6 +1069,7 @@ curl -G https://stage-api.chaching.io/payment-plans/$PLAN_ID/installments \
       "card": null,
       "invoice": null,
       "hosted_invoice_url": null,
+      "payments": [],
       "payment_plan_summary": {
         "installment_count": 11,
         "currency": "USD",
@@ -1050,16 +1082,18 @@ curl -G https://stage-api.chaching.io/payment-plans/$PLAN_ID/installments \
       }
     },
     {
-      "id": "ppi_a6ddcc6ac65618f07e15f787",
+      "id": "ppi_75bd6478b3afef5c45d1e5ac",
       "object": "payment_plan_installment",
-      "payment_plan": "pp_dfb674a07acfc1882b7e046e",
+      "payment_plan": "pp_849639436a2cee4e5818694f",
       "payment_plan_external_id": "treatment-1",
-      "customer": "cus_848bff42aa106cf8815dcb4f",
+      "customer": "cus_e858445ae329019c9e385ea5",
       "customer_external_id": "patient-55821",
       "sequence": 10,
       "due_date": 1835481600,
       "amount": 100,
       "amount_paid": 0,
+      "amount_refunded": 0,
+      "amount_due": 0,
       "surcharge_amount": 0,
       "amount_charged": 0,
       "surcharge_status": "final",
@@ -1073,6 +1107,7 @@ curl -G https://stage-api.chaching.io/payment-plans/$PLAN_ID/installments \
       "card": null,
       "invoice": null,
       "hosted_invoice_url": null,
+      "payments": [],
       "payment_plan_summary": {
         "installment_count": 11,
         "currency": "USD",
@@ -1085,16 +1120,18 @@ curl -G https://stage-api.chaching.io/payment-plans/$PLAN_ID/installments \
       }
     },
     {
-      "id": "ppi_dea5f41e89cd45f8154e0c70",
+      "id": "ppi_ee584359cbde5863caa51d2e",
       "object": "payment_plan_installment",
-      "payment_plan": "pp_dfb674a07acfc1882b7e046e",
+      "payment_plan": "pp_849639436a2cee4e5818694f",
       "payment_plan_external_id": "treatment-1",
-      "customer": "cus_848bff42aa106cf8815dcb4f",
+      "customer": "cus_e858445ae329019c9e385ea5",
       "customer_external_id": "patient-55821",
       "sequence": 11,
       "due_date": 1838160000,
       "amount": 100,
       "amount_paid": 0,
+      "amount_refunded": 0,
+      "amount_due": 0,
       "surcharge_amount": 0,
       "amount_charged": 0,
       "surcharge_status": "final",
@@ -1108,6 +1145,7 @@ curl -G https://stage-api.chaching.io/payment-plans/$PLAN_ID/installments \
       "card": null,
       "invoice": null,
       "hosted_invoice_url": null,
+      "payments": [],
       "payment_plan_summary": {
         "installment_count": 11,
         "currency": "USD",
