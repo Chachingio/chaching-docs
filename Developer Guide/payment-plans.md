@@ -118,7 +118,7 @@ curl -X PATCH https://stage-api.chaching.io/payment-plans/$PLAN_ID \
   -H "cc-api-key: $CHACHING_SECRET_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "payment_method": "b68f2234-934f-44a8-917d-5a9e6d80b317"
+    "payment_method": "628423f5-980e-45f0-97e0-f11b4f732d38"
   }'
 ```
 
@@ -429,6 +429,124 @@ curl -X POST https://stage-api.chaching.io/payment-plans/$PLAN_ID/payments/$PAYM
   }'
 ```
 
+<!-- captured: the payment_plan.payment_refunded delivery of a refund of 40 on stage (the Refund object the request returns), redacted -->
+```json
+{
+  "id": "pprf_04612cce2a00ba25978d674f",
+  "object": "payment_plan_refund",
+  "payment_plan": "pp_oTFFXTxvDT9zMSjwTs3Q6R1g",
+  "status": "succeeded",
+  "kind": "void",
+  "source": "api",
+  "amount": 40,
+  "amount_requested": 40,
+  "surcharge_amount": 1,
+  "amount_returned": 41,
+  "forgiven": false,
+  "amount_forgiven": 0,
+  "amount_due": 40,
+  "reason": "Charged to the wrong card",
+  "failure_code": null,
+  "failure_message": null,
+  "installments": [
+    {
+      "installment": null,
+      "sequence": null,
+      "amount": 40,
+      "amount_due": 40
+    }
+  ],
+  "payment_plan_amount_due": 40,
+  "payment_plan_status": "active",
+  "created": 1795644839,
+  "payment": {
+    "id": "ppp_l3vMXlIXSzQFTqIYtKHCCBFV",
+    "object": "payment_plan_payment",
+    "payment_plan": "pp_oTFFXTxvDT9zMSjwTs3Q6R1g",
+    "payment_plan_external_id": "treatment-1",
+    "customer": "cus_f0d9c6b125586ae0c550a09a",
+    "customer_external_id": null,
+    "status": "applied",
+    "origin": "payment",
+    "failure_code": null,
+    "failure_message": null,
+    "amount": 100,
+    "surcharge_amount": 3,
+    "amount_charged": 103,
+    "amount_refunded": 40,
+    "surcharge_status": "final",
+    "external": false,
+    "payment_method": "07c7a3f1-191d-4bbd-b7a6-25f6dafe1d0d",
+    "card": {
+      "brand": "visa",
+      "last4": "5439"
+    },
+    "invoice": "9818eb6c-fa53-4b2c-a015-cf406c12e9d8",
+    "hosted_invoice_url": "https://stage.chaching.io/checkout/9818eb6c-fa53-4b2c-a015-cf406c12e9d8",
+    "payoff": false,
+    "created": 1795644831,
+    "payment_plan_status": "active",
+    "remaining_balance": 140,
+    "installments_remaining": 1,
+    "allocations": [
+      {
+        "installment": null,
+        "sequence": null,
+        "kind": "principal",
+        "amount": 100,
+        "surcharge_amount": 3,
+        "amount_charged": 103,
+        "surcharge_status": "final",
+        "invoice": "9818eb6c-fa53-4b2c-a015-cf406c12e9d8",
+        "hosted_invoice_url": "https://stage.chaching.io/checkout/9818eb6c-fa53-4b2c-a015-cf406c12e9d8"
+      }
+    ],
+    "refunds": [
+      {
+        "id": "pprf_04612cce2a00ba25978d674f",
+        "object": "payment_plan_refund",
+        "payment_plan": "pp_oTFFXTxvDT9zMSjwTs3Q6R1g",
+        "status": "succeeded",
+        "kind": "void",
+        "source": "api",
+        "amount": 40,
+        "amount_requested": 40,
+        "surcharge_amount": 1,
+        "amount_returned": 41,
+        "forgiven": false,
+        "amount_forgiven": 0,
+        "amount_due": 40,
+        "reason": "Charged to the wrong card",
+        "failure_code": null,
+        "failure_message": null,
+        "installments": [
+          {
+            "installment": null,
+            "sequence": null,
+            "amount": 40,
+            "amount_due": 40
+          }
+        ],
+        "payment_plan_amount_due": 40,
+        "payment_plan_status": "active",
+        "created": 1795644839
+      }
+    ],
+    "payment_plan_summary": {
+      "installment_count": 2,
+      "currency": "USD",
+      "description": "Orthodontic treatment, upper and lower braces",
+      "remaining_balance": 140,
+      "installments_paid": 0,
+      "installments_remaining": 1,
+      "next_due_date": 1798156800,
+      "status": "active"
+    },
+    "terminal": null
+  }
+}
+```
+
 Returns the Refund object, with the updated Payment object in `payment`.
 
 Any payment that collected money can be refunded, an automatic installment charge and a terminal deposit included; a payment taken on a terminal is refunded without the terminal. Money collected outside ChaChing (a payment recorded with `external: true`, or any payment ChaChing holds no processor reference for), a payment that collected nothing for the plan (`declined`, `not_attempted`, `unconfirmed`; a terminal sale the plan could absorb none of reads `not_attempted` although the card was charged, and ChaChing's team refunds it), and a payment still being recorded (`processing`), cannot be refunded. The request needs an `Idempotency-Key`.
@@ -463,16 +581,17 @@ Through a platform key, a deactivated account cannot refund or forgive: both ans
 | --- | --- | --- | --- |
 | `400` | `IDEMPOTENCY_KEY_REQUIRED` | The request has no `Idempotency-Key` header. Nothing was refunded or forgiven. | Send the request again with an `Idempotency-Key`. |
 | `400` | `IDEMPOTENCY_KEY_INVALID` | The `Idempotency-Key` header is malformed. | Send 1 to 255 printable ASCII characters with no spaces. |
-| `400` | `PAYMENT_PLAN_REFUND_AMOUNT_INVALID` | `amount` is not an integer of at least `1`. | Send the amount in integer cents. |
+| `400` | `PAYMENT_PLAN_REFUND_AMOUNT_INVALID` | `amount` is not an integer of at least `1` and below `100000000`. | Send the amount in integer cents. |
 | `400` | `PAYMENT_PLAN_REFUND_AMOUNT_EXCEEDS_REFUNDABLE` | `amount` is larger than what is left to refund on the payment. Nothing was refunded. | Send at most the payment's `amount` minus its `amount_refunded`. |
 | `400` | none | The body carries another field, `reason` is not 1 to 500 characters with no control characters, or `forgive` is not a boolean. The body has no `error` field; `message` describes the problem. | Fix the body. |
 | `402` | `PAYMENT_PLAN_REFUND_DECLINED` | The processor declined or refused the refund, or ChaChing could not send the refund to the processor, for example when it could not authenticate with iPOSpays for a terminal refund; `message` reads "The refund was not completed." and the refund's `failure_code` and `failure_message` give the reason. Nothing was refunded. | Check the sale and the API credentials in your processor's account (iPOSpays on a Dejavoo account), then retry with a new `Idempotency-Key`. |
 | `403` | `PAYMENT_PLANS_NOT_ENABLED` | Payment Plans are not enabled for this account. | Contact Chaching to enable them. |
+| `403` | `SECRET_API_KEY_REQUIRED` | The key is a publishable key. | Use the account secret API key (`sk_...`). |
 | `403` | `API_KEY_SCOPE_INSUFFICIENT` | The key's scopes include neither `*` nor the scope of the operation. | Create a key with the scope the message names. |
 | `404` | `PAYMENT_PLAN_NOT_FOUND` | The plan id does not resolve for this account. | Check the id. |
 | `404` | `PAYMENT_PLAN_PAYMENT_NOT_FOUND` | The payment id does not resolve to a payment of this plan. | Check the id. |
 | `409` | `ACCOUNT_DEACTIVATED` | The request uses a platform key and the account is deactivated. Nothing was refunded or forgiven. | Reactivate the account first. A refund made in your iPOSpays account is still applied to the plan when the account's FEED notifications reach ChaChing. |
-| `409` | `PAYMENT_PLAN_PAYMENT_NOT_REFUNDABLE` | The payment collected nothing for the plan or is still being recorded, it was collected outside ChaChing, nothing is left to refund on it, or its invoice no longer carries the amount to refund; `message` names which. Nothing was refunded. | Refund money collected outside ChaChing where it was collected. |
+| `409` | `PAYMENT_PLAN_PAYMENT_NOT_REFUNDABLE` | The payment collected nothing for the plan or is still being recorded, it was collected outside ChaChing, nothing is left to refund on it, or its invoice no longer carries the amount to refund. `message` reads `This payment cannot be refunded.` when the payment collected nothing for the plan or is still being recorded, and states the reason in the other cases. Nothing was refunded. | Refund money collected outside ChaChing where it was collected. |
 | `409` | `PAYMENT_PLAN_REFUND_PENDING` | An earlier refund of this payment is still being confirmed. | Retry shortly. Confirming a refund with the processor usually takes up to 24 hours. |
 | `409` | `PAYMENT_PLAN_REFUND_SURCHARGE_UNCONFIRMED` | The surcharge of the charge could not be established, so ChaChing cannot refund it. Nothing was refunded. | Refund it in your iPOSpays account; with FEED notifications on, ChaChing applies that refund to the plan. |
 | `409` | `PAYMENT_PLAN_BUSY` | Another payment, a refund or a cancellation on this plan is in progress. | Retry shortly. |
@@ -491,6 +610,124 @@ curl -X POST https://stage-api.chaching.io/payment-plans/$PLAN_ID/payments/$PAYM
   -H "Idempotency-Key: forgive-refund-1"
 ```
 
+<!-- captured: the payment_plan.refund_forgiven delivery of a forgiven refund on stage (the Refund object the request returns), redacted -->
+```json
+{
+  "id": "pprf_9e7799f58917100ff9936c60",
+  "object": "payment_plan_refund",
+  "payment_plan": "pp_ngeYZg5RAHRfruhuP6VD1guW",
+  "status": "succeeded",
+  "kind": "void",
+  "source": "api",
+  "amount": 100,
+  "amount_requested": 100,
+  "surcharge_amount": 3,
+  "amount_returned": 103,
+  "forgiven": true,
+  "amount_forgiven": 100,
+  "amount_due": 0,
+  "reason": null,
+  "failure_code": null,
+  "failure_message": null,
+  "installments": [
+    {
+      "installment": null,
+      "sequence": null,
+      "amount": 100,
+      "amount_due": 0
+    }
+  ],
+  "payment_plan_amount_due": 0,
+  "payment_plan_status": "active",
+  "created": 1795640098,
+  "payment": {
+    "id": "ppp_xbZLOcSkE4BKkDkQdY7ScaY0",
+    "object": "payment_plan_payment",
+    "payment_plan": "pp_ngeYZg5RAHRfruhuP6VD1guW",
+    "payment_plan_external_id": "treatment-1",
+    "customer": "cus_23a18adaf37366de8f70bcbd",
+    "customer_external_id": "patient-55821",
+    "status": "applied",
+    "origin": "payment",
+    "failure_code": null,
+    "failure_message": null,
+    "amount": 100,
+    "surcharge_amount": 3,
+    "amount_charged": 103,
+    "amount_refunded": 100,
+    "surcharge_status": "final",
+    "external": false,
+    "payment_method": "0fa737b9-5c41-4634-bcb8-29733bf51db7",
+    "card": {
+      "brand": "mastercard",
+      "last4": "0055"
+    },
+    "invoice": "a09b2a86-5e7e-45a2-80a4-ef13b829b53b",
+    "hosted_invoice_url": "https://stage.chaching.io/checkout/a09b2a86-5e7e-45a2-80a4-ef13b829b53b",
+    "payoff": false,
+    "created": 1795640076,
+    "payment_plan_status": "active",
+    "remaining_balance": 800,
+    "installments_remaining": 8,
+    "allocations": [
+      {
+        "installment": null,
+        "sequence": null,
+        "kind": "principal",
+        "amount": 100,
+        "surcharge_amount": 3,
+        "amount_charged": 103,
+        "surcharge_status": "final",
+        "invoice": "a09b2a86-5e7e-45a2-80a4-ef13b829b53b",
+        "hosted_invoice_url": "https://stage.chaching.io/checkout/a09b2a86-5e7e-45a2-80a4-ef13b829b53b"
+      }
+    ],
+    "refunds": [
+      {
+        "id": "pprf_9e7799f58917100ff9936c60",
+        "object": "payment_plan_refund",
+        "payment_plan": "pp_ngeYZg5RAHRfruhuP6VD1guW",
+        "status": "succeeded",
+        "kind": "void",
+        "source": "api",
+        "amount": 100,
+        "amount_requested": 100,
+        "surcharge_amount": 3,
+        "amount_returned": 103,
+        "forgiven": true,
+        "amount_forgiven": 100,
+        "amount_due": 0,
+        "reason": null,
+        "failure_code": null,
+        "failure_message": null,
+        "installments": [
+          {
+            "installment": null,
+            "sequence": null,
+            "amount": 100,
+            "amount_due": 0
+          }
+        ],
+        "payment_plan_amount_due": 0,
+        "payment_plan_status": "active",
+        "created": 1795640098
+      }
+    ],
+    "payment_plan_summary": {
+      "installment_count": 10,
+      "currency": "USD",
+      "description": "Orthodontic treatment, upper and lower braces",
+      "remaining_balance": 800,
+      "installments_paid": 0,
+      "installments_remaining": 8,
+      "next_due_date": 1796169600,
+      "status": "active"
+    },
+    "terminal": null
+  }
+}
+```
+
 Returns the Refund object with `forgiven: true`, with the updated Payment object in `payment`.
 
 | **Status** | **Error code** | **When** | **What to do** |
@@ -499,6 +736,7 @@ Returns the Refund object with `forgiven: true`, with the updated Payment object
 | `400` | `IDEMPOTENCY_KEY_INVALID` | The `Idempotency-Key` header is malformed. | Send 1 to 255 printable ASCII characters with no spaces. |
 | `400` | none | The body carries a field. The body has no `error` field; `message` describes the problem. | Send an empty body. |
 | `403` | `PAYMENT_PLANS_NOT_ENABLED` | Payment Plans are not enabled for this account. | Contact Chaching to enable them. |
+| `403` | `SECRET_API_KEY_REQUIRED` | The key is a publishable key. | Use the account secret API key (`sk_...`). |
 | `403` | `API_KEY_SCOPE_INSUFFICIENT` | The key's scopes include neither `*` nor the scope of the operation. | Create a key with the scope the message names. |
 | `404` | `PAYMENT_PLAN_NOT_FOUND` | The plan id does not resolve for this account. | Check the id. |
 | `404` | `PAYMENT_PLAN_PAYMENT_NOT_FOUND` | The payment id does not resolve to a payment of this plan. | Check the id. |
@@ -643,7 +881,7 @@ Errors use the standard body `{ "statusCode", "message", "error", "timestamp", "
 | `400` | `PAYMENT_PLAN_TERMINAL_EXTERNAL_NOT_ALLOWED` | A payment named a terminal and `external: true` together. |
 | `400` | `IDEMPOTENCY_KEY_INVALID` | The `Idempotency-Key` header is malformed. |
 | `400` | `IDEMPOTENCY_KEY_REQUIRED` | The request has no `Idempotency-Key` header. Nothing was refunded or forgiven. |
-| `400` | `PAYMENT_PLAN_REFUND_AMOUNT_INVALID` | `amount` is not an integer of at least `1`. |
+| `400` | `PAYMENT_PLAN_REFUND_AMOUNT_INVALID` | `amount` is not an integer of at least `1` and below `100000000`. |
 | `400` | `PAYMENT_PLAN_REFUND_AMOUNT_EXCEEDS_REFUNDABLE` | `amount` is larger than what is left to refund on the payment. Nothing was refunded. |
 | `402` | `PAYMENT_PLAN_DOWN_PAYMENT_DECLINED` | The down payment was declined. No plan was created. |
 | `402` | `PAYMENT_DECLINED` | The first charge of a payment was declined. Nothing was applied. |
@@ -700,7 +938,7 @@ Errors use the standard body `{ "statusCode", "message", "error", "timestamp", "
 | `409` | `PAYMENT_PLAN_TERMINAL_ATTEMPT_FINAL` | A force-close of a terminal attempt that is already final. Nothing was changed. |
 | `409` | `PAYMENT_PLAN_TERMINAL_ATTEMPT_RESOLVED` | The status read of a force-close found an outcome; it was recorded and nothing was closed. `message` names the attempt's state. |
 | `409` | `IDEMPOTENCY_KEY_IN_PROGRESS` | A request with the same `Idempotency-Key` is still running. |
-| `409` | `PAYMENT_PLAN_PAYMENT_NOT_REFUNDABLE` | The payment collected nothing for the plan or is still being recorded, it was collected outside ChaChing, nothing is left to refund on it, or its invoice no longer carries the amount to refund; `message` names which. Nothing was refunded. |
+| `409` | `PAYMENT_PLAN_PAYMENT_NOT_REFUNDABLE` | The payment collected nothing for the plan or is still being recorded, it was collected outside ChaChing, nothing is left to refund on it, or its invoice no longer carries the amount to refund. `message` reads `This payment cannot be refunded.` when the payment collected nothing for the plan or is still being recorded, and states the reason in the other cases. Nothing was refunded. |
 | `409` | `PAYMENT_PLAN_REFUND_SURCHARGE_UNCONFIRMED` | The surcharge of the charge could not be established, so ChaChing cannot refund it. Nothing was refunded. |
 | `409` | `PAYMENT_PLAN_REFUND_NOT_FORGIVABLE` | Nothing of this refund is still owed. |
 | `409` | `PAYMENT_PLAN_REFUND_PENDING` | On a refund, an earlier refund of the payment is still being confirmed; on a forgive, the refund itself is. Retry shortly. Confirming a refund with the processor usually takes up to 24 hours. |
@@ -739,6 +977,8 @@ Payment Plans send fourteen webhook event types on the same endpoints, envelope,
 | `payment_plan.payment_failed` | A payment of the plan is declined or could not be processed: a payment you record, an automatic attempt, an invoice payment or a charge of a new card. | Payment |
 | `payment_plan.payment_refunded` | A payment of the plan is refunded or voided, through ChaChing (the API or the dashboard), or in your iPOSpays account when the account's FEED notifications reach ChaChing. | Refund |
 | `payment_plan.refund_forgiven` | The amount still owed from a refund is forgiven with `POST …/refunds/{refund_id}/forgive`. A refund sent with `forgive: true` sends only `payment_plan.payment_refunded`, with `forgiven: true`. | Refund |
+
+An endpoint whose `enabled_events` is an explicit list receives `payment_plan.payment_failed`, `payment_plan.payment_refunded` and `payment_plan.refund_forgiven` only after you add them to its list (a sent `enabled_events` replaces the whole list: send the current list plus the new types). An endpoint subscribed to `["*"]` receives them at once.
 
 A deposit recorded as collected outside ChaChing emits, in this order (deliveries can arrive in any order): `invoice.payment_succeeded` for the deposit invoice, `invoice.payment_succeeded` for the invoice of the amount above the deposit when there is one, `payment_plan.activated`, `payment_plan.installment_paid` for the deposit, `payment_plan.payment_succeeded`, and `payment_plan.completed` when it paid the plan off. `payment_plan.activated` shows the deposit as paid; the amount above it is reported by the events that follow.
 

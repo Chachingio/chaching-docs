@@ -615,7 +615,7 @@ curl https://stage-api.chaching.io/webhook-deliveries/$DELIVERY_ID \
 {
   "id": "whd_8ed91230db0f6eca61fe73b5",
   "object": "webhook_delivery",
-  "account": "acc_e9463ef9acce7c2561f97c4a",
+  "account": "acc_ac3a743a00d0db71b2332f78",
   "event": "evt_3b12bdf0ed369e47f07b3e8d",
   "event_type": "payment_plan.created",
   "webhook_endpoint": "4a19c6f9-c4c8-4b79-b9a1-379260670c3d",
@@ -628,11 +628,11 @@ curl https://stage-api.chaching.io/webhook-deliveries/$DELIVERY_ID \
   "payload": {
     "id": "evt_3b12bdf0ed369e47f07b3e8d",
     "account": {
-      "id": "acc_e9463ef9acce7c2561f97c4a",
-      "external_id": null,
+      "id": "acc_ac3a743a00d0db71b2332f78",
+      "external_id": "location-7",
       "company": {
-        "id": "com_cda10775f5740cb97b1d0783",
-        "external_id": null
+        "id": "com_8d2abb56a643c585514c5aa1",
+        "external_id": "office-1042"
       }
     },
     "created": 1795647715,

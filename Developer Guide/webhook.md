@@ -685,6 +685,8 @@ ChaChing generates webhook events for key system entities. Each event represents
 - `payment_plan.payment_refunded` — A payment of a payment plan is refunded or voided, through ChaChing (the API or the dashboard), or in your iPOSpays account when the account's FEED notifications reach ChaChing
 - `payment_plan.refund_forgiven` — The amount still owed from a payment plan refund is forgiven with `POST …/refunds/{refund_id}/forgive`. A refund sent with `forgive: true` sends only `payment_plan.payment_refunded`, with `forgiven: true`
 
+An endpoint whose `enabled_events` is an explicit list receives `payment_plan.payment_failed`, `payment_plan.payment_refunded` and `payment_plan.refund_forgiven` only after you add them to its list (a sent `enabled_events` replaces the whole list: send the current list plus the new types). An endpoint subscribed to `["*"]` receives them at once.
+
 ---
 
 ## Account Events
@@ -1851,11 +1853,11 @@ The values shown are illustrative.
   "created": 1795640232,
   "createdAt": "2026-11-25T20:57:12.716Z",
   "data": {
-    "id": "pp_5c1bb9d8d74f27c18e4a3629",
+    "id": "pp_8a3e5f7c1d9b4620a7c3e815",
     "object": "payment_plan",
-    "external_id": "PLAN-2026-0117",
-    "customer": "cus_739c07713fd4b68565a969cd",
-    "customer_external_id": "PAT-799601",
+    "external_id": "PLAN-2026-0118",
+    "customer": "cus_b41d6f90c2e7385a1d9f0c62",
+    "customer_external_id": "PAT-799602",
     "description": "Orthodontic treatment, upper and lower braces",
     "status": "paid_off",
     "currency": "USD",
@@ -1902,10 +1904,10 @@ The values shown are illustrative.
   "data": {
     "id": "ppp_Nm1WlzYgKe4IkbpH5qpvKyYw",
     "object": "payment_plan_payment",
-    "payment_plan": "pp_5c1bb9d8d74f27c18e4a3629",
-    "payment_plan_external_id": "PLAN-2026-0117",
-    "customer": "cus_739c07713fd4b68565a969cd",
-    "customer_external_id": "PAT-799601",
+    "payment_plan": "pp_2f6d9a0c4b7e18359d6a0c47",
+    "payment_plan_external_id": "PLAN-2026-0119",
+    "customer": "cus_e07a93c5d1b8264f0a7c3d19",
+    "customer_external_id": "PAT-799603",
     "status": "applied",
     "origin": "payment",
     "failure_code": null,
@@ -2005,6 +2007,139 @@ The values shown are illustrative.
     "previous_payment_method": "f748483c-0fce-4f74-aa7f-ece3a2fe4f9f"
   },
   "event": "payment_plan.payment_method_updated"
+}
+```
+
+`payment_plan.payment_refunded`, for a refund that leaves its amount owed on the plan:
+
+```json
+{
+  "id": "evt_c12cdfb17ed1c9659e390a2b",
+  "account": {
+    "id": "acc_3c1f0a9e2b7d4c58a1e6f204",
+    "external_id": null,
+    "company": {
+      "id": "com_9d2e7b41c6a0f3e85b17d920",
+      "external_id": null
+    }
+  },
+  "created": 1795640004,
+  "createdAt": "2026-11-25T20:53:24.272Z",
+  "data": {
+    "id": "pprf_739f46a1fcd546b71b86b00c",
+    "object": "payment_plan_refund",
+    "payment_plan": "pp_c4b81e92a50d3f7612e9b0a8",
+    "status": "succeeded",
+    "kind": "void",
+    "source": "api",
+    "amount": 100,
+    "amount_requested": 100,
+    "surcharge_amount": 3,
+    "amount_returned": 103,
+    "forgiven": false,
+    "amount_forgiven": 0,
+    "amount_due": 100,
+    "reason": null,
+    "failure_code": null,
+    "failure_message": null,
+    "installments": [
+      {
+        "installment": null,
+        "sequence": null,
+        "amount": 100,
+        "amount_due": 100
+      }
+    ],
+    "payment_plan_amount_due": 100,
+    "payment_plan_status": "active",
+    "created": 1795639998,
+    "payment": {
+      "id": "ppp_ywSY0DLRup69QpyFIsQaDrc5",
+      "object": "payment_plan_payment",
+      "payment_plan": "pp_c4b81e92a50d3f7612e9b0a8",
+      "payment_plan_external_id": "PLAN-2026-0120",
+      "customer": "cus_9a52d7e3f0b14c86d3a1e705",
+      "customer_external_id": "PAT-799604",
+      "status": "applied",
+      "origin": "payment",
+      "failure_code": null,
+      "failure_message": null,
+      "amount": 100,
+      "surcharge_amount": 3,
+      "amount_charged": 103,
+      "amount_refunded": 100,
+      "surcharge_status": "final",
+      "external": false,
+      "payment_method": "9f3a1c2e-7b45-4d18-a6c0-2f8e5b7d1a94",
+      "card": {
+        "brand": "mastercard",
+        "last4": "0055"
+      },
+      "invoice": "8ae9c8cc-38a2-43d8-a5f0-be6b5fae4d76",
+      "hosted_invoice_url": "https://acme.pay.example.com/checkout/8ae9c8cc-38a2-43d8-a5f0-be6b5fae4d76",
+      "payoff": false,
+      "created": 1795639888,
+      "payment_plan_status": "active",
+      "remaining_balance": 1000,
+      "installments_remaining": 9,
+      "allocations": [
+        {
+          "installment": null,
+          "sequence": null,
+          "kind": "principal",
+          "amount": 100,
+          "surcharge_amount": 3,
+          "amount_charged": 103,
+          "surcharge_status": "final",
+          "invoice": "8ae9c8cc-38a2-43d8-a5f0-be6b5fae4d76",
+          "hosted_invoice_url": "https://acme.pay.example.com/checkout/8ae9c8cc-38a2-43d8-a5f0-be6b5fae4d76"
+        }
+      ],
+      "refunds": [
+        {
+          "id": "pprf_739f46a1fcd546b71b86b00c",
+          "object": "payment_plan_refund",
+          "payment_plan": "pp_c4b81e92a50d3f7612e9b0a8",
+          "status": "succeeded",
+          "kind": "void",
+          "source": "api",
+          "amount": 100,
+          "amount_requested": 100,
+          "surcharge_amount": 3,
+          "amount_returned": 103,
+          "forgiven": false,
+          "amount_forgiven": 0,
+          "amount_due": 100,
+          "reason": null,
+          "failure_code": null,
+          "failure_message": null,
+          "installments": [
+            {
+              "installment": null,
+              "sequence": null,
+              "amount": 100,
+              "amount_due": 100
+            }
+          ],
+          "payment_plan_amount_due": 100,
+          "payment_plan_status": "active",
+          "created": 1795639998
+        }
+      ],
+      "payment_plan_summary": {
+        "installment_count": 10,
+        "currency": "USD",
+        "description": "Orthodontic treatment, upper and lower braces",
+        "remaining_balance": 1000,
+        "installments_paid": 0,
+        "installments_remaining": 9,
+        "next_due_date": 1796169600,
+        "status": "active"
+      },
+      "terminal": null
+    }
+  },
+  "event": "payment_plan.payment_refunded"
 }
 ```
 
