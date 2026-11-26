@@ -53,7 +53,7 @@ Events a request causes, which you can provoke on staging:
 | `POST /invoices` | `invoice.created`, `invoice.finalized` |
 | `POST /invoices/{id}/send` | `invoice.sent` |
 | `PUT /invoices/{id}` | `invoice.payment_succeeded` or `invoice.payment_failed`; on a payment plan installment invoice also `payment_plan.payment_succeeded` or `payment_plan.payment_failed`, and `payment_plan.installment_paid` when it settles the installment |
-| `DELETE /invoices/{id}` | `invoice.deleted` |
+| `DELETE /invoices/{id}` | `invoice.deleted` for a voided invoice; none when an open invoice that bills a subscription or payment plan period is written off |
 | `POST /subscriptions`, `PATCH /subscriptions/{id}` | `subscription.created`, `subscription.updated` |
 | `POST /subscriptions/{id}/pause`, `/resume`, `DELETE /subscriptions/{id}` | `subscription.paused`, `subscription.resumed`, `subscription.canceled` |
 | `POST /payment-plans`, the terminal deposit, `POST /payment-plans/{id}/payments`, `POST /payment-plans/{id}/payments/{payment_id}/refunds` and its `/forgive`, `POST /payment-plans/{id}/cancel` | `payment_plan.created`, `payment_plan.activated`, `payment_plan.installment_paid`, `payment_plan.payment_succeeded`, `payment_plan.payment_failed`, `payment_plan.payment_refunded`, `payment_plan.refund_forgiven`, `payment_plan.completed`, `payment_plan.canceled` |

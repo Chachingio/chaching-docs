@@ -154,7 +154,7 @@ To write off an **Open** invoice, open the invoice details page, open the menu n
 - A later payment attempt on a written-off invoice, for example through its payment link, can remove the write-off, and when that payment fails, the invoice can count toward the outcome.
 - An invoice you create with **Request payment** cannot be written off while no payment on it has been attempted. Such an invoice does not count toward the outcome (see **Invoices you create with Request payment**).
 
-In the dashboard, **Mark as void** is available only for draft invoices. You can void an open invoice through the API (`DELETE /invoices/{id}`).
+In the dashboard, **Mark as void** is available only for draft invoices. Through the API (`DELETE /invoices/{id}`) you can void an open invoice that bills no subscription or payment plan period. An open invoice that bills a subscription or payment plan period is written off instead, so that period is never billed again: the invoice stays **Open** with the **Written off** label, and no `invoice.deleted` webhook is sent. In the API such an invoice keeps `status: open` and its amounts (`amount_due` and `amount_remaining` are unchanged); ChaChing no longer collects it automatically. Such an invoice with nothing left to collect, for example a $0 trial invoice or one covered by account credit, reads **Paid** and cannot be voided (`INVOICE_PAID_NOT_VOIDABLE`).
 
 ---
 
