@@ -58,7 +58,54 @@ Events a request causes, which you can provoke on staging:
 | `POST /subscriptions/{id}/pause`, `/resume`, `DELETE /subscriptions/{id}` | `subscription.paused`, `subscription.resumed`, `subscription.canceled` |
 | `POST /payment-plans`, the terminal deposit, `POST /payment-plans/{id}/payments`, `POST /payment-plans/{id}/cancel` | `payment_plan.created`, `payment_plan.activated`, `payment_plan.installment_paid`, `payment_plan.payment_succeeded`, `payment_plan.completed`, `payment_plan.canceled` |
 
-Events of the billing run, which need the daily run and the passing days: renewal invoices and their payments, `payment_plan.installment_failed`, `payment_plan.past_due`, `payment_plan.defaulted`, `payment_plan.reactivated` and `subscription.expired`.
+Events of the billing run, which need the daily run and the passing days: renewal invoices and their payments, and `subscription.expired`. The payment plan failure path has test helpers, described below.
+
+## Payment plan test helpers
+
+Test helpers move one payment plan through the failure path on staging in seconds, so that your endpoint receives every `payment_plan.*` event in one session. They exist only on staging: production answers each of them `403 TEST_HELPERS_NOT_AVAILABLE`, also after a release reaches production.
+
+| **Request** | **What it does** | **Events** |
+| --- | --- | --- |
+| `POST /test-helpers/payment-plans/{id}/fail-installment` | Fails the plan's earliest scheduled or failed installment once more, as a declined charge would: `status` `failed`, `attempt_count` plus one, `next_payment_attempt` from your retry schedule (`null` once the retries are spent), `first_failed_at` on the first failure, and `failure_code` and `failure_message` from the body's `failure_code`: `04` (Pick up card (no fraud)), `05` (Do not honor, the default), `14` (Invalid card number), `51` (Insufficient funds) or `54` (Expired card). Call it again for each retry you want to see. The plan must be `active`, `past_due` or `defaulted`. | `payment_plan.installment_failed` and `payment_plan.payment_failed` |
+| `POST /test-helpers/payment-plans/{id}/mark-past-due` | `active` to `past_due`. The plan needs a failed installment. | `payment_plan.past_due` |
+| `POST /test-helpers/payment-plans/{id}/mark-defaulted` | `active` or `past_due` to `defaulted`. The plan needs a failed installment. | `payment_plan.defaulted` |
+| `POST /test-helpers/payment-plans/{id}/reactivate` | A `past_due` or `defaulted` status that a test helper set, to `active`. A plan whose installment runs have all ended with nothing open becomes `paid_off` instead. | `payment_plan.reactivated`, or `payment_plan.completed` |
+
+Each request answers `200` with the Payment Plan object. Send it with your secret key, or with a platform key holding `*` or `operate` together with `Chaching-Account`. The events, their envelopes, signatures and deliveries are exactly those of real events: nothing in them marks them as produced by a test helper. `fail-installment` also records the failed payment, listed by `GET /payment-plans/{id}/payments`, as a real decline does.
+
+A request that cannot apply answers `409`: `TEST_HELPER_TRANSITION_NOT_ALLOWED` (the plan's status does not allow it), `TEST_HELPER_NO_OPEN_INSTALLMENT`, `TEST_HELPER_NO_FAILED_INSTALLMENT` (call `fail-installment` first), `TEST_HELPER_PLAN_IN_DUNNING` (the customer is in dunning in the billing engine, which owns the plan's status), `TEST_HELPER_STATUS_NOT_SIMULATED` (`reactivate` on a status that real dunning set) or `PAYMENT_PLAN_BUSY` (retry shortly).
+
+What a test helper does not do: it charges nothing and does not call the billing engine, so the side effects of a real failure are absent. The customer gets no decline e-mail, no `invoice.payment_failed` is sent, and a `defaulted` plan keeps its schedule: the installments keep billing at 10:00 UTC on their due dates. As on a plan that dunning defaulted, a `defaulted` plan skips the fallback charge on the plan's card that follows a refused automatic payment. A failed installment that was not invoiced yet carries `invoice: null` and `hosted_invoice_url: null`; a real failure always carries its invoice.
+
+How a simulated status ends:
+
+- `reactivate`.
+- By itself: 24 hours after the last `mark-past-due` or `mark-defaulted`, a status that a test helper set becomes eligible for a periodic expiry sweep. When the customer is not in dunning, the sweep applies the billing engine's clear decision: `active` with `payment_plan.reactivated`, `paid_off` with `payment_plan.completed` when every installment run has ended with nothing open, or the status kept when an installment is still open or dunning ended the schedule. Do not rely on an `active` status or a `payment_plan.reactivated` webhook at the 24-hour mark.
+- A real billing event wins. When a failed installment is invoiced and charged on its due date, the charge result replaces the simulated failure (`payment_plan.installment_paid`, or a real `payment_plan.installment_failed`). A real overdue change of the customer takes the plan's status over, and the next real recovery sends the real `payment_plan.reactivated`.
+- Payments and cancellation work as on any plan: a payment that rebuilds the schedule reactivates the plan, a payoff completes it, and canceling it cancels the installments not invoiced yet, a failed one included.
+
+Every `payment_plan.*` event on staging:
+
+| **Event** | **How to produce it** |
+| --- | --- |
+| `payment_plan.created` | `POST /payment-plans` |
+| `payment_plan.activated` | `POST /payment-plans` with a card; the terminal deposit; `POST /payment-plans/{id}/payments` with `external: true` on a plan awaiting its deposit |
+| `payment_plan.installment_paid` | `POST /payment-plans/{id}/payments` paying an invoiced installment or the deposit; the daily billing run |
+| `payment_plan.payment_succeeded` | `POST /payment-plans/{id}/payments` |
+| `payment_plan.completed` | A payoff through `POST /payment-plans/{id}/payments`; `reactivate` on a plan with nothing left |
+| `payment_plan.canceled` | `POST /payment-plans/{id}/cancel` |
+| `payment_plan.payment_method_updated` | `PATCH /payment-plans/{id}` |
+| `payment_plan.installment_failed` | `fail-installment` |
+| `payment_plan.past_due` | `mark-past-due` |
+| `payment_plan.defaulted` | `mark-defaulted` |
+| `payment_plan.reactivated` | `reactivate`; a payment that rebuilds the schedule of a `past_due` or `defaulted` plan |
+| `payment_plan.payment_failed` | `fail-installment`; a declined `POST /payment-plans/{id}/payments` |
+| `payment_plan.payment_refunded` | `POST /payment-plans/{id}/payments/{payment_id}/refunds` |
+| `payment_plan.refund_forgiven` | `POST /payment-plans/{id}/payments/{payment_id}/refunds/{refund_id}/forgive` |
+
+### The real failure path
+
+To watch the billing engine itself, create a `daily` plan whose installment is `5` ($0.05) on the debit card `4111 1111 1111 1111` (no surcharge) and leave it running: the first installment bills at the next 10:00 UTC and is declined (`payment_plan.installment_failed`), and the plan becomes `past_due` and then `defaulted` on the days given above. Record the balance as collected outside (`POST /payment-plans/{id}/payments` with `external: true`) to receive the real `payment_plan.reactivated`. A declined $0.05 sale can make the iPOSpays UAT host refuse later sales on the same card number for hours to days (measured 2026-11-25), so do not use that card for other tests during this one.
 
 ## Idempotency
 
@@ -101,7 +148,7 @@ On a Dejavoo account a card is saved by the terminal deposit of a payment plan (
 
 ## What production does not have yet
 
-These operation groups exist only on staging today; the [API Reference](./api.json) marks each operation with **Staging only**: Payment Plans (14), Platform (14), Webhook Endpoints (11), Processor Credentials (6), Dejavoo Terminals (5), Invoices (3), Email Settings (2), Revenue Recovery (2), Payment Methods (1). Production also answers some shared objects with older field names; build against staging and move to production after Chaching promotes the release. On production, `daily` plan intervals are refused and webhook URLs must be `https`.
+These operation groups exist only on staging today; the [API Reference](./api.json) marks each operation with **Staging only**: Payment Plans (21), Platform (14), Webhook Endpoints (11), Processor Credentials (6), Dejavoo Terminals (5), Invoices (3), Email Settings (2), Revenue Recovery (2), Payment Methods (1). Production also answers some shared objects with older field names; build against staging and move to production after Chaching promotes the release. On production, `daily` plan intervals are refused and webhook URLs must be `https`. The four payment plan test helpers are staging-only by design: production answers them `403 TEST_HELPERS_NOT_AVAILABLE`.
 
 ## The API Reference
 
