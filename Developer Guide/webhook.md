@@ -632,6 +632,7 @@ ChaChing generates webhook events for key system entities. Each event represents
 - `invoice.sent` — An invoice is sent to the customer
 - `invoice.payment_succeeded` — Invoice payment completed successfully
 - `invoice.payment_failed` — Invoice payment failed; not sent for an installment of a payment plan with no card when no payment was attempted on it (a declined payment on it is still announced)
+- `invoice.written_off` — An open invoice is written off: ChaChing no longer collects it automatically. Sent once when the invoice is written off through `DELETE /invoices/{id}` or the dashboard; never when the write-off is refused
 
 ---
 
@@ -697,7 +698,7 @@ An endpoint whose `enabled_events` is an explicit list receives `payment_plan.pa
 
 ## Summary
 
-ChaChing currently supports **39 webhook event types** across such entities as:
+ChaChing currently supports **40 webhook event types** across such entities as:
 
 - Customers
 - Payment Methods
@@ -961,6 +962,7 @@ Events:
 - `invoice.sent`
 - `invoice.payment_succeeded`
 - `invoice.payment_failed`
+- `invoice.written_off`
 
 ### Schema
 
@@ -980,6 +982,7 @@ Events:
   "attempted": true,
   "billing_reason": "string",
   "collection_method": "string",
+  "collection_status": "written_off | null",
   "created": 1672531200,
   "currency": "string",
   "customer": "cus_XXXXXXXX",
@@ -1067,6 +1070,7 @@ Events:
     "attempted": true,
     "billing_reason": "subscription",
     "collection_method": "charge_automatically",
+    "collection_status": null,
     "created": 1680645568,
     "currency": "USD",
     "customer": "cus_383fda0065594749023e8c8d",
@@ -1139,6 +1143,8 @@ Events:
 - `due_date` is the invoice due date in Unix seconds. `hosted_invoice_url` is the permanent link to the invoice's payment page, the same URL `GET /invoices/{id}/hosted-link` returns. `failure_code` and `failure_message` describe the decline of the invoice's most recent payment attempt, and are `null` when that attempt was not declined or the invoice has no payment attempt
 - `status` is one of `draft`, `open`, `paid` or `void`, in lowercase
 - `collection_method` is `send_invoice` for an invoice created that way, and `charge_automatically` for every other invoice, including an invoice created with `send_invoice` before this value was recorded. The first webhook of a `send_invoice` invoice already carries it
+- `collection_status` is `written_off` while the invoice is written off, and `null` otherwise; it is always `null` on a paid or void invoice. A written-off invoice keeps `status: open` and its amounts, ChaChing no longer collects it automatically, and it can still be paid: a successful payment removes the write-off (its `invoice.payment_succeeded` reads `collection_status: null`), and a payment that is declined or not attempted leaves it written off. When the outcome of a payment cannot be confirmed (`502 PAYMENT_OUTCOME_UNCONFIRMED`), the write-off is removed; once that payment has failed, write the invoice off again. When another payment attempt of the invoice is still pending, or the write-off cannot be put back, the invoice is left without its write-off: read the invoice, and write it off again only when it is still owed and no attempt is settling. Other values can be added later
+- `invoice.written_off` carries the Invoice object after the write-off. A webhook destination subscribed to `*` receives `invoice.written_off`; a destination with an explicit event list receives it only after `invoice.written_off` is added to its `enabled_events`; `invoice.deleted` is not sent for a void that became a write-off
 - `created` is the instant the invoice was created. `status_transitions.finalized_at` is the instant it was first finalized, and `null` while it is a draft
 - On an invoice of a payment plan, each entry of `lines.data` has `plan`, `price` and `subscription` set to `null`, `amount` in cents and `description` set to the text the payment page shows, such as `Knee replacement — Payment 2 of 12`
 
