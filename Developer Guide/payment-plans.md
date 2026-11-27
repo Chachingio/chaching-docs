@@ -253,7 +253,7 @@ When the customer pays the deposit of a plan in `awaiting_deposit` outside ChaCh
 
 | **Field** | **Rules** |
 | --- | --- |
-| `amount` | Integer cents, at least the plan's `deposit.amount` and at most its `remaining_balance`. The deposit is recorded whole; any amount above it is applied to the part of the plan not billed yet and shortens the plan from its end. The whole `remaining_balance` pays the plan off. |
+| `amount` | Integer cents, at least the plan's `deposit.amount` and at most its `remaining_balance`. The deposit is recorded whole; any amount above it is applied to the part of the plan not billed yet: with `apply_to` `upcoming_installments` (the default) it pays the next installments early, with `apply_to` `principal` it shortens the plan from its end. The whole `remaining_balance` pays the plan off. |
 | `external` | `true`. A payment without it answers `409` `PAYMENT_PLAN_NOT_PAYABLE`. |
 | `payment_method` | No. A saved card of the plan's customer, saved with your account's Dejavoo gateway and set up for automatic payments. It becomes the plan's card, and the remaining installments are charged to it automatically. It becomes the customer's default payment method only when the customer has none; the customer's subscriptions and other payment plans keep their own cards. |
 
@@ -299,7 +299,7 @@ An installment's `surcharge_amount` and `amount_charged` report the credit card 
 
 An installment's `invoice` is the invoice of its charge. For a deposit collected on a terminal (the down payment, or the first installment), it is the invoice ChaChing raises when the plan is activated; a deposit collected on a terminal before ChaChing raised these invoices reads `null`.
 
-An installment's `status` is `scheduled`, `paid`, `failed`, `canceled` or `refunded`. It reads `failed` after a declined automatic attempt and stays `failed` until it is paid. `attempt_count` counts the automatic charge attempts, retries included, and `next_payment_attempt` is the date of the next retry, or `null` when none is scheduled. An installment not yet billed reads `canceled` when the plan was canceled or paid off, or when a payment that reached the principal shortened the schedule and removed it. An installment reads `refunded` after a refund of a payment that paid it, while the refunded part is still owed on it: `amount_due` is that part and `amount_refunded` the total refunded of what was paid toward its `amount_paid` (a refund of a refunded amount collected again raises only `amount_due`). A refund of the down payment or the deposit, and of a payment that paid only part of an installment not yet paid in full, leaves the installment's `status` and `amount_due` unchanged and is owed on the plan (the plan's `amount_due`); the installment's `amount_refunded` still counts it. It returns to `paid` when the owed part is collected or forgiven. `payments` lists the payments that paid it.
+An installment's `status` is `scheduled`, `paid`, `failed`, `canceled` or `refunded`. It reads `failed` after a declined automatic attempt and stays `failed` until it is paid. `attempt_count` counts the automatic charge attempts, retries included, and `next_payment_attempt` is the date of the next retry, or `null` when none is scheduled. An installment not yet billed reads `canceled` when the plan was canceled or paid off, or when a payment sent with `apply_to` `principal` reached the principal, shortened the schedule and removed it. An installment reads `refunded` after a refund of a payment that paid it, while the refunded part is still owed on it: `amount_due` is that part and `amount_refunded` the total refunded of what was paid toward its `amount_paid` (a refund of a refunded amount collected again raises only `amount_due`). A refund of the down payment or the deposit, and of a payment that paid only part of an installment not yet paid in full, leaves the installment's `status` and `amount_due` unchanged and is owed on the plan (the plan's `amount_due`); the installment's `amount_refunded` still counts it. It returns to `paid` when the owed part is collected or forgiven. `payments` lists the payments that paid it.
 
 The Invoice object, on the invoice endpoints and in every `invoice.*` webhook, carries `payment_plan`, `installment` and `payment_plan_charge`. All three are `null` on an invoice that belongs to no payment plan, and an invoice raised for a payment plan reports `subscription: null`. `payment_plan_charge` describes the plan charge the invoice records: `{ "id": "pp_1ef17ace4b4d96ff32461285", "installment": "ppi_9c1a3d0e2f4b8756a1c0d3ef", "sequence": 3, "payment": "ppp_5d2c8e1f0a3b4c6d7e8f9a0b", "kind": "installment" }`. `id` is the plan; `installment` and `sequence` are the installment the charge pays, both `null` for an extra payment, a payoff and a refunded amount owed on the plan collected again; `payment` is the Payment that paid the invoice — the most recent payment that collected money on it, whatever its `origin` — and is `null` for an invoice settled entirely by account credit, and on the `invoice.*` events sent for a charge before its payment is recorded (read the payment id from `payment_plan.payment_succeeded` or by reading the invoice again); `kind` is `down_payment`, `deposit` (the first installment collected on a terminal), `installment`, `extra_payment`, `payoff` or `refunded_amount` (a refunded amount collected again). `payment_plan_charge` is also `null` on a plan invoice not matched to an installment yet. An invoice that records the principal part of a payment reports `installment: null`.
 
@@ -389,10 +389,12 @@ The amount is applied first to refunded amounts still owed — refunded installm
 - with `apply_to` `principal`, the principal: the plan ends sooner and its last installment is reduced; the next installment is still charged in full;
 - payoff is unchanged.
 
+When part of a payment's money cannot be applied to the plan, for example a terminal sale approved after the installment it paid had already been charged, the Payment reports it in `amount_unapplied`: the cents this payment collected that the plan could not apply. It is not part of `amount` and is never owed. Refund it with `POST /payment-plans/{id}/payments/{payment_id}/refunds`; it is refunded before any applied amount. `amount_unapplied_refunded` is the part of `amount_unapplied` already refunded; both read `0` when none. `amount_charged` is the total charged to the card in integer cents: `amount` plus `amount_unapplied` plus the credit card surcharge; it equals `amount` when nothing is unapplied and there is no credit card surcharge. `allocations` is empty unless the payment is `applied` or `partially_applied`, and an unapplied amount is not an allocation.
+
 - **Extra payment.** An amount below `remaining_balance`. With `apply_to` `principal`, when it reaches the principal, the installment amount and the due dates do not change: the plan ends sooner, and its last installment is reduced to what is left.
 - **Payoff.** An amount equal to `remaining_balance`. It pays every open installment, closes the rest of the schedule, and moves the plan to `paid_off`.
-- **Several charges.** A payment spanning several billed installments, or billed installments and the principal, is charged as one charge per installment invoice plus one charge for the principal, in that order. When the first charge is declined the request answers `402` `PAYMENT_DECLINED` and nothing is applied. When a later charge is declined, the charges already approved stay applied and the request answers `201` with the `amount` actually applied. When a later charge's outcome cannot be confirmed, the request still answers `201`, with `status` `processing` and `amount` `0` even when earlier charges of the same payment were approved: the payment is recorded only once every one of its charges is resolved. Do not retry with a new `Idempotency-Key`. Wait for `payment_plan.payment_succeeded`, which ChaChing sends with the amount actually applied once it finishes recording the payment, and read the plan's installments when the event does not arrive.
-- **The principal has its own invoice.** The principal part of a payment is recorded on its own invoice, returned by `GET /invoices` and `GET /invoices/{id}` with `installment: null` and `payment_plan_charge.kind` `extra_payment`, or `payoff` for a payoff. When the principal is recorded, ChaChing sends `invoice.payment_succeeded` for that invoice, and `invoice.payment_failed` when its card charge is declined. `payment_plan.payment_succeeded` reports the same money as the invoice and installment events: count money from one event family only, and use `payment_plan_charge.kind` and `payment_plan_charge.payment` to recognize the invoice events of a plan payment. A principal recorded before ChaChing raised these invoices has no invoice. A principal recorded while the account holds credit, while automatic or manual payment is switched off for the account, or while invoicing was unavailable at that moment is recorded without an invoice and raises no `invoice.*` event; `payment_plan.payment_succeeded` still reports it. Send the invoice by email with `POST /invoices/{id}/send`, create its hosted payment link with `GET /invoices/{id}/hosted-link` and download its PDF with `GET /invoices/{id}/pdf`.
+- **Several charges.** A payment spanning several billed installments, or billed installments and the principal, is charged as one charge per installment invoice plus one charge for the principal, in that order; with `apply_to` `upcoming_installments`, the next installments paid early are charged together, as one charge, in the place of the principal. When the first charge is declined the request answers `402` `PAYMENT_DECLINED` and nothing is applied. When a later charge is declined, the charges already approved stay applied and the request answers `201` with the `amount` actually applied. When a later charge's outcome cannot be confirmed, the request still answers `201`, with `status` `processing` and `amount` `0` even when earlier charges of the same payment were approved: the payment is recorded only once every one of its charges is resolved. Do not retry with a new `Idempotency-Key`. Wait for `payment_plan.payment_succeeded`, which ChaChing sends with the amount actually applied once it finishes recording the payment, and read the plan's installments when the event does not arrive.
+- **The principal has its own invoice.** The part of a payment that pays the next installments early (`apply_to` `upcoming_installments`) is charged and recorded the same way, on an invoice of its own. The principal part of a payment is recorded on its own invoice, returned by `GET /invoices` and `GET /invoices/{id}` with `installment: null` and `payment_plan_charge.kind` `extra_payment`, or `payoff` for a payoff. When the principal is recorded, ChaChing sends `invoice.payment_succeeded` for that invoice, and `invoice.payment_failed` when its card charge is declined. `payment_plan.payment_succeeded` reports the same money as the invoice and installment events: count money from one event family only, and use `payment_plan_charge.kind` and `payment_plan_charge.payment` to recognize the invoice events of a plan payment. A principal recorded before ChaChing raised these invoices has no invoice. A principal recorded while the account holds credit, while automatic or manual payment is switched off for the account, or while invoicing was unavailable at that moment is recorded without an invoice and raises no `invoice.*` event; `payment_plan.payment_succeeded` still reports it. Send the invoice by email with `POST /invoices/{id}/send`, create its hosted payment link with `GET /invoices/{id}/hosted-link` and download its PDF with `GET /invoices/{id}/pdf`.
 - A payment on a `past_due` or `defaulted` plan is never refused because of its status. While an earlier payment's schedule rebuild is still being completed, a further payment answers `409` `PAYMENT_PLAN_REPLAN_PENDING`; retry it later.
 
 The Payment object's `status` tells you how far the recording went:
@@ -448,6 +450,7 @@ curl -X POST https://stage-api.chaching.io/payment-plans/$PLAN_ID/payments/$PAYM
   "source": "api",
   "amount": 40,
   "amount_requested": 40,
+  "amount_unapplied": 0,
   "surcharge_amount": 1,
   "amount_returned": 41,
   "forgiven": false,
@@ -482,6 +485,8 @@ curl -X POST https://stage-api.chaching.io/payment-plans/$PLAN_ID/payments/$PAYM
     "surcharge_amount": 3,
     "amount_charged": 103,
     "amount_refunded": 40,
+    "amount_unapplied": 0,
+    "amount_unapplied_refunded": 0,
     "surcharge_status": "final",
     "external": false,
     "payment_method": "07c7a3f1-191d-4bbd-b7a6-25f6dafe1d0d",
@@ -519,6 +524,7 @@ curl -X POST https://stage-api.chaching.io/payment-plans/$PLAN_ID/payments/$PAYM
         "source": "api",
         "amount": 40,
         "amount_requested": 40,
+        "amount_unapplied": 0,
         "surcharge_amount": 1,
         "amount_returned": 41,
         "forgiven": false,
@@ -574,6 +580,8 @@ ChaChing has tested refunds on Dejavoo (iPOSpays) accounts. On another gateway t
 What is owed after a refund: the refunded amount is owed again. A refunded installment reads `refunded` with `amount_due`; a refunded down payment or deposit, the refunded principal part of a payment (an extra payment, or the unbilled part of a payoff), and a refund of a payment that paid only part of an installment not yet paid in full, are owed on the plan in the plan's `amount_due`; the part of a payment that paid an installment that is paid in full when you refund is owed on that installment. Nothing is charged automatically, no date changes, the plan keeps its status, and no reminder or late fee follows. Collect it with `POST /payment-plans/{id}/payments`, on a card of the customer or on a terminal: refunded amounts are paid first. A plan is not `paid_off` while a refunded amount is owed; a plan that was already `paid_off` stays `paid_off`.
 
 An unapplied amount is refunded first, is never owed, and forgive does not apply to it. A refund is partial when amount plus amount_unapplied is below amount_requested.
+
+In the Refund object, `amount` is the cents of plan amount returned, without the surcharge and without unapplied money; `amount_unapplied` is the cents of this refund that returned unapplied money, `0` when none; `amount_requested` is the cents requested, unapplied money included; `amount_returned` is the total cents returned to the card: `amount` plus `amount_unapplied` plus `surcharge_amount`.
 
 Forgive: send `forgive: true` to return the money without leaving anything owed. To forgive what is still owed from an earlier refund, call `POST /payment-plans/{id}/payments/{payment_id}/refunds/{refund_id}/forgive`. Forgiving cannot be undone. A refund that is still being confirmed cannot be forgiven yet: the call answers `409` `PAYMENT_PLAN_REFUND_PENDING` until the refund is final; retry shortly. Confirming a refund with the processor usually takes up to 24 hours.
 
@@ -631,6 +639,7 @@ curl -X POST https://stage-api.chaching.io/payment-plans/$PLAN_ID/payments/$PAYM
   "source": "api",
   "amount": 100,
   "amount_requested": 100,
+  "amount_unapplied": 0,
   "surcharge_amount": 3,
   "amount_returned": 103,
   "forgiven": true,
@@ -665,6 +674,8 @@ curl -X POST https://stage-api.chaching.io/payment-plans/$PLAN_ID/payments/$PAYM
     "surcharge_amount": 3,
     "amount_charged": 103,
     "amount_refunded": 100,
+    "amount_unapplied": 0,
+    "amount_unapplied_refunded": 0,
     "surcharge_status": "final",
     "external": false,
     "payment_method": "0fa737b9-5c41-4634-bcb8-29733bf51db7",
@@ -702,6 +713,7 @@ curl -X POST https://stage-api.chaching.io/payment-plans/$PLAN_ID/payments/$PAYM
         "source": "api",
         "amount": 100,
         "amount_requested": 100,
+        "amount_unapplied": 0,
         "surcharge_amount": 3,
         "amount_returned": 103,
         "forgiven": true,
@@ -784,7 +796,7 @@ Two fields report it, always present and in integer cents, on the Installment, P
 | **Field** | **Meaning** |
 | --- | --- |
 | `surcharge_amount` | The credit card surcharge added to the charge or charges. `0` when none was added, which is always the case for a debit card charge. |
-| `amount_charged` | The total charged to the card. It equals `amount_paid` on an installment, `amount` on a payment and on a transaction, and `amount_paid` on an invoice, when nothing was added and nothing was refunded. |
+| `amount_charged` | The total charged to the card. It equals `amount_paid` on an installment, `amount` on a payment and on a transaction, and `amount_paid` on an invoice, when nothing was added and nothing was refunded. On a payment it is `amount` plus `amount_unapplied` plus the credit card surcharge. |
 
 For example, a $1.00 payment that carried a 3 cent surcharge reads `amount: 100`, `surcharge_amount: 3`, `amount_charged: 103`; the installment that payment paid reads `amount_paid: 100`, `surcharge_amount: 3`, `amount_charged: 103`.
 
