@@ -1784,7 +1784,7 @@ The `terminal` object the event emits carries all 17 keys of the terminal object
 
 ### Schema — Gateway Reference
 
-`gateway_reference`, on the Installment and on each Payment Allocation, and each entry of `gateway_references`, on the Payment Plan Refund, carry the identifiers the gateway reported for the charge or refund; see [Reconcile with Your Processor](./payment-plans.md#reconcile-with-your-processor). `gateway_reference` is `null` when no gateway handled the money.
+`gateway_reference`, on the Installment and on each Payment Allocation, and each entry of `gateway_references`, on the Payment Plan Refund and on each entry of a Payment's `refunds`, carry the identifiers the gateway reported for the charge or refund; see [Reconcile with Your Processor](./payment-plans.md#reconcile-with-your-processor). `gateway_reference` is `null` when ChaChing holds no identifier for the money; that section lists the cases.
 
 | Field | Type | Nullable |
 | --- | --- | --- |

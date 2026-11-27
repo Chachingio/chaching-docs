@@ -351,14 +351,14 @@ This endpoint requires the account secret API key (`sk_`), or a platform key wit
 
 ## Reconcile with Your Processor
 
-Every charge and refund that went through a gateway carries the identifiers your processor reported for it, so you can match a ChaChing payment with its iPOSpays, NMI or Stripe record and print the authorization code on the receipts you send.
+A charge or refund that went through a gateway carries the identifiers your processor reported for it, so you can match a ChaChing payment with its iPOSpays, NMI or Stripe record and print the authorization code on the receipts you send.
 
 - The Installment carries `gateway_reference`: the charge its `card` describes, which is the most recent successful charge of a paid installment, else the most recent declined one.
 - Each entry of a Payment's `allocations` carries `gateway_reference`: the charge that paid it.
-- The Refund carries `gateway_references`: one entry per gateway refund, in the order the refund returned the money. It is `[]` when nothing was returned through a gateway, for example a forgiven refund.
+- The Refund carries `gateway_references`: one entry per gateway refund, in the order the refund returned the money. It is `[]` when nothing was returned through a gateway, for example a forgiven refund. Each entry of a Payment's `refunds` carries it too.
 - Each Transaction of `GET /transactions` carries `gateway_reference` for its charge, refund or void.
 
-`gateway_reference` is an object with five keys, `transaction_id`, `rrn`, `auth_code`, `batch_number` and `tpn`, each a string or `null`. It is `null` as a whole when no gateway handled the money: a payment recorded with `external: true` carries `null`.
+`gateway_reference` is an object with five keys, `transaction_id`, `rrn`, `auth_code`, `batch_number` and `tpn`, each a string or `null`. It is `null` as a whole when ChaChing holds no identifier for the money. A payment recorded with `external: true` always carries `null`. A charge or refund that a gateway handled reads `null` when the gateway returned no identifier, as on some declines, or when ChaChing could not read the identifiers at that moment: read the object again before you treat a `null` on a card charge as a missing record.
 
 | **Gateway** | **`transaction_id`** | **`rrn`** | **`auth_code`** | **`batch_number`** | **`tpn`** |
 | --- | --- | --- | --- | --- | --- |
@@ -809,7 +809,7 @@ For example, a $1.00 payment that carried a 3 cent surcharge reads `amount: 100`
 
 Before the payer pays, the payment page of an open invoice and the dashboard's `Charge customer` sheet tell them that a credit card surcharge can be added and that debit cards are not surcharged; [Credit Card Surcharges](./card-surcharges.md#what-your-customer-sees-before-paying) lists every notice and its exact wording.
 
-In the dashboard, the transactions list, the transaction details and the invoice details show the surcharge and the total charged for a charge that carried one. The dashboard's Total revenue and a customer's total spend include the surcharge for accounts that charge through Dejavoo. A refund lowers both by the refunded amount and, for a card charge ChaChing sent to iPOSpays, the surcharge returned with it.
+In the dashboard, the transactions list, the transaction details and the invoice details show the surcharge and the total charged for a charge that carried one. The dashboard's Total revenue and a customer's total spend include the surcharge of the card charges ChaChing sends to iPOSpays and of the payments taken on your terminal. A refund lowers both by the refunded amount and the surcharge returned with it. Both totals count everything you collected, payments recorded outside ChaChing included, so they can differ from your processor deposits.
 
 ---
 

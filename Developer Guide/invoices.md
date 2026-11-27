@@ -90,6 +90,8 @@ The Error Codes table above covers only the three routes that act on an existing
 
 # Written-off Invoices
 
+On the Invoice object, `amount_due` is the amount billed, after item adjustments; payments never reduce it. `amount_paid` is what was paid, net of refunds, and `amount_remaining` is the open balance: `amount_due` minus `amount_paid`. A paid invoice therefore still reads its billed amount in `amount_due`, with `amount_remaining` at `0`.
+
 `DELETE /invoices/{id}` on an open invoice that bills a subscription or payment plan period writes the invoice off instead of voiding it, and the dashboard can write off any open invoice. A written-off invoice keeps `status: open` and its amounts (`amount_due`, `amount_remaining`), reads `collection_status: written_off`, and ChaChing no longer collects it automatically. ChaChing sends `invoice.written_off` once, with the Invoice object, when the write-off is applied; it sends no `invoice.deleted` for it.
 
 A written-off invoice can still be paid through `PUT /invoices/{id}` or its hosted page. A successful payment removes the write-off: the invoice reads `paid` and `collection_status: null`. `collection_status` is always `null` on a paid or void invoice. A payment that is declined or not attempted leaves the invoice written off. When the outcome of a payment cannot be confirmed (`502 PAYMENT_OUTCOME_UNCONFIRMED`), the write-off is removed; once that payment has failed, write the invoice off again. When another payment attempt of the invoice is still pending, or the write-off cannot be put back, the invoice is left without its write-off: read the invoice, and write it off again only when it is still owed and no attempt is settling.

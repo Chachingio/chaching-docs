@@ -115,7 +115,7 @@ Clicking the three dots in a payment row opens a detailed payment timeline.
 | **Amount paid** | The payments the invoice received, net of refunds. Shown when the invoice is partly paid, and on a paid invoice. |
 | **Credit card surcharge** | The credit card surcharges the invoice's successful payments carried. Shown only when a payment carried one; see [Credit Card Surcharges](../../Developer%20Guide/card-surcharges.md). |
 | **Total charged** | What the cards were charged for the invoice's successful payments, surcharges included. Shown only when it differs from the amount paid. |
-| **Amount due** | What the customer still owes: the invoice total minus the payments received, net of refunds. $0.00 once the invoice is paid. |
+| **Amount due** | What the customer still owes: the invoice total minus the payments received, net of refunds. $0.00 once the invoice is paid or void. |
 ---
 ## Tax Calculation
 
