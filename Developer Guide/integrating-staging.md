@@ -53,7 +53,7 @@ Events a request causes, which you can provoke on staging:
 | `POST /invoices` | `invoice.created`, `invoice.finalized` |
 | `POST /invoices/{id}/send` | `invoice.sent` |
 | `PUT /invoices/{id}` | `invoice.payment_succeeded` or `invoice.payment_failed`; on a payment plan installment invoice also `payment_plan.payment_succeeded` or `payment_plan.payment_failed`, and `payment_plan.installment_paid` when it settles the installment |
-| `DELETE /invoices/{id}` | `invoice.deleted` for a voided invoice; `invoice.written_off` when an open invoice that bills a subscription or payment plan period is written off |
+| `DELETE /invoices/{id}` | `invoice.deleted` for a voided invoice; `invoice.written_off` when an open invoice that bills a subscription or payment plan period is written off; `payment_plan.installment_written_off` when that invoice bills a plan installment |
 | `POST /subscriptions`, `PATCH /subscriptions/{id}` | `subscription.created`, `subscription.updated` |
 | `POST /subscriptions/{id}/pause`, `/resume`, `DELETE /subscriptions/{id}` | `subscription.paused`, `subscription.resumed`, `subscription.canceled` |
 | `POST /payment-plans`, the terminal deposit, `POST /payment-plans/{id}/payments`, `POST /payment-plans/{id}/payments/{payment_id}/refunds` and its `/forgive`, `POST /payment-plans/{id}/cancel` | `payment_plan.created`, `payment_plan.activated`, `payment_plan.installment_paid`, `payment_plan.payment_succeeded`, `payment_plan.payment_failed`, `payment_plan.payment_refunded`, `payment_plan.refund_forgiven`, `payment_plan.completed`, `payment_plan.canceled` |
@@ -102,6 +102,7 @@ Every `payment_plan.*` event on staging:
 | `payment_plan.payment_failed` | `fail-installment`; a declined `POST /payment-plans/{id}/payments` |
 | `payment_plan.payment_refunded` | `POST /payment-plans/{id}/payments/{payment_id}/refunds` |
 | `payment_plan.refund_forgiven` | `POST /payment-plans/{id}/payments/{payment_id}/refunds/{refund_id}/forgive` |
+| `payment_plan.installment_written_off` | `DELETE /invoices/{id}` of an installment's open invoice |
 
 ### The real failure path
 
