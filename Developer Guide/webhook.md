@@ -1676,6 +1676,7 @@ carry the Payment Plan Refund object.
 | `failure_code` | string | yes |
 | `failure_message` | string | yes |
 | `card` | object | yes |
+| `gateway_reference` | object | yes |
 | `invoice` | string | yes |
 | `hosted_invoice_url` | string | yes |
 | `payments` | array | no |
@@ -1738,6 +1739,7 @@ The `terminal` object the event emits carries all 17 keys of the terminal object
 | `surcharge_status` | string, one of `final`, `unavailable` | no |
 | `invoice` | string | yes |
 | `hosted_invoice_url` | string | yes |
+| `gateway_reference` | object | yes |
 
 ### Schema — Plan Summary
 
@@ -1780,9 +1782,22 @@ The `terminal` object the event emits carries all 17 keys of the terminal object
 | `installments[].sequence` | integer | yes |
 | `installments[].amount` | integer | no |
 | `installments[].amount_due` | integer | no |
+| `gateway_references` | array | no |
 | `payment_plan_amount_due` | integer | no |
 | `payment_plan_status` | string, one of `awaiting_deposit`, `active`, `past_due`, `defaulted`, `paid_off`, `canceled` | no |
 | `created` | integer | no |
+
+### Schema — Gateway Reference
+
+`gateway_reference`, on the Installment and on each Payment Allocation, and each entry of `gateway_references`, on the Payment Plan Refund and on each entry of a Payment's `refunds`, carry the identifiers the gateway reported for the charge or refund; see [Reconcile with Your Processor](./payment-plans.md#reconcile-with-your-processor). `gateway_reference` is `null` when ChaChing holds no identifier for the money; that section lists the cases.
+
+| Field | Type | Nullable |
+| --- | --- | --- |
+| `transaction_id` | string | yes |
+| `rrn` | string | yes |
+| `auth_code` | string | yes |
+| `batch_number` | string | yes |
+| `tpn` | string | yes |
 
 ### Example
 
