@@ -158,6 +158,8 @@ Three routes are exceptions. `GET /customers/search` answers a bare array of at 
 
 A list's `search` parameter is a URL-encoded JSON object whose keys the API Reference lists for that list, for example `GET /invoices?search={"status":"open"}`. A key outside that list, a value outside its allowed values, and a `search` that is not a JSON object answer `400`. A status filter takes a comma-separated list, such as `{"status":"open,paid"}`. The shape of a `created` filter is the one the API Reference shows for that list: on transactions, webhook deliveries and terminal attempts it is an object such as `{"type":"inTheLast","amount":7,"unit":"days"}` (units `days`, `weeks`, `months`, `years`; also `equal`, `before` and `after` with `date`, and `between` with `from` and `to`).
 
+On transactions, `external` takes `true` or `false`: `{"external":true}` lists only the payments recorded outside ChaChing, and `{"external":false}` every other transaction.
+
 Send the `search` value URL-encoded. A `+` in a query string is read as a space, so send a literal plus sign, such as the one in `jenny.rosen+billing@example.com`, as `%2B`. Let your HTTP client's query encoder build the value, or use curl:
 
 ```bash

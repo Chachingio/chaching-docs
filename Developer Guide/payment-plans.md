@@ -349,6 +349,27 @@ The preview checks the customer, your payment gateway, the interval, `start_date
 
 This endpoint requires the account secret API key (`sk_`), or a platform key with `Chaching-Account`.
 
+## Reconcile with Your Processor
+
+Every charge and refund that went through a gateway carries the identifiers your processor reported for it, so you can match a ChaChing payment with its iPOSpays, NMI or Stripe record and print the authorization code on the receipts you send.
+
+- The Installment carries `gateway_reference`: the charge its `card` describes, which is the most recent successful charge of a paid installment, else the most recent declined one.
+- Each entry of a Payment's `allocations` carries `gateway_reference`: the charge that paid it.
+- The Refund carries `gateway_references`: one entry per gateway refund, in the order the refund returned the money. It is `[]` when nothing was returned through a gateway, for example a forgiven refund.
+- Each Transaction of `GET /transactions` carries `gateway_reference` for its charge, refund or void.
+
+`gateway_reference` is an object with five keys, `transaction_id`, `rrn`, `auth_code`, `batch_number` and `tpn`, each a string or `null`. It is `null` as a whole when no gateway handled the money: a payment recorded with `external: true` carries `null`.
+
+| **Gateway** | **`transaction_id`** | **`rrn`** | **`auth_code`** | **`batch_number`** | **`tpn`** |
+| --- | --- | --- | --- | --- | --- |
+| Dejavoo, a card ChaChing charged or refunded | the iPOSpays transaction id | the retrieval reference number | the approval code | the batch number | the TPN |
+| Dejavoo, a payment taken on a terminal | the iPOSpays transaction id | the retrieval reference number | the approval code | the batch number | the terminal's TPN |
+| Dejavoo, a refund of a terminal payment, and a refund recorded from your iPOSpays account | the iPOSpays transaction id | the retrieval reference number | `null` | `null` | the TPN |
+| NMI | the NMI transaction id | `null` | the authorization code | `null` | `null` |
+| Stripe | the PaymentIntent id (`pi_…`) | `null` | `null` | `null` | `null` |
+
+`batch_number` is the batch the gateway reported when it authorized the charge. ChaChing does not follow settlement, so it is not a settlement confirmation. `auth_code` is `null` on a declined charge. ChaChing's own receipt emails do not print the authorization code: when you send the receipts for the plans you manage, print `auth_code` on them.
+
 ---
 
 # Billing Time of Day
