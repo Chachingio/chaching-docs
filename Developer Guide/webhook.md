@@ -996,7 +996,7 @@ Events:
     "postal_code": "string",
     "state": "string"
   },
-  "customer_email": "string",
+  "customer_email": "string | null",
   "customer_name": "string",
   "customer_phone": "string",
   "due_date": 1672531200,

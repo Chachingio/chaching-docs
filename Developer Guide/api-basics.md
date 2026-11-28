@@ -70,7 +70,7 @@ When a request has several faults, the answer reports one of them; fix it and se
 
 ## Errors
 
-Every error body has `statusCode`, `message`, `timestamp` and `path`, and `error` when the failure has a stable code. Branch on `statusCode` and `error`, never on `message`.
+Every error body has `statusCode`, `message`, `timestamp` and `path`, and `error` when the failure has a stable code. Some codes add one field: `down_payment_invoice_id` with `PAYMENT_PLAN_DOWN_PAYMENT_UNCONFIRMED`; `closable_at` with `PAYMENT_PLAN_TERMINAL_ATTEMPT_TOO_RECENT` and, while the sale is still open at the terminal, with `PAYMENT_PLAN_TERMINAL_ATTEMPT_LIVE`. Branch on `statusCode` and `error`, never on `message`.
 
 - A validation failure (`400` for a body, a query or a path value) has `message` as an array of strings and no `error`.
 - A failure with a stable code has `error` in upper case and `message` as a string.
@@ -81,7 +81,7 @@ Every error body has `statusCode`, `message`, `timestamp` and `path`, and `error
 | --- | --- |
 | `400` | The request is invalid. |
 | `401` | The key is not valid. |
-| `402` | A charge or a refund was declined. |
+| `402` | A charge or a refund was declined, or the gateway refused to save a card. |
 | `403` | The key cannot use this route. |
 | `404` | The object does not exist for this account. |
 | `409` | The request conflicts with the object's state. |
